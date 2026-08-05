@@ -1,0 +1,176 @@
+import { useState } from 'react'
+import { CheckCircle2, X, Lock, CircleDot } from 'lucide-react'
+import MemberLayout from '../components/MemberLayout.jsx'
+import DeclineRoleModal from '../components/DeclineRoleModal.jsx'
+import { roleCatalog } from '../data/roleCatalog.js'
+import { getMeetings, selectRole, declineMyRole } from '../lib/mockRolesStore.js'
+
+function StatusBadge({ role, isMine }) {
+  if (isMine) {
+    return (
+      <span className="flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+        <CheckCircle2 size={13} />
+        Your role
+      </span>
+    )
+  }
+  if (role.status === 'open') {
+    return (
+      <span className="flex items-center gap-1 rounded-full bg-accent/15 px-3 py-1 text-xs font-semibold text-primary">
+        <CircleDot size={13} />
+        Open
+      </span>
+    )
+  }
+  if (role.status === 'auto') {
+    return (
+      <span className="rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold text-primary">
+        Auto-assigned to {role.takenBy}
+      </span>
+    )
+  }
+  return (
+    <span className="rounded-full bg-cream px-3 py-1 text-xs font-medium text-ink/50">
+      Taken by {role.takenBy}
+    </span>
+  )
+}
+
+export default function RoleSelectionPage() {
+  const [meetings, setMeetings] = useState(() => getMeetings())
+  const [activeMeetingId, setActiveMeetingId] = useState(() => getMeetings()[0].id)
+  const [isDeclineOpen, setIsDeclineOpen] = useState(false)
+
+  const activeMeeting = meetings.find((m) => m.id === activeMeetingId)
+  const myRole = activeMeeting.myRoleId
+    ? roleCatalog.find((r) => r.id === activeMeeting.myRoleId)
+    : null
+  const myRoleEntry = activeMeeting.myRoleId
+    ? activeMeeting.roles[activeMeeting.myRoleId]
+    : null
+
+  function handleSelectRole(roleId) {
+    selectRole(activeMeetingId, roleId)
+    setMeetings(getMeetings())
+  }
+
+  function handleDeclineConfirm() {
+    declineMyRole(activeMeetingId)
+    setMeetings(getMeetings())
+    setIsDeclineOpen(false)
+  }
+
+  return (
+    <MemberLayout>
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-10">
+        <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">
+          Select Your Role
+        </h1>
+        <p className="mt-1 text-sm text-ink/60">
+          Pick a role for one of the next three meetings.
+        </p>
+
+        {/* Meeting tabs */}
+        <div className="mt-6 flex gap-2 overflow-x-auto">
+          {meetings.map((m) => {
+            const active = m.id === activeMeetingId
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setActiveMeetingId(m.id)}
+                className={`shrink-0 rounded-2xl border px-4 py-2.5 text-left transition ${
+                  active
+                    ? 'border-primary bg-primary text-cream'
+                    : 'border-accent/30 bg-white text-ink hover:border-primary/50'
+                }`}
+              >
+                <p className="text-sm font-semibold">{m.label}</p>
+                <p className={`text-xs ${active ? 'text-cream/80' : 'text-ink/50'}`}>
+                  {m.dateLabel}
+                </p>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* My role card */}
+        {myRole && (
+          <div className="mt-6 rounded-3xl border border-primary/30 bg-white p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                  {myRoleEntry.status === 'auto' ? 'Auto-assigned' : 'Self-selected'}
+                </p>
+                <p className="mt-1 text-lg font-bold text-ink">{myRole.name}</p>
+                <p className="text-sm text-ink/60">{myRole.description}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDeclineOpen(true)}
+                className="flex items-center gap-1.5 rounded-full border border-accent/50 px-4 py-2 text-sm font-semibold text-ink/70 transition hover:bg-cream"
+              >
+                <X size={15} />
+                Decline Role
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Role list */}
+        <div className="mt-6 space-y-3">
+          {roleCatalog.map((role) => {
+            const entry = activeMeeting.roles[role.id]
+            const isMine = activeMeeting.myRoleId === role.id
+            const canSelect = entry.status === 'open' && !activeMeeting.myRoleId
+
+            return (
+              <div
+                key={role.id}
+                className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white p-4 ${
+                  isMine ? 'border-primary/40' : 'border-accent/25'
+                }`}
+              >
+                <div className="min-w-0">
+                  <p className="font-semibold text-ink">{role.name}</p>
+                  <p className="text-sm text-ink/60">{role.description}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <StatusBadge role={entry} isMine={isMine} />
+                  {canSelect && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectRole(role.id)}
+                      className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-cream shadow-sm shadow-primary/20 transition hover:bg-primary-dark"
+                    >
+                      Select this Role
+                    </button>
+                  )}
+                  {!canSelect && entry.status === 'open' && !isMine && (
+                    <span
+                      className="flex items-center gap-1 text-xs text-ink/40"
+                      title="You already have a role for this meeting"
+                    >
+                      <Lock size={12} />
+                      Unavailable
+                    </span>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {isDeclineOpen && myRole && (
+        <DeclineRoleModal
+          roleName={myRole.name}
+          meetingLabel={`${activeMeeting.dateLabel}, ${activeMeeting.time}`}
+          hoursUntilMeeting={activeMeeting.hoursUntilMeeting}
+          onClose={() => setIsDeclineOpen(false)}
+          onConfirm={handleDeclineConfirm}
+        />
+      )}
+    </MemberLayout>
+  )
+}
