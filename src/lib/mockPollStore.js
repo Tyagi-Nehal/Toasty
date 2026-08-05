@@ -6,6 +6,7 @@
 
 import { getMeeting } from './mockRolesStore.js'
 import { getAgenda } from './mockAgendaStore.js'
+import { pushNotification } from './mockNotificationsStore.js'
 
 const STATE_KEY = 'toasty_poll'
 const VOTES_KEY = 'toasty_poll_votes'
@@ -188,6 +189,11 @@ export function releasePoll() {
   const next = { ...state, isOpen: true, releasedAt: new Date().toISOString() }
   writeState(next)
   logAction(`Poll released to members for ${state.meetingLabel}`)
+  pushNotification({
+    type: 'poll_released',
+    message: 'Voting poll is now open — cast your vote before the meeting ends.',
+    link: '/poll',
+  })
   return next
 }
 

@@ -6,33 +6,27 @@ import {
   Check,
   X,
   ArrowRight,
-  UserCheck,
-  FileText,
-  Vote,
-  CreditCard,
   CheckCircle2,
   Images,
   Users,
-  ClipboardList,
   Bell,
 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import DeclineRoleModal from '../components/DeclineRoleModal.jsx'
 import { getAccount } from '../lib/mockAuth.js'
-import { memberStats, upcomingMeeting, notifications } from '../data/mockMemberData.js'
+import { memberStats, upcomingMeeting } from '../data/mockMemberData.js'
+import { getNotifications, markAllRead } from '../lib/mockNotificationsStore.js'
+import { notificationIcons, defaultNotificationIcon } from '../components/notificationMeta.js'
 
-const notificationIcons = {
-  role_assigned: UserCheck,
-  agenda_updated: FileText,
-  poll_released: Vote,
-  renewal_confirmed: CreditCard,
-  account_approved: CheckCircle2,
-}
-
-const notificationLinks = {
-  role_assigned: '/roles',
-  agenda_updated: '/agenda',
-  poll_released: '/poll',
+function timeAgo(isoString) {
+  const diffMs = Date.now() - new Date(isoString).getTime()
+  const mins = Math.floor(diffMs / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins} min${mins > 1 ? 's' : ''} ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`
+  const days = Math.floor(hours / 24)
+  return `${days} day${days > 1 ? 's' : ''} ago`
 }
 
 const quickLinks = [
@@ -48,6 +42,7 @@ export default function MemberDashboard() {
 
   const [roleStatus, setRoleStatus] = useState('pending') // 'pending' | 'confirmed' | 'declined'
   const [isDeclineOpen, setIsDeclineOpen] = useState(false)
+  const [notifications, setNotifications] = useState(() => getNotifications())
 
   useEffect(() => {
     if (location.hash === '#notifications') {
@@ -55,7 +50,11 @@ export default function MemberDashboard() {
     }
   }, [location.hash])
 
-  const unreadCount = notifications.filter((n) => !n.read).length
+  function handleMarkAllRead() {
+    markAllRead()
+    setNotifications(getNotifications())
+  }
+
   const progressPct = Math.min(
     100,
     Math.round((memberStats.pointsThisMonth / memberStats.topScore) * 100),
@@ -67,7 +66,7 @@ export default function MemberDashboard() {
   }
 
   return (
-    <MemberLayout unreadCount={unreadCount}>
+    <MemberLayout>
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
         <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">
           Hi {firstName}!
@@ -218,20 +217,30 @@ export default function MemberDashboard() {
             id="notifications"
             className="scroll-mt-24 rounded-3xl border border-accent/30 bg-white p-6"
           >
-            <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-              <Bell size={16} className="text-primary" />
-              Notifications
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <Bell size={16} className="text-primary" />
+                Notifications
+              </div>
+              {notifications.some((n) => !n.read) && (
+                <button
+                  type="button"
+                  onClick={handleMarkAllRead}
+                  className="text-xs font-semibold text-primary hover:underline"
+                >
+                  Mark all as read
+                </button>
+              )}
             </div>
             <ul className="mt-4 space-y-3">
               {notifications.map((n) => {
-                const Icon = notificationIcons[n.type] ?? ClipboardList
-                const link = notificationLinks[n.type]
-                const Wrapper = link ? Link : 'div'
+                const Icon = notificationIcons[n.type] ?? defaultNotificationIcon
+                const Wrapper = n.link ? Link : 'div'
                 return (
                   <li key={n.id}>
                     <Wrapper
-                      {...(link ? { to: link } : {})}
-                      className={`flex gap-3 ${link ? 'rounded-xl transition hover:bg-cream' : ''}`}
+                      {...(n.link ? { to: n.link } : {})}
+                      className={`flex gap-3 ${n.link ? 'rounded-xl transition hover:bg-cream' : ''}`}
                     >
                       <div
                         className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
@@ -248,7 +257,7 @@ export default function MemberDashboard() {
                         >
                           {n.message}
                         </p>
-                        <p className="mt-0.5 text-xs text-ink/40">{n.time}</p>
+                        <p className="mt-0.5 text-xs text-ink/40">{timeAgo(n.time)}</p>
                       </div>
                     </Wrapper>
                   </li>

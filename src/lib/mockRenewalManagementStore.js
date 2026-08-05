@@ -7,6 +7,7 @@
 import { renewals as seedRenewals } from '../data/mockRenewals.js'
 import { getAccount } from './mockAuth.js'
 import { getRenewalStatus, confirmRenewal as confirmMyRenewal } from './mockRenewalStore.js'
+import { pushNotification } from './mockNotificationsStore.js'
 
 const STORAGE_KEY = 'toasty_renewal_roster'
 const LOG_KEY = 'toasty_renewal_log'
@@ -82,6 +83,11 @@ export function confirmRenewal(id) {
   if (id === ME_ID) {
     confirmMyRenewal(CURRENT_TERM)
     logAction(`Treasurer confirmed renewal for ${getAccount()?.name} — +1 point`)
+    pushNotification({
+      type: 'renewal_confirmed',
+      message: 'Your membership renewal was confirmed by the Treasurer.',
+      link: '/profile',
+    })
     return
   }
   const list = readSeedRoster()

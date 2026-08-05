@@ -9,6 +9,7 @@
 
 import { initialMeetings } from '../data/mockMeetings.js'
 import { roleCatalog } from '../data/roleCatalog.js'
+import { pushNotification } from './mockNotificationsStore.js'
 
 const MEETINGS_KEY = 'toasty_meetings'
 const LOG_KEY = 'toasty_role_notifications'
@@ -127,6 +128,13 @@ export function overrideRole(meetingId, roleId, { status, takenBy }) {
       ? `VPE manually assigned ${roleName(roleId)} to ${takenBy} for ${meeting.dateLabel}`
       : `VPE reopened ${roleName(roleId)} for ${meeting.dateLabel}`,
   )
+  if (takenBy === '__me__') {
+    pushNotification({
+      type: 'role_assigned',
+      message: `You were assigned the role of ${roleName(roleId)} for ${meeting.dateLabel} by the VPE.`,
+      link: '/roles',
+    })
+  }
 }
 
 export function autoAssignMeeting(meetingId) {

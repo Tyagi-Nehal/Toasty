@@ -6,6 +6,7 @@
 
 import { getMeeting } from './mockRolesStore.js'
 import { roleCatalog } from '../data/roleCatalog.js'
+import { pushNotification } from './mockNotificationsStore.js'
 
 const STORAGE_KEY = 'toasty_agenda'
 const LOG_KEY = 'toasty_agenda_history'
@@ -124,6 +125,11 @@ export function sendAgendaToMembers() {
   const next = { ...state, sentAt: new Date().toISOString(), sentSnapshot: state.items }
   writeState(next)
   logAction(`Agenda sent to members for ${state.dateLabel}`)
+  pushNotification({
+    type: 'agenda_updated',
+    message: `The agenda for ${state.dateLabel} was sent to members.`,
+    link: '/agenda',
+  })
   return next
 }
 
