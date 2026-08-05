@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { Award, CalendarDays, ImageOff } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import PhotoGalleryModal from '../components/PhotoGalleryModal.jsx'
-import { photoMemories } from '../data/mockPhotoMemories.js'
+import { getPhotoMemories } from '../lib/mockPhotoMemoriesStore.js'
 
 export default function PhotoMemoriesPage() {
   const [dateFilter, setDateFilter] = useState('all')
   const [activeMeeting, setActiveMeeting] = useState(null)
+  const photoMemories = getPhotoMemories()
 
   const filteredMemories =
     dateFilter === 'all'
@@ -50,13 +51,15 @@ export default function PhotoMemoriesPage() {
                 key={meeting.id}
                 className="overflow-hidden rounded-3xl border border-accent/30 bg-white shadow-sm shadow-primary/5"
               >
-                <div className="aspect-video overflow-hidden">
-                  <img
-                    src={`https://picsum.photos/seed/${meeting.coverSeed}/600/400`}
-                    alt={`${meeting.dateLabel} group photo`}
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                  />
+                <div className="aspect-video overflow-hidden bg-cream">
+                  {meeting.photos[0] && (
+                    <img
+                      src={meeting.photos[0].src}
+                      alt={`${meeting.dateLabel} group photo`}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  )}
                 </div>
 
                 <div className="p-5">

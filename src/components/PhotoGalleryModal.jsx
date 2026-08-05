@@ -28,13 +28,13 @@ export default function PhotoGalleryModal({ meeting, onClose }) {
         </div>
 
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {meeting.photoSeeds.map((seed, i) => (
+          {meeting.photos.map((photo, i) => (
             <div
-              key={seed}
+              key={photo.id}
               className="aspect-square overflow-hidden rounded-2xl shadow-sm shadow-primary/10"
             >
               <img
-                src={`https://picsum.photos/seed/${seed}/500/500`}
+                src={photo.src}
                 alt={`${meeting.dateLabel} meeting photo ${i + 1}`}
                 className="h-full w-full object-cover"
                 loading="lazy"
@@ -52,11 +52,11 @@ export default function PhotoGalleryModal({ meeting, onClose }) {
             <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {meeting.certificates.map((cert) => (
                 <div
-                  key={cert.seed}
+                  key={cert.id}
                   className="overflow-hidden rounded-2xl border border-accent/30 bg-cream"
                 >
                   <img
-                    src={`https://picsum.photos/seed/${cert.seed}/400/300`}
+                    src={cert.src}
                     alt={cert.label}
                     className="h-28 w-full object-cover"
                     loading="lazy"

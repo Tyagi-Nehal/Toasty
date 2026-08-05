@@ -22,6 +22,7 @@ import AgendaEditorPage from './pages/AgendaEditorPage.jsx'
 import PollEditorPage from './pages/PollEditorPage.jsx'
 import NewMemberApprovalsPage from './pages/NewMemberApprovalsPage.jsx'
 import RenewalManagementPage from './pages/RenewalManagementPage.jsx'
+import PhotoUploadPage from './pages/PhotoUploadPage.jsx'
 import RegisterClubPage from './pages/RegisterClubPage.jsx'
 import FounderLoginPage from './pages/FounderLoginPage.jsx'
 import ClubReviewPage from './pages/ClubReviewPage.jsx'
@@ -195,7 +196,7 @@ function App() {
         path="/photo-upload"
         element={
           <RequireExcomRole role="VPPR">
-            <ComingSoon label="Photo Upload" />
+            <PhotoUploadPage />
           </RequireExcomRole>
         }
       />
