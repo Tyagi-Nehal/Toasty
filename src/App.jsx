@@ -24,6 +24,8 @@ import NewMemberApprovalsPage from './pages/NewMemberApprovalsPage.jsx'
 import RenewalManagementPage from './pages/RenewalManagementPage.jsx'
 import PhotoUploadPage from './pages/PhotoUploadPage.jsx'
 import RegisterClubPage from './pages/RegisterClubPage.jsx'
+import RegisterPresidentPage from './pages/RegisterPresidentPage.jsx'
+import RegisterExcomPage from './pages/RegisterExcomPage.jsx'
 import FounderLoginPage from './pages/FounderLoginPage.jsx'
 import ClubReviewPage from './pages/ClubReviewPage.jsx'
 import RequireApprovedAccount from './components/RequireApprovedAccount.jsx'
@@ -36,6 +38,15 @@ function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/club/:clubId" element={<ClubHomePage />} />
       <Route path="/register-club" element={<RegisterClubPage />} />
+      <Route path="/register-president" element={<RegisterPresidentPage />} />
+      <Route
+        path="/register-excom"
+        element={
+          <RequireExcomRole role="President">
+            <RegisterExcomPage />
+          </RequireExcomRole>
+        }
+      />
       <Route path="/founder-login" element={<FounderLoginPage />} />
       <Route path="/club-review" element={<ClubReviewPage />} />
       <Route path="/signup" element={<SignUpPage />} />

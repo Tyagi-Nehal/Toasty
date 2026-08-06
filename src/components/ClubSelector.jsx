@@ -98,9 +98,8 @@ export default function ClubSelector() {
                   <span className="flex items-center gap-1 text-xs text-ink/50">
                     <MapPin size={12} />
                     {club.district && club.area
-                      ? `${club.district} · ${club.area}`
-                      : club.location}{' '}
-                    · {club.members} members
+                      ? `District- ${club.district}, Area- ${club.area}, Members- ${club.members}`
+                      : `${club.location}, Members- ${club.members}`}
                   </span>
                 </button>
               </li>

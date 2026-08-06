@@ -21,7 +21,7 @@ const heroPhotos = [
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-cream">
-      <PublicNavbar />
+      <PublicNavbar showClubLinks />
 
       {/* Hero */}
       <section className="mx-auto max-w-6xl px-4 pt-12 pb-16 sm:px-6 sm:pt-16 lg:pt-20">

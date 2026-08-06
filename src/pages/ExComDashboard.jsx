@@ -8,6 +8,7 @@ import {
   ListChecks,
   MessageSquare,
   UserCheck2,
+  UserCog,
   Vote,
   Wallet,
 } from 'lucide-react'
@@ -21,6 +22,12 @@ import { activityFeed } from '../data/mockActivityFeed.js'
 import { getAllFeedback } from '../lib/mockFeedbackStore.js'
 
 const quickActionsByRole = [
+  {
+    role: 'President',
+    actions: [
+      { to: '/register-excom', label: 'Register Your EXCOM', icon: UserCog },
+    ],
+  },
   {
     role: 'VPE',
     actions: [

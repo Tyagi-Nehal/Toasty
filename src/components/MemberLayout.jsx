@@ -10,7 +10,6 @@ import {
   Images,
   Users,
   History,
-  FlaskConical,
   ClipboardCheck,
   FileText,
   FileEdit,
@@ -24,7 +23,7 @@ import {
 } from 'lucide-react'
 import Logo from './Logo.jsx'
 import Avatar from './Avatar.jsx'
-import { getAccount, clearAccount, setExcomRoles, hasExcomRole } from '../lib/mockAuth.js'
+import { getAccount, clearAccount, hasExcomRole } from '../lib/mockAuth.js'
 import { getNotifications, markAllRead } from '../lib/mockNotificationsStore.js'
 import { notificationIcons, defaultNotificationIcon } from './notificationMeta.js'
 
@@ -38,19 +37,6 @@ function timeAgo(isoString) {
   const days = Math.floor(hours / 24)
   return `${days} day${days > 1 ? 's' : ''} ago`
 }
-
-const excomRoleOptions = [
-  'Member',
-  'President',
-  'VPE',
-  'Ass. VPE',
-  'VPPR',
-  'Ass. VPPR',
-  'VPM',
-  'Secretary',
-  'Treasurer',
-  'SAA',
-]
 
 const baseNavLinks = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -93,12 +79,6 @@ export default function MemberLayout({ children }) {
   function handleLogout() {
     clearAccount()
     navigate('/')
-  }
-
-  function handleRoleSwitch(e) {
-    const value = e.target.value
-    setExcomRoles(value === 'Member' ? [] : [value])
-    window.location.reload()
   }
 
   function toggleNotifications() {
@@ -222,6 +202,7 @@ export default function MemberLayout({ children }) {
               <button
                 type="button"
                 onClick={() => setMenuOpen((v) => !v)}
+                aria-label="Account menu"
                 className="flex items-center gap-1.5 rounded-full py-1 pl-1 pr-2 transition hover:bg-white"
               >
                 <Avatar name={account?.name ?? 'Member'} size={32} />
@@ -260,24 +241,6 @@ export default function MemberLayout({ children }) {
                       <LogOut size={14} />
                       Log out
                     </button>
-
-                    <div className="mt-1 border-t border-accent/20 px-3 pb-1 pt-2">
-                      <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-ink/40">
-                        <FlaskConical size={11} />
-                        Prototype: view as
-                      </p>
-                      <select
-                        value={account?.excomRoles?.[0] ?? 'Member'}
-                        onChange={handleRoleSwitch}
-                        className="mt-1.5 w-full rounded-lg border border-accent/30 bg-cream px-2 py-1.5 text-xs text-ink focus:border-primary focus:outline-none"
-                      >
-                        {excomRoleOptions.map((role) => (
-                          <option key={role} value={role}>
-                            {role}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
                   </div>
                 </>
               )}

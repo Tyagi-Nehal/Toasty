@@ -1,4 +1,4 @@
-import { UserCheck, FileText, Vote, CreditCard, CheckCircle2, ClipboardList } from 'lucide-react'
+import { UserCheck, FileText, Vote, CreditCard, CheckCircle2, ClipboardList, HeartHandshake } from 'lucide-react'
 
 export const notificationIcons = {
   role_assigned: UserCheck,
@@ -6,6 +6,7 @@ export const notificationIcons = {
   poll_released: Vote,
   renewal_confirmed: CreditCard,
   account_approved: CheckCircle2,
+  visit_request: HeartHandshake,
 }
 
 export const defaultNotificationIcon = ClipboardList

@@ -9,6 +9,9 @@ import {
   History,
   Mail,
   CalendarDays,
+  HeartHandshake,
+  Phone,
+  CalendarClock,
 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import Avatar from '../components/Avatar.jsx'
@@ -22,6 +25,7 @@ import {
   recordGuestConverted,
   getApprovalsLog,
 } from '../lib/mockApprovalsStore.js'
+import { acknowledgeVisitRequest, getVisitRequests } from '../lib/mockVisitRequests.js'
 
 function timeAgo(isoString) {
   const diffMs = Date.now() - new Date(isoString).getTime()
@@ -38,6 +42,7 @@ export default function NewMemberApprovalsPage() {
   const [pending, setPending] = useState(() => getPendingApprovals())
   const [approved, setApproved] = useState(() => getApprovedMembers())
   const [log, setLog] = useState(() => getApprovalsLog())
+  const [visitRequests, setVisitRequests] = useState(() => getVisitRequests())
   const referralMembers = getReferralMembers()
   const [referralMember, setReferralMember] = useState(referralMembers[0])
   const [referralFeedback, setReferralFeedback] = useState(null)
@@ -46,6 +51,12 @@ export default function NewMemberApprovalsPage() {
     setPending(getPendingApprovals())
     setApproved(getApprovedMembers())
     setLog(getApprovalsLog())
+    setVisitRequests(getVisitRequests())
+  }
+
+  function handleAcknowledgeVisit(id) {
+    acknowledgeVisitRequest(id)
+    refresh()
   }
 
   function handleApprove(id) {
@@ -82,8 +93,86 @@ export default function NewMemberApprovalsPage() {
           </h1>
         </div>
         <p className="mt-1 text-sm text-ink/60">
-          Review pending signup requests and manage referral points.
+          Review pending signup requests, visit requests, and manage
+          referral points.
         </p>
+
+        {/* Visit requests */}
+        <div className="mt-7">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+            <HeartHandshake size={16} className="text-primary" />
+            Visit Requests{' '}
+            {visitRequests.filter((r) => r.status === 'pending').length > 0 &&
+              `(${visitRequests.filter((r) => r.status === 'pending').length})`}
+          </h2>
+
+          {visitRequests.length > 0 ? (
+            <div className="mt-3 space-y-3">
+              {visitRequests.map((request) => (
+                <div
+                  key={request.id}
+                  className="rounded-2xl border border-accent/30 bg-white p-4 sm:p-5"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <Avatar name={request.name} size={40} />
+                      <div>
+                        <p className="font-semibold text-ink">{request.name}</p>
+                        <p className="text-xs text-ink/50">
+                          Interested in visiting {request.clubName}
+                        </p>
+                      </div>
+                    </div>
+                    {request.status === 'acknowledged' ? (
+                      <span className="flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
+                        <Check size={13} />
+                        Acknowledged
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleAcknowledgeVisit(request.id)}
+                        className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
+                      >
+                        <Check size={14} />
+                        Acknowledge
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2 border-t border-accent/20 pt-3 text-xs text-ink/60 sm:grid-cols-4">
+                    <span className="flex items-center gap-1.5">
+                      <Mail size={12} className="shrink-0 text-primary" />
+                      {request.email}
+                    </span>
+                    {request.phone && (
+                      <span className="flex items-center gap-1.5">
+                        <Phone size={12} className="shrink-0 text-primary" />
+                        {request.phone}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1.5">
+                      <CalendarClock size={12} className="shrink-0 text-primary" />
+                      Visiting {request.visitDate}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <CalendarDays size={12} className="shrink-0 text-primary" />
+                      Submitted {new Date(request.submittedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </span>
+                  </div>
+                  {request.message && (
+                    <p className="mt-3 text-sm text-ink/70">{request.message}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-3 flex flex-col items-center gap-2 rounded-2xl border border-dashed border-accent/40 bg-white p-8 text-center">
+              <Inbox size={24} className="text-ink/30" />
+              <p className="text-sm text-ink/50">No visit requests yet.</p>
+            </div>
+          )}
+        </div>
 
         {/* Pending requests */}
         <div className="mt-7">

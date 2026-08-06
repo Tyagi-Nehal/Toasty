@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckCircle2, Landmark } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Landmark } from 'lucide-react'
 import PublicNavbar from '../components/PublicNavbar.jsx'
 import Footer from '../components/Footer.jsx'
 import { submitClubRegistration } from '../lib/mockClubRegistry.js'
 
 const initialForm = {
   name: '',
+  presidentEmail: '',
   clubName: '',
   clubId: '',
   district: '',
@@ -15,10 +16,18 @@ const initialForm = {
   foundedYear: '',
   city: '',
   country: '',
+  meetingDay: '',
+  meetingTime: '',
+  meetingLocation: '',
 }
+
+const weekdays = [
+  'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+]
 
 const fields = [
   { key: 'name', label: 'Your Name', placeholder: 'Full name of the President' },
+  { key: 'presidentEmail', label: 'Your Email', placeholder: 'you@example.com', type: 'email' },
   { key: 'clubName', label: "Club's Name", placeholder: 'e.g. MAHE Bengaluru Toastmasters Club' },
   { key: 'clubId', label: "Club's ID", placeholder: 'Official Toastmasters club ID' },
   { key: 'district', label: "Club's District", placeholder: 'e.g. Division D, District 41' },
@@ -27,11 +36,14 @@ const fields = [
   { key: 'foundedYear', label: 'Year the Club was Founded', placeholder: 'e.g. 2018' },
   { key: 'city', label: 'City', placeholder: 'e.g. Bengaluru' },
   { key: 'country', label: 'Country', placeholder: 'e.g. India' },
+  { key: 'meetingTime', label: 'Meeting Time', placeholder: '', type: 'time' },
+  { key: 'meetingLocation', label: 'Meeting Location', placeholder: 'e.g. Innovation Centre, MAHE Bengaluru Campus' },
 ]
 
 export default function RegisterClubPage() {
   const [form, setForm] = useState(initialForm)
   const [submitted, setSubmitted] = useState(false)
+  const [error, setError] = useState(null)
 
   function handleChange(e) {
     const { name, value } = e.target
@@ -40,7 +52,12 @@ export default function RegisterClubPage() {
 
   function handleSubmit(e) {
     e.preventDefault()
-    submitClubRegistration(form)
+    setError(null)
+    const result = submitClubRegistration(form)
+    if (result?.error) {
+      setError(result.error)
+      return
+    }
     setSubmitted(true)
   }
 
@@ -83,10 +100,50 @@ export default function RegisterClubPage() {
               by the Toasty team before your club appears in "Find your club."
             </p>
 
+            <div className="mt-4 rounded-2xl border border-dashed border-accent/40 bg-white px-4 py-3 text-sm text-ink/70">
+              Are you a registered president?{' '}
+              <Link
+                to="/register-president"
+                className="font-semibold text-primary hover:underline"
+              >
+                If not, click here.
+              </Link>
+            </div>
+
             <form
               onSubmit={handleSubmit}
-              className="mt-7 space-y-4 rounded-3xl border border-accent/30 bg-white p-6 sm:p-8"
+              className="mt-5 space-y-4 rounded-3xl border border-accent/30 bg-white p-6 sm:p-8"
             >
+              {error && (
+                <div className="flex items-center gap-2 rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                  <AlertCircle size={16} className="shrink-0" />
+                  {error}
+                </div>
+              )}
+
+              <div>
+                <label htmlFor="meetingDay" className="text-sm font-medium text-ink">
+                  Meeting Day
+                </label>
+                <select
+                  id="meetingDay"
+                  name="meetingDay"
+                  required
+                  value={form.meetingDay}
+                  onChange={handleChange}
+                  className="mt-1.5 w-full rounded-xl border border-accent/40 bg-cream px-4 py-2.5 text-sm text-ink focus:border-primary focus:outline-none"
+                >
+                  <option value="" disabled>
+                    Select a day
+                  </option>
+                  {weekdays.map((day) => (
+                    <option key={day} value={day}>
+                      {day}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {fields.map((field) => (
                 <div key={field.key}>
                   <label htmlFor={field.key} className="text-sm font-medium text-ink">

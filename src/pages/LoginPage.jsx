@@ -7,20 +7,27 @@ import PendingApprovalNotice from '../components/PendingApprovalNotice.jsx'
 import { getAccount, createAccount, setAccountStatus } from '../lib/mockAuth.js'
 
 export default function LoginPage() {
+  const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [account, setAccount] = useState(null)
   const navigate = useNavigate()
 
-  function handleGoogleLogin() {
+  function handleGoogleLogin(e) {
+    e.preventDefault()
+    if (!email.trim()) return
     setLoading(true)
     setTimeout(() => {
-      const existing = getAccount() ?? createAccount()
+      const existing = getAccount()
+      const result =
+        existing && existing.email === email.trim().toLowerCase()
+          ? existing
+          : createAccount({ email: email.trim().toLowerCase() })
       setLoading(false)
-      if (existing.status === 'approved') {
+      if (result.status === 'approved') {
         navigate('/dashboard')
         return
       }
-      setAccount(existing)
+      setAccount(result)
     }, 700)
   }
 
@@ -60,11 +67,29 @@ export default function LoginPage() {
             Log in with the Google account you used to sign up.
           </p>
 
-          <div className="mt-6">
+          <form onSubmit={handleGoogleLogin} className="mt-6 space-y-4">
+            <div>
+              <label htmlFor="email" className="text-sm font-medium text-ink">
+                Google Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="mt-1.5 w-full rounded-xl border border-accent/40 bg-cream px-4 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
+              />
+              <p className="mt-1 text-xs text-ink/40">
+                Prototype only — there's no real Google OAuth yet, so type
+                the email you want to sign in as.
+              </p>
+            </div>
             <GoogleButton onClick={handleGoogleLogin} loading={loading}>
               Continue with Google
             </GoogleButton>
-          </div>
+          </form>
         </>
       )}
 
