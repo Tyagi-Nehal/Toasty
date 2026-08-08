@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import {
   Building,
@@ -43,31 +43,40 @@ const presidentDetailFields = [
 ]
 
 export default function ClubReviewPage() {
-  const [pendingClubs, setPendingClubs] = useState(() => getPendingClubs())
-  const [pendingPresidents, setPendingPresidents] = useState(() => getPendingPresidents())
+  const [pendingClubs, setPendingClubs] = useState([])
+  const [pendingPresidents, setPendingPresidents] = useState([])
+
+  function refresh() {
+    getPendingClubs().then(setPendingClubs)
+    getPendingPresidents().then(setPendingPresidents)
+  }
+
+  useEffect(() => {
+    if (isFounder()) refresh()
+  }, [])
 
   if (!isFounder()) {
     return <Navigate to="/founder-login" replace />
   }
 
-  function handleApproveClub(id) {
-    approveClub(id)
-    setPendingClubs(getPendingClubs())
+  async function handleApproveClub(id) {
+    await approveClub(id)
+    refresh()
   }
 
-  function handleRejectClub(id) {
-    rejectClub(id)
-    setPendingClubs(getPendingClubs())
+  async function handleRejectClub(id) {
+    await rejectClub(id)
+    refresh()
   }
 
-  function handleApprovePresident(id) {
-    approvePresident(id)
-    setPendingPresidents(getPendingPresidents())
+  async function handleApprovePresident(id) {
+    await approvePresident(id)
+    refresh()
   }
 
-  function handleRejectPresident(id) {
-    rejectPresident(id)
-    setPendingPresidents(getPendingPresidents())
+  async function handleRejectPresident(id) {
+    await rejectPresident(id)
+    refresh()
   }
 
   return (

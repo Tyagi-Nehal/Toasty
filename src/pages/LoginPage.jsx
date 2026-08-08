@@ -16,12 +16,12 @@ export default function LoginPage() {
     e.preventDefault()
     if (!email.trim()) return
     setLoading(true)
-    setTimeout(() => {
+    setTimeout(async () => {
       const existing = getAccount()
       const result =
         existing && existing.email === email.trim().toLowerCase()
           ? existing
-          : createAccount({ email: email.trim().toLowerCase() })
+          : await createAccount({ email: email.trim().toLowerCase() })
       setLoading(false)
       if (result.status === 'approved') {
         navigate('/dashboard')

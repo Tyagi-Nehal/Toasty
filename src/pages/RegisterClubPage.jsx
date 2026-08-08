@@ -50,10 +50,10 @@ export default function RegisterClubPage() {
     setForm((prev) => ({ ...prev, [name]: value }))
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     setError(null)
-    const result = submitClubRegistration(form)
+    const result = await submitClubRegistration(form)
     if (result?.error) {
       setError(result.error)
       return

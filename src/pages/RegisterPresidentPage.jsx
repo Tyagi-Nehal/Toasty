@@ -24,9 +24,9 @@ export default function RegisterPresidentPage() {
     setForm((prev) => ({ ...prev, [name]: value }))
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    submitPresidentVerification(form)
+    await submitPresidentVerification(form)
     setSubmitted(true)
   }
 

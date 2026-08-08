@@ -26,8 +26,13 @@ export default function ClubHomePage() {
   const { clubId } = useParams()
   const [isJoinOpen, setIsJoinOpen] = useState(false)
   const [ackBanner, setAckBanner] = useState(null)
+  // undefined = still loading, null = confirmed not found, object = found
+  const [club, setClub] = useState(undefined)
 
-  const club = getClubById(clubId)
+  useEffect(() => {
+    setClub(undefined)
+    getClubById(clubId).then(setClub)
+  }, [clubId])
 
   useEffect(() => {
     setAckBanner(getMyPendingAcknowledgment())
@@ -36,6 +41,14 @@ export default function ClubHomePage() {
   function dismissBanner() {
     dismissMyAcknowledgment()
     setAckBanner(null)
+  }
+
+  if (club === undefined) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-cream">
+        <p className="text-sm text-ink/50">Loading club...</p>
+      </div>
+    )
   }
 
   if (!club) {

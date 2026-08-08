@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Never commit real DB credentials — only .env.example (no secrets) is tracked
+.env
+.env.local
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

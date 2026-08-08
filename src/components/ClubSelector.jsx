@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Search, MapPin, ChevronRight } from 'lucide-react'
 import { getApprovedClubs } from '../lib/mockClubRegistry.js'
@@ -7,9 +7,13 @@ export default function ClubSelector() {
   const [query, setQuery] = useState('')
   const [selectedClub, setSelectedClub] = useState(null)
   const [isOpen, setIsOpen] = useState(false)
+  const [clubs, setClubs] = useState([])
   const containerRef = useRef(null)
   const navigate = useNavigate()
-  const clubs = useMemo(() => getApprovedClubs(), [])
+
+  useEffect(() => {
+    getApprovedClubs().then(setClubs)
+  }, [])
 
   const filteredClubs = useMemo(() => {
     if (!query.trim()) return clubs

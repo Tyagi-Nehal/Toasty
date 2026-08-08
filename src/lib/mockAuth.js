@@ -1,5 +1,5 @@
 import { getRoleForEmail, getNameForEmail } from './mockExcomRegistry.js'
-import { isVerifiedPresident, getVerifiedPresidentName } from './mockClubRegistry.js'
+import { verifyPresident } from './mockClubRegistry.js'
 
 const STORAGE_KEY = 'toasty_mock_account'
 
@@ -22,14 +22,17 @@ export function getAccount() {
 // to simulate Google SSO, which wouldn't ask either), so for a role-matched
 // account the real name is looked up from whichever registry matched
 // instead of falling back to the generic default.
-export function createAccount({
+//
+// President verification now lives in the real (MySQL-backed) API, so this
+// is async — every caller needs `await`.
+export async function createAccount({
   name,
   email = 'alex.rao@learner.manipal.edu',
   appliedForExcom = false,
 } = {}) {
-  const isPresident = isVerifiedPresident(email)
+  const { verified: isPresident, name: presidentName } = await verifyPresident(email)
   const role = isPresident ? 'President' : getRoleForEmail(email)
-  const registeredName = isPresident ? getVerifiedPresidentName(email) : getNameForEmail(email)
+  const registeredName = isPresident ? presidentName : getNameForEmail(email)
   const resolvedName = name || registeredName || 'Alex Rao'
 
   const account = {

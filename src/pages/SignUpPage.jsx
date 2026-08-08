@@ -17,8 +17,8 @@ export default function SignUpPage() {
     e.preventDefault()
     if (!name.trim() || !email.trim()) return
     setLoading(true)
-    setTimeout(() => {
-      const created = createAccount({
+    setTimeout(async () => {
+      const created = await createAccount({
         name: name.trim(),
         email: email.trim().toLowerCase(),
         appliedForExcom,
