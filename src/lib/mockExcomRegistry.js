@@ -53,3 +53,11 @@ export function getRoleForEmail(email) {
   if (matches.length === 0) return null
   return matches[matches.length - 1].role
 }
+
+export function getNameForEmail(email) {
+  const normalized = normalizeEmail(email)
+  if (!normalized) return null
+  const matches = readAppointments().filter((a) => a.email === normalized)
+  if (matches.length === 0) return null
+  return matches[matches.length - 1].name
+}

@@ -1,5 +1,5 @@
-import { getRoleForEmail } from './mockExcomRegistry.js'
-import { isVerifiedPresident } from './mockClubRegistry.js'
+import { getRoleForEmail, getNameForEmail } from './mockExcomRegistry.js'
+import { isVerifiedPresident, getVerifiedPresidentName } from './mockClubRegistry.js'
 
 const STORAGE_KEY = 'toasty_mock_account'
 
@@ -17,15 +17,23 @@ export function getAccount() {
 // (mockClubRegistry.js), the account is auto-approved straight into that
 // role's dashboard — no generic VPM approval step. Anyone else falls back
 // to the existing generic member flow (pending until VPM approves).
+//
+// The Login page only ever collects an email (no name field — it's meant
+// to simulate Google SSO, which wouldn't ask either), so for a role-matched
+// account the real name is looked up from whichever registry matched
+// instead of falling back to the generic default.
 export function createAccount({
-  name = 'Alex Rao',
+  name,
   email = 'alex.rao@learner.manipal.edu',
   appliedForExcom = false,
 } = {}) {
-  const role = isVerifiedPresident(email) ? 'President' : getRoleForEmail(email)
+  const isPresident = isVerifiedPresident(email)
+  const role = isPresident ? 'President' : getRoleForEmail(email)
+  const registeredName = isPresident ? getVerifiedPresidentName(email) : getNameForEmail(email)
+  const resolvedName = name || registeredName || 'Alex Rao'
 
   const account = {
-    name,
+    name: resolvedName,
     email,
     status: role ? 'approved' : 'pending',
     excomRoles: role ? [role] : [],

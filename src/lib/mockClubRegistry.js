@@ -167,3 +167,12 @@ export function isVerifiedPresident(email) {
     (p) => p.status === 'approved' && p.email === normalized,
   )
 }
+
+export function getVerifiedPresidentName(email) {
+  const normalized = normalizeEmail(email)
+  if (!normalized) return null
+  const match = readPresidents().find(
+    (p) => p.status === 'approved' && p.email === normalized,
+  )
+  return match?.name ?? null
+}
