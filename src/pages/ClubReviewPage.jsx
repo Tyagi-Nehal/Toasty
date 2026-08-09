@@ -18,6 +18,7 @@ import PublicNavbar from '../components/PublicNavbar.jsx'
 import Footer from '../components/Footer.jsx'
 import { isFounderEmail } from '../lib/mockFounderAuth.js'
 import { useAuth } from '../lib/AuthContext.jsx'
+import { supabase } from '../lib/supabaseClient.js'
 import {
   approveClub,
   approvePresident,
@@ -94,6 +95,19 @@ export default function ClubReviewPage() {
       <PublicNavbar />
 
       <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
+        <div className="mb-6 flex items-center justify-between rounded-xl border border-accent/30 bg-white px-4 py-2.5 text-sm text-ink/60">
+          <span>
+            Signed in as founder: <span className="font-medium text-ink">{account.email}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => supabase.auth.signOut()}
+            className="font-semibold text-primary hover:underline"
+          >
+            Sign out
+          </button>
+        </div>
+
         {/* President verifications */}
         <div className="flex items-center gap-2">
           <ShieldCheck size={22} className="text-primary" />

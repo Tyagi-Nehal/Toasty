@@ -24,7 +24,10 @@ export default function SignUpPage() {
     if (appliedForExcom) sessionStorage.setItem('toasty_applied_for_excom', 'true')
     supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin + '/signup' },
+      options: {
+        redirectTo: window.location.origin + '/signup',
+        queryParams: { prompt: 'select_account' },
+      },
     })
   }
 

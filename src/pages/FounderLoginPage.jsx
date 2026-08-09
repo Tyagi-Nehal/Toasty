@@ -19,7 +19,10 @@ export default function FounderLoginPage() {
   function handleGoogleLogin() {
     supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin + '/founder-login' },
+      options: {
+        redirectTo: window.location.origin + '/founder-login',
+        queryParams: { prompt: 'select_account' },
+      },
     })
   }
 

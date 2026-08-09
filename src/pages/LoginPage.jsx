@@ -22,7 +22,10 @@ export default function LoginPage() {
   function handleGoogleLogin() {
     supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin + '/login' },
+      options: {
+        redirectTo: window.location.origin + '/login',
+        queryParams: { prompt: 'select_account' },
+      },
     })
   }
 
