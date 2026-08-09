@@ -43,15 +43,15 @@ export default function LoginPage() {
           <div className="mt-6">
             <GoogleButton onClick={handleGoogleLogin}>Continue with Google</GoogleButton>
           </div>
+
+          <p className="mt-6 text-center text-sm text-ink/60">
+            New to Toasty?{' '}
+            <Link to="/signup" className="font-semibold text-primary hover:underline">
+              Create an account
+            </Link>
+          </p>
         </>
       )}
-
-      <p className="mt-6 text-center text-sm text-ink/60">
-        New to Toasty?{' '}
-        <Link to="/signup" className="font-semibold text-primary hover:underline">
-          Create an account
-        </Link>
-      </p>
     </AuthLayout>
   )
 }

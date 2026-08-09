@@ -63,15 +63,15 @@ export default function SignUpPage() {
             ExCom requests are approved by the President; other member
             requests are approved by the VPM.
           </p>
+
+          <p className="mt-6 text-center text-sm text-ink/60">
+            Already have an account?{' '}
+            <Link to="/login" className="font-semibold text-primary hover:underline">
+              Log in
+            </Link>
+          </p>
         </>
       )}
-
-      <p className="mt-6 text-center text-sm text-ink/60">
-        Already have an account?{' '}
-        <Link to="/login" className="font-semibold text-primary hover:underline">
-          Log in
-        </Link>
-      </p>
     </AuthLayout>
   )
 }
