@@ -1,16 +1,13 @@
-// Prototype-only "founder" access (Isha & Nehal) for reviewing new club
-// registrations — no real auth exists yet, same mock pattern as mockAuth.js.
+// Founder access (Isha & Nehal, via the shared jointoasty@gmail.com Google
+// account) — real check against the signed-in email from AuthContext, no
+// separate login system. See supabase/schema.sql for the matching
+// database-side restriction (RLS UPDATE policies use the same email).
 
-const STORAGE_KEY = 'toasty_is_founder'
+const FOUNDER_EMAILS = (import.meta.env.VITE_FOUNDER_EMAILS ?? '')
+  .split(',')
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean)
 
-export function isFounder() {
-  return localStorage.getItem(STORAGE_KEY) === 'true'
-}
-
-export function setFounder(value) {
-  if (value) {
-    localStorage.setItem(STORAGE_KEY, 'true')
-  } else {
-    localStorage.removeItem(STORAGE_KEY)
-  }
+export function isFounderEmail(email) {
+  return FOUNDER_EMAILS.includes((email ?? '').trim().toLowerCase())
 }

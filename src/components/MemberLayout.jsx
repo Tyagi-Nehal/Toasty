@@ -23,7 +23,8 @@ import {
 } from 'lucide-react'
 import Logo from './Logo.jsx'
 import Avatar from './Avatar.jsx'
-import { getAccount, clearAccount, hasExcomRole } from '../lib/mockAuth.js'
+import { getAccount, hasExcomRole } from '../lib/mockAuth.js'
+import { supabase } from '../lib/supabaseClient.js'
 import { getNotifications, markAllRead } from '../lib/mockNotificationsStore.js'
 import { notificationIcons, defaultNotificationIcon } from './notificationMeta.js'
 
@@ -76,8 +77,8 @@ export default function MemberLayout({ children }) {
     ...excomNavLinks.filter((link) => hasExcomRole(link.role)),
   ]
 
-  function handleLogout() {
-    clearAccount()
+  async function handleLogout() {
+    await supabase.auth.signOut()
     navigate('/')
   }
 

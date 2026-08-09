@@ -16,7 +16,8 @@ import {
 } from 'lucide-react'
 import PublicNavbar from '../components/PublicNavbar.jsx'
 import Footer from '../components/Footer.jsx'
-import { isFounder } from '../lib/mockFounderAuth.js'
+import { isFounderEmail } from '../lib/mockFounderAuth.js'
+import { useAuth } from '../lib/AuthContext.jsx'
 import {
   approveClub,
   approvePresident,
@@ -43,6 +44,8 @@ const presidentDetailFields = [
 ]
 
 export default function ClubReviewPage() {
+  const { account, loading } = useAuth()
+  const isFounder = isFounderEmail(account?.email)
   const [pendingClubs, setPendingClubs] = useState([])
   const [pendingPresidents, setPendingPresidents] = useState([])
 
@@ -52,10 +55,17 @@ export default function ClubReviewPage() {
   }
 
   useEffect(() => {
-    if (isFounder()) refresh()
-  }, [])
+    if (isFounder) refresh()
+  }, [isFounder])
 
-  if (!isFounder()) {
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-cream">
+        <p className="text-sm text-ink/50">Loading...</p>
+      </div>
+    )
+  }
+  if (!isFounder) {
     return <Navigate to="/founder-login" replace />
   }
 

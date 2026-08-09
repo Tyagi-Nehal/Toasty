@@ -1,14 +1,26 @@
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ShieldCheck } from 'lucide-react'
+import { ShieldAlert, ShieldCheck } from 'lucide-react'
 import AuthLayout from '../components/AuthLayout.jsx'
-import { setFounder } from '../lib/mockFounderAuth.js'
+import GoogleButton from '../components/GoogleButton.jsx'
+import { useAuth } from '../lib/AuthContext.jsx'
+import { supabase } from '../lib/supabaseClient.js'
+import { isFounderEmail } from '../lib/mockFounderAuth.js'
 
 export default function FounderLoginPage() {
+  const { account } = useAuth()
   const navigate = useNavigate()
+  const isFounder = isFounderEmail(account?.email)
 
-  function handleContinue() {
-    setFounder(true)
-    navigate('/club-review')
+  useEffect(() => {
+    if (isFounder) navigate('/club-review')
+  }, [isFounder, navigate])
+
+  function handleGoogleLogin() {
+    supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/founder-login' },
+    })
   }
 
   return (
@@ -22,20 +34,31 @@ export default function FounderLoginPage() {
         Founder Access
       </h1>
       <p className="mt-1.5 text-center text-sm text-ink/60">
-        Reserved for the Toasty team (Isha &amp; Nehal) to review new club
-        registrations.
+        Reserved for the Toasty team to review new club registrations. Sign
+        in with the Toasty Google account.
       </p>
 
-      <button
-        type="button"
-        onClick={handleContinue}
-        className="mt-6 w-full rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
-      >
-        Continue as Founder
-      </button>
-      <p className="mt-3 text-center text-xs text-ink/40">
-        Prototype only — no real authentication yet.
-      </p>
+      {account && !isFounder ? (
+        <div className="mt-6 flex flex-col items-center gap-3">
+          <div className="flex flex-col items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-center">
+            <ShieldAlert size={20} className="text-red-600" />
+            <p className="text-sm font-medium text-red-700">
+              {account.email} isn't authorized as a Toasty founder.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => supabase.auth.signOut()}
+            className="text-sm font-semibold text-primary hover:underline"
+          >
+            Try a different Google account
+          </button>
+        </div>
+      ) : (
+        <div className="mt-6">
+          <GoogleButton onClick={handleGoogleLogin}>Continue with Google</GoogleButton>
+        </div>
+      )}
     </AuthLayout>
   )
 }

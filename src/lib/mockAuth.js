@@ -2,6 +2,7 @@ import { getRoleForEmail, getNameForEmail } from './mockExcomRegistry.js'
 import { verifyPresident } from './mockClubRegistry.js'
 
 const STORAGE_KEY = 'toasty_mock_account'
+const APPLIED_FOR_EXCOM_KEY = 'toasty_applied_for_excom'
 
 export function getAccount() {
   try {
@@ -12,28 +13,31 @@ export function getAccount() {
   }
 }
 
-// Role-based SSO: if the signing-in email was pre-registered by a President
+// Role-based SSO: if the signed-in email was pre-registered by a President
 // (mockExcomRegistry.js) or approved as a verified president
-// (mockClubRegistry.js), the account is auto-approved straight into that
-// role's dashboard — no generic VPM approval step. Anyone else falls back
-// to the existing generic member flow (pending until VPM approves).
+// (mockClubRegistry.js, Supabase-backed), the account is auto-approved
+// straight into that role's dashboard — no generic VPM approval step.
+// Anyone else falls back to the existing generic member flow (pending
+// until VPM approves).
 //
-// The Login page only ever collects an email (no name field — it's meant
-// to simulate Google SSO, which wouldn't ask either), so for a role-matched
-// account the real name is looked up from whichever registry matched
-// instead of falling back to the generic default.
-//
-// President verification now lives in the real (MySQL-backed) API, so this
-// is async — every caller needs `await`.
-export async function createAccount({
-  name,
-  email = 'alex.rao@learner.manipal.edu',
-  appliedForExcom = false,
-} = {}) {
+// Called from AuthContext.jsx whenever a real Supabase session resolves
+// (initial load or right after the Google OAuth redirect completes) — the
+// name/email come from the real Google identity, not a typed form.
+export async function syncAccountFromSupabaseUser(user) {
+  const email = (user.email ?? '').trim().toLowerCase()
+  const googleName = user.user_metadata?.full_name || user.user_metadata?.name || null
+
   const { verified: isPresident, name: presidentName } = await verifyPresident(email)
   const role = isPresident ? 'President' : getRoleForEmail(email)
   const registeredName = isPresident ? presidentName : getNameForEmail(email)
-  const resolvedName = name || registeredName || 'Alex Rao'
+  const resolvedName = registeredName || googleName || email
+
+  const existing = getAccount()
+  const appliedForExcom =
+    sessionStorage.getItem(APPLIED_FOR_EXCOM_KEY) === 'true'
+      ? true
+      : (existing?.email === email ? (existing.appliedForExcom ?? false) : false)
+  sessionStorage.removeItem(APPLIED_FOR_EXCOM_KEY)
 
   const account = {
     name: resolvedName,
@@ -44,14 +48,6 @@ export async function createAccount({
   }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(account))
   return account
-}
-
-export function setAccountStatus(status) {
-  const account = getAccount()
-  if (!account) return null
-  const updated = { ...account, status }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
-  return updated
 }
 
 export function hasExcomRole(role) {
