@@ -7,7 +7,6 @@ import {
   X,
   ArrowRight,
   CheckCircle2,
-  Images,
   Bell,
 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
@@ -27,11 +26,6 @@ function timeAgo(isoString) {
   const days = Math.floor(hours / 24)
   return `${days} day${days > 1 ? 's' : ''} ago`
 }
-
-const quickLinks = [
-  { to: '/agenda', label: 'Agenda', icon: CalendarDays },
-  { to: '/photos', label: 'Photo Memories', icon: Images },
-]
 
 export default function MemberDashboard() {
   const account = getAccount()
@@ -191,22 +185,6 @@ export default function MemberDashboard() {
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* Quick links */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              {quickLinks.map(({ to, label, icon: Icon }) => (
-                <Link
-                  key={to}
-                  to={to}
-                  className="flex items-center gap-3 rounded-2xl border border-accent/30 bg-white p-4 transition hover:border-primary hover:shadow-sm"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/20 text-primary">
-                    <Icon size={18} />
-                  </div>
-                  <span className="text-sm font-semibold text-ink">{label}</span>
-                </Link>
-              ))}
             </div>
           </div>
 
