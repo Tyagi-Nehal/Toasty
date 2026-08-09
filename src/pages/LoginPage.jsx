@@ -5,13 +5,18 @@ import GoogleButton from '../components/GoogleButton.jsx'
 import PendingApprovalNotice from '../components/PendingApprovalNotice.jsx'
 import { useAuth } from '../lib/AuthContext.jsx'
 import { supabase } from '../lib/supabaseClient.js'
+import { isFounderEmail } from '../lib/mockFounderAuth.js'
 
 export default function LoginPage() {
   const { account } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (account?.status === 'approved') navigate('/dashboard')
+    if (isFounderEmail(account?.email)) {
+      navigate('/founder-login')
+    } else if (account?.status === 'approved') {
+      navigate('/dashboard')
+    }
   }, [account, navigate])
 
   function handleGoogleLogin() {
@@ -23,7 +28,7 @@ export default function LoginPage() {
 
   return (
     <AuthLayout>
-      {account?.status === 'pending' ? (
+      {account?.status === 'pending' && !isFounderEmail(account?.email) ? (
         <PendingApprovalNotice email={account.email} />
       ) : (
         <>
