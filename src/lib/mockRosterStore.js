@@ -10,7 +10,8 @@
 import { supabase } from './supabaseClient.js'
 
 export async function getMembers() {
-  const { data } = await supabase.from('members').select('*').order('name')
+  const { data, error } = await supabase.from('members').select('*').order('name')
+  if (error) console.error('[mockRosterStore] getMembers failed:', error.message)
   return (data ?? []).map((m) => ({
     name: m.name,
     attendancePercentage: m.attendance_percentage,
@@ -19,10 +20,11 @@ export async function getMembers() {
 
 // Most-recent-first, so callers can just take the first match per member.
 export async function getRoleHistory() {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('role_history')
     .select('*')
     .order('meeting_date', { ascending: false })
+  if (error) console.error('[mockRosterStore] getRoleHistory failed:', error.message)
   return (data ?? []).map((r) => ({
     memberName: r.member_name,
     roleId: r.role_id,
@@ -31,11 +33,12 @@ export async function getRoleHistory() {
 }
 
 export async function recordRoleAssignment(memberName, roleId) {
-  await supabase.from('role_history').insert({
+  const { error } = await supabase.from('role_history').insert({
     member_name: memberName,
     role_id: roleId,
     meeting_date: new Date().toISOString().slice(0, 10),
   })
+  if (error) console.error('[mockRosterStore] recordRoleAssignment failed:', error.message)
 }
 
 function daysSinceScore(dateStr) {
