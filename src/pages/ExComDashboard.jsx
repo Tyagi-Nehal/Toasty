@@ -12,11 +12,12 @@ import {
   Vote,
   Wallet,
 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import MemberLayout from '../components/MemberLayout.jsx'
 import { getAccount, hasExcomRole } from '../lib/mockAuth.js'
 import { getMeetings } from '../lib/mockRolesStore.js'
-import { getPendingApprovals } from '../lib/mockApprovalsStore.js'
+import { getPendingSignups } from '../lib/mockMemberSignups.js'
 import { getRenewalRoster } from '../lib/mockRenewalManagementStore.js'
 import { activityFeed } from '../data/mockActivityFeed.js'
 import { getAllFeedback } from '../lib/mockFeedbackStore.js'
@@ -66,6 +67,13 @@ const quickActionsByRole = [
 
 export default function ExComDashboard() {
   const account = getAccount()
+  const [pendingSignupsCount, setPendingSignupsCount] = useState(0)
+
+  useEffect(() => {
+    if (hasExcomRole('VPM')) {
+      getPendingSignups().then((signups) => setPendingSignupsCount(signups.length))
+    }
+  }, [])
 
   if (!account?.excomRoles?.length) {
     return <Navigate to="/dashboard" replace />
@@ -106,7 +114,7 @@ export default function ExComDashboard() {
       to: '/approvals',
       icon: UserCheck2,
       label: 'Pending Approvals',
-      value: getPendingApprovals().length,
+      value: pendingSignupsCount,
       sub: 'new member requests',
     },
     {

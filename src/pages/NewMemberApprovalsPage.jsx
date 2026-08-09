@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   UserCheck2,
   Check,
@@ -16,15 +16,17 @@ import {
 import MemberLayout from '../components/MemberLayout.jsx'
 import Avatar from '../components/Avatar.jsx'
 import {
-  getPendingApprovals,
-  getApprovedMembers,
-  approveMember,
-  rejectMember,
   getReferralMembers,
   recordGuestAttended,
   recordGuestConverted,
   getApprovalsLog,
 } from '../lib/mockApprovalsStore.js'
+import {
+  getPendingSignups,
+  getApprovedSignups,
+  approveSignup,
+  rejectSignup,
+} from '../lib/mockMemberSignups.js'
 import { acknowledgeVisitRequest, getVisitRequests } from '../lib/mockVisitRequests.js'
 
 function timeAgo(isoString) {
@@ -39,8 +41,8 @@ function timeAgo(isoString) {
 }
 
 export default function NewMemberApprovalsPage() {
-  const [pending, setPending] = useState(() => getPendingApprovals())
-  const [approved, setApproved] = useState(() => getApprovedMembers())
+  const [pending, setPending] = useState([])
+  const [approved, setApproved] = useState([])
   const [log, setLog] = useState(() => getApprovalsLog())
   const [visitRequests, setVisitRequests] = useState(() => getVisitRequests())
   const referralMembers = getReferralMembers()
@@ -48,24 +50,28 @@ export default function NewMemberApprovalsPage() {
   const [referralFeedback, setReferralFeedback] = useState(null)
 
   function refresh() {
-    setPending(getPendingApprovals())
-    setApproved(getApprovedMembers())
+    getPendingSignups().then(setPending)
+    getApprovedSignups().then(setApproved)
     setLog(getApprovalsLog())
     setVisitRequests(getVisitRequests())
   }
+
+  useEffect(() => {
+    refresh()
+  }, [])
 
   function handleAcknowledgeVisit(id) {
     acknowledgeVisitRequest(id)
     refresh()
   }
 
-  function handleApprove(id) {
-    approveMember(id)
+  async function handleApprove(id) {
+    await approveSignup(id)
     refresh()
   }
 
-  function handleReject(id) {
-    rejectMember(id)
+  async function handleReject(id) {
+    await rejectSignup(id)
     refresh()
   }
 
@@ -198,7 +204,10 @@ export default function NewMemberApprovalsPage() {
                         </span>
                         <span className="flex items-center gap-1">
                           <CalendarDays size={11} />
-                          {request.dateRequested}
+                          {new Date(request.submittedAt).toLocaleDateString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                          })}
                         </span>
                       </div>
                     </div>

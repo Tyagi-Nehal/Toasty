@@ -174,3 +174,50 @@ create policy "excom president delete" on excom_appointments
 
 grant select, insert, delete on excom_appointments to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
+
+-- Real member signups (/signup, no role match -> pending). Previously
+-- the VPM's Approvals page showed static placeholder names, completely
+-- disconnected from real sign-ups, which lived only in the signing-up
+-- person's own browser. This table connects the two for real.
+create table if not exists member_signups (
+  id bigint generated always as identity primary key,
+  name text,
+  email text not null unique,
+  applied_for_excom boolean not null default false,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  submitted_at timestamptz not null default now()
+);
+
+alter table member_signups enable row level security;
+
+-- SELECT open to any signed-in user (same reasoning as excom_appointments
+-- — low sensitivity, and it means reading back your own freshly-inserted
+-- pending row just works, no special case needed). INSERT is self-service
+-- only, always starts pending. UPDATE (approve/reject) requires the
+-- signed-in JWT email to currently be a VPM (via excom_appointments) or
+-- an approved President (via clubs.president_email) — mirrors the
+-- "President is a superuser" rule already implemented client-side in
+-- hasExcomRole().
+drop policy if exists "signups authenticated select" on member_signups;
+create policy "signups authenticated select" on member_signups
+  for select to authenticated using (true);
+drop policy if exists "signups self insert" on member_signups;
+create policy "signups self insert" on member_signups
+  for insert to authenticated
+  with check (lower(auth.jwt() ->> 'email') = lower(email) and status = 'pending');
+drop policy if exists "signups vpm or president update" on member_signups;
+create policy "signups vpm or president update" on member_signups
+  for update to authenticated
+  using (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPM'
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
+grant select, insert, update on member_signups to authenticated;
+grant usage, select on all sequences in schema public to authenticated;

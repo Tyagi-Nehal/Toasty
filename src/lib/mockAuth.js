@@ -1,5 +1,6 @@
 import { getRoleForEmail, getNameForEmail } from './mockExcomRegistry.js'
 import { verifyPresident } from './mockClubRegistry.js'
+import { getOrCreateSignupStatus } from './mockMemberSignups.js'
 
 const STORAGE_KEY = 'toasty_mock_account'
 const APPLIED_FOR_EXCOM_KEY = 'toasty_applied_for_excom'
@@ -27,11 +28,6 @@ export async function syncAccountFromSupabaseUser(user) {
   const email = (user.email ?? '').trim().toLowerCase()
   const googleName = user.user_metadata?.full_name || user.user_metadata?.name || null
 
-  const { verified: isPresident, name: presidentName } = await verifyPresident(email)
-  const role = isPresident ? 'President' : await getRoleForEmail(email)
-  const registeredName = isPresident ? presidentName : await getNameForEmail(email)
-  const resolvedName = registeredName || googleName || email
-
   const existing = getAccount()
   const appliedForExcom =
     sessionStorage.getItem(APPLIED_FOR_EXCOM_KEY) === 'true'
@@ -39,10 +35,28 @@ export async function syncAccountFromSupabaseUser(user) {
       : (existing?.email === email ? (existing.appliedForExcom ?? false) : false)
   sessionStorage.removeItem(APPLIED_FOR_EXCOM_KEY)
 
+  const { verified: isPresident, name: presidentName } = await verifyPresident(email)
+  const role = isPresident ? 'President' : await getRoleForEmail(email)
+
+  let status, resolvedName
+  if (role) {
+    const registeredName = isPresident ? presidentName : await getNameForEmail(email)
+    resolvedName = registeredName || googleName || email
+    status = 'approved'
+  } else {
+    const signup = await getOrCreateSignupStatus({
+      email,
+      name: googleName || email,
+      appliedForExcom,
+    })
+    resolvedName = signup.name || googleName || email
+    status = signup.status
+  }
+
   const account = {
     name: resolvedName,
     email,
-    status: role ? 'approved' : 'pending',
+    status,
     excomRoles: role ? [role] : [],
     appliedForExcom,
   }

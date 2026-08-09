@@ -1,12 +1,8 @@
-// Mutable store for the VPM's New Member Approvals page — seeded from the
-// static placeholder pending list, then persisted to localStorage so
-// approve/reject actions actually stick (same pattern as
-// mockClubRegistry.js's founder-review flow). Also backs the ExCom
-// Dashboard's "Pending Approvals" count so both stay in sync.
+// Referral points + activity log for the VPM's New Member Approvals page.
+// Pending/approved signup data itself lives in mockMemberSignups.js
+// (Supabase-backed) — this file now only covers the cosmetic
+// point-tracking pieces, which stay localStorage-only for now.
 
-import { pendingApprovals as seedApprovals } from '../data/mockPendingApprovals.js'
-
-const STORAGE_KEY = 'toasty_member_approvals'
 const LOG_KEY = 'toasty_approvals_log'
 const MAX_LOG_ENTRIES = 25
 
@@ -16,20 +12,6 @@ const NAME_POOL = [
   'Riya', 'Kabir', 'Ananya', 'Dev', 'Meera', 'Neha', 'Vikram',
   'Priyanka', 'Rohan', 'Aarav', 'Diya', 'Simran', 'Arjun', 'Tanvi',
 ]
-
-function readState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch {
-    // fall through to seed
-  }
-  return seedApprovals.map((a) => ({ ...a, status: 'pending' }))
-}
-
-function writeState(list) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
-}
 
 function logAction(message) {
   const entry = { id: crypto.randomUUID(), message, time: new Date().toISOString() }
@@ -52,34 +34,6 @@ export function getApprovalsLog() {
   } catch {
     return []
   }
-}
-
-export function getPendingApprovals() {
-  return readState().filter((a) => a.status === 'pending')
-}
-
-export function getApprovedMembers() {
-  return readState().filter((a) => a.status === 'approved')
-}
-
-export function approveMember(id) {
-  const list = readState()
-  const entry = list.find((a) => a.id === id)
-  if (!entry) return
-  writeState(
-    list.map((a) =>
-      a.id === id ? { ...a, status: 'approved', approvedAt: new Date().toISOString() } : a,
-    ),
-  )
-  logAction(`VPM approved ${entry.name}'s signup request`)
-}
-
-export function rejectMember(id) {
-  const list = readState()
-  const entry = list.find((a) => a.id === id)
-  if (!entry) return
-  writeState(list.map((a) => (a.id === id ? { ...a, status: 'rejected' } : a)))
-  logAction(`VPM rejected ${entry.name}'s signup request`)
 }
 
 export function getReferralMembers() {
