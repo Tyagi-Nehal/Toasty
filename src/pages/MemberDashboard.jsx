@@ -8,7 +8,6 @@ import {
   ArrowRight,
   CheckCircle2,
   Images,
-  Users,
   Bell,
 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
@@ -32,7 +31,6 @@ function timeAgo(isoString) {
 const quickLinks = [
   { to: '/agenda', label: 'Agenda', icon: CalendarDays },
   { to: '/photos', label: 'Photo Memories', icon: Images },
-  { to: '/mentors', label: 'Mentor Page', icon: Users },
 ]
 
 export default function MemberDashboard() {
