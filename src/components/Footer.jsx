@@ -19,8 +19,8 @@ export default function Footer() {
           <ul className="mt-3 space-y-2 text-sm text-ink/60">
             <li className="flex items-center gap-2">
               <Mail size={16} className="text-primary" />
-              <a href="mailto:toasty@gmail.com" className="hover:text-primary">
-                toasty@gmail.com
+              <a href="mailto:jointoasty@gmail.com" className="hover:text-primary">
+                jointoasty@gmail.com
               </a>
             </li>
             <li>Built for Toastmasters clubs, everywhere.</li>
@@ -34,8 +34,8 @@ export default function Footer() {
             Built by Isha Karn &amp; Nehal Tyagi.
             <br />
             Contact:{' '}
-            <a href="mailto:toasty@gmail.com" className="hover:text-primary">
-              toasty@gmail.com
+            <a href="mailto:jointoasty@gmail.com" className="hover:text-primary">
+              jointoasty@gmail.com
             </a>
           </p>
         </div>

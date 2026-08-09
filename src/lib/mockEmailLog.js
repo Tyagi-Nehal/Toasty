@@ -6,7 +6,7 @@
 // (sendClubApprovalEmail) to swap in a real email send later.
 
 const STORAGE_KEY = 'toasty_mock_email_log'
-export const TOASTY_TEAM_EMAIL = 'toastytyka@gmail.com'
+export const TOASTY_TEAM_EMAIL = 'jointoasty@gmail.com'
 
 function readLog() {
   try {

@@ -74,7 +74,7 @@ export default function RegisterClubPage() {
             </h1>
             <p className="max-w-sm text-sm text-ink/60">
               We've notified the Toasty team at{' '}
-              <span className="font-medium text-ink">toastytyka@gmail.com</span>{' '}
+              <span className="font-medium text-ink">jointoasty@gmail.com</span>{' '}
               — they'll review your club's details and approve it soon. Once
               approved, {form.clubName || 'your club'} will appear in "Find
               your club" on the home page.
