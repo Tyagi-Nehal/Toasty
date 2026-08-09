@@ -8,8 +8,6 @@ import {
   ClipboardList,
   CalendarDays,
   Images,
-  Users,
-  History,
   ClipboardCheck,
   FileText,
   FileEdit,
@@ -45,8 +43,6 @@ const baseNavLinks = [
   { to: '/agenda', label: 'Agenda', icon: CalendarDays },
   { to: '/minutes', label: 'Minutes', icon: BookOpen },
   { to: '/photos', label: 'Photos', icon: Images },
-  { to: '/mentors', label: 'Mentors', icon: Users },
-  { to: '/past-excom', label: 'Past ExCom', icon: History },
 ]
 
 const excomNavLinks = [
