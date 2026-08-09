@@ -28,8 +28,8 @@ export async function syncAccountFromSupabaseUser(user) {
   const googleName = user.user_metadata?.full_name || user.user_metadata?.name || null
 
   const { verified: isPresident, name: presidentName } = await verifyPresident(email)
-  const role = isPresident ? 'President' : getRoleForEmail(email)
-  const registeredName = isPresident ? presidentName : getNameForEmail(email)
+  const role = isPresident ? 'President' : await getRoleForEmail(email)
+  const registeredName = isPresident ? presidentName : await getNameForEmail(email)
   const resolvedName = registeredName || googleName || email
 
   const existing = getAccount()

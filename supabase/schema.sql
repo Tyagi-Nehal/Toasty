@@ -113,3 +113,64 @@ grant usage, select on all sequences in schema public to anon, authenticated;
 -- a much smaller residual than the anonymous/scraping case this closes.)
 revoke select on president_verifications from anon;
 grant select (name, email, status) on president_verifications to anon;
+
+-- ExCom pre-registration (President registers ExCom members by role +
+-- email; that email lands straight on their role's dashboard on first
+-- sign-in). Was localStorage-only, per-browser — moved here so it works
+-- across devices for real: a President registering someone from their
+-- laptop needs that person to be recognized when they sign in from their
+-- own phone.
+create table if not exists excom_appointments (
+  id bigint generated always as identity primary key,
+  role text not null,
+  name text not null,
+  email text not null,
+  appointed_by_email text not null,
+  appointed_at timestamptz not null default now()
+);
+
+-- Same shape as check_president_verified — only a genuinely approved
+-- president's email may appear as the appointer.
+create or replace function check_appointer_is_verified_president()
+returns trigger as $$
+begin
+  if not exists (
+    select 1 from president_verifications
+    where lower(email) = lower(new.appointed_by_email)
+      and status = 'approved'
+  ) then
+    raise exception 'You are not a registered president.';
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_check_appointer on excom_appointments;
+create trigger trg_check_appointer
+  before insert on excom_appointments
+  for each row execute function check_appointer_is_verified_president();
+
+alter table excom_appointments enable row level security;
+
+-- No anon access at all here (unlike clubs/president_verifications,
+-- there's no public-facing form for this — only the President's own
+-- signed-in /register-excom page). SELECT is open to any signed-in user
+-- (role/name/email only, no PII like phone numbers) — matches "who's on
+-- ExCom" being reasonably public knowledge to other members, while still
+-- requiring a real sign-in. INSERT/DELETE require the signed-in JWT
+-- email to match appointed_by_email, so a president can only register or
+-- remove appointments under their own email.
+drop policy if exists "excom authenticated select" on excom_appointments;
+create policy "excom authenticated select" on excom_appointments
+  for select to authenticated using (true);
+drop policy if exists "excom president insert" on excom_appointments;
+create policy "excom president insert" on excom_appointments
+  for insert to authenticated
+  with check (lower(auth.jwt() ->> 'email') = lower(appointed_by_email));
+drop policy if exists "excom president delete" on excom_appointments;
+create policy "excom president delete" on excom_appointments
+  for delete to authenticated
+  using (lower(auth.jwt() ->> 'email') = lower(appointed_by_email));
+
+grant select, insert, delete on excom_appointments to authenticated;
+grant usage, select on all sequences in schema public to authenticated;

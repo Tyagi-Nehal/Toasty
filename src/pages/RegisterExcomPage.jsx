@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckCircle2, Plus, Trash2, UserCog } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Plus, Trash2, UserCog } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import { getAccount } from '../lib/mockAuth.js'
 import { getExcomAppointments, registerExcomMember, removeExcomMember } from '../lib/mockExcomRegistry.js'
@@ -21,8 +21,17 @@ function emptyRow() {
 export default function RegisterExcomPage() {
   const account = getAccount()
   const [rows, setRows] = useState([])
-  const [appointments, setAppointments] = useState(() => getExcomAppointments())
+  const [appointments, setAppointments] = useState([])
   const [justSaved, setJustSaved] = useState(false)
+  const [error, setError] = useState(null)
+
+  function refresh() {
+    getExcomAppointments().then(setAppointments)
+  }
+
+  useEffect(() => {
+    refresh()
+  }, [])
 
   function addRow() {
     setRows((prev) => [...prev, emptyRow()])
@@ -36,25 +45,30 @@ export default function RegisterExcomPage() {
     setRows((prev) => prev.filter((r) => r.key !== key))
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
+    setError(null)
     const validRows = rows.filter((r) => r.name.trim() && r.email.trim())
     for (const row of validRows) {
-      registerExcomMember({
+      const result = await registerExcomMember({
         role: row.role,
         name: row.name.trim(),
         email: row.email.trim().toLowerCase(),
         appointedByEmail: account?.email,
       })
+      if (result?.error) {
+        setError(result.error)
+        return
+      }
     }
     setRows([])
-    setAppointments(getExcomAppointments())
+    refresh()
     setJustSaved(true)
   }
 
-  function handleRemoveAppointment(id) {
-    removeExcomMember(id)
-    setAppointments(getExcomAppointments())
+  async function handleRemoveAppointment(id) {
+    await removeExcomMember(id)
+    refresh()
   }
 
   return (
@@ -134,6 +148,13 @@ export default function RegisterExcomPage() {
             </button>
           )}
         </form>
+
+        {error && (
+          <p className="mt-3 flex items-center gap-1.5 text-sm font-medium text-red-700">
+            <AlertCircle size={15} />
+            {error}
+          </p>
+        )}
 
         {justSaved && (
           <p className="mt-3 flex items-center gap-1.5 text-sm font-medium text-primary">
