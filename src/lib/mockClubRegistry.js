@@ -99,32 +99,51 @@ export async function submitClubRegistration(form) {
   } = form
 
   const normalizedEmail = (presidentEmail ?? '').trim().toLowerCase()
+  const id = slugify(clubName)
 
-  const { data, error } = await supabase
-    .from('clubs')
-    .insert({
-      id: slugify(clubName),
-      name: clubName,
-      club_id: clubId,
-      district,
-      area,
-      members: Number(memberCount) || 0,
-      founded_year: foundedYear,
-      city,
-      country,
-      location: `${city}, ${country}`,
-      president_name: name,
-      president_email: normalizedEmail,
-      meeting_day: meetingDay,
-      meeting_time: meetingTime,
-      meeting_location: meetingLocation,
-    })
-    .select()
-    .single()
+  // Deliberately not chaining .select() here — the newly inserted row is
+  // 'pending', which anon can no longer read back (RLS only exposes
+  // approved rows publicly). We already have everything needed to build
+  // the confirmation object from `form` itself, so no read-back required.
+  const { error } = await supabase.from('clubs').insert({
+    id,
+    name: clubName,
+    club_id: clubId,
+    district,
+    area,
+    members: Number(memberCount) || 0,
+    founded_year: foundedYear,
+    city,
+    country,
+    location: `${city}, ${country}`,
+    president_name: name,
+    president_email: normalizedEmail,
+    meeting_day: meetingDay,
+    meeting_time: meetingTime,
+    meeting_location: meetingLocation,
+  })
 
   if (error) return { error: error.message ?? 'Something went wrong. Please try again.' }
 
-  const club = toClub(data)
+  const club = {
+    id,
+    name: clubName,
+    clubId,
+    district,
+    area,
+    members: Number(memberCount) || 0,
+    foundedYear,
+    city,
+    country,
+    location: `${city}, ${country}`,
+    presidentName: name,
+    presidentEmail: normalizedEmail,
+    meetingDay,
+    meetingTime,
+    meetingLocation,
+    status: 'pending',
+    submittedAt: new Date().toISOString(),
+  }
   sendClubApprovalEmail(club)
   return club
 }
@@ -144,18 +163,28 @@ export async function rejectClub(id) {
 
 export async function submitPresidentVerification(form) {
   const { name, memberId, clubName, email, phone } = form
-  const { data } = await supabase
-    .from('president_verifications')
-    .insert({
-      name,
-      member_id: memberId,
-      club_name: clubName,
-      email: (email ?? '').trim().toLowerCase(),
-      phone,
-    })
-    .select()
-    .single()
-  return data ? toPresident(data) : null
+  const normalizedEmail = (email ?? '').trim().toLowerCase()
+
+  // No .select() after insert, same reasoning as submitClubRegistration —
+  // the row is 'pending' and anon can no longer read it back.
+  const { error } = await supabase.from('president_verifications').insert({
+    name,
+    member_id: memberId,
+    club_name: clubName,
+    email: normalizedEmail,
+    phone,
+  })
+  if (error) return null
+
+  return {
+    name,
+    memberId,
+    clubName,
+    email: normalizedEmail,
+    phone,
+    status: 'pending',
+    submittedAt: new Date().toISOString(),
+  }
 }
 
 export async function getPendingPresidents() {
