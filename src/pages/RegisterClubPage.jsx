@@ -17,13 +17,16 @@ const initialForm = {
   city: '',
   country: '',
   meetingDay: '',
-  meetingTime: '',
+  meetingTime: '6:00 PM',
   meetingLocation: '',
 }
 
 const weekdays = [
   'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
 ]
+
+const hours = Array.from({ length: 12 }, (_, i) => String(i + 1))
+const minutes = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'))
 
 const fields = [
   { key: 'name', label: 'Your Name', placeholder: 'Full name of the President' },
@@ -36,7 +39,6 @@ const fields = [
   { key: 'foundedYear', label: 'Year the Club was Founded', placeholder: 'e.g. 2018' },
   { key: 'city', label: 'City', placeholder: 'e.g. Bengaluru' },
   { key: 'country', label: 'Country', placeholder: 'e.g. India' },
-  { key: 'meetingTime', label: 'Meeting Time', placeholder: '', type: 'time' },
   { key: 'meetingLocation', label: 'Meeting Location', placeholder: 'e.g. Innovation Centre, MAHE Bengaluru Campus' },
 ]
 
@@ -44,10 +46,28 @@ export default function RegisterClubPage() {
   const [form, setForm] = useState(initialForm)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState(null)
+  const [meetingHour, setMeetingHour] = useState('6')
+  const [meetingMinute, setMeetingMinute] = useState('00')
+  const [meetingPeriod, setMeetingPeriod] = useState('PM')
 
   function handleChange(e) {
     const { name, value } = e.target
     setForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  function handleMeetingTimeChange(part, value) {
+    const next = {
+      hour: part === 'hour' ? value : meetingHour,
+      minute: part === 'minute' ? value : meetingMinute,
+      period: part === 'period' ? value : meetingPeriod,
+    }
+    if (part === 'hour') setMeetingHour(value)
+    if (part === 'minute') setMeetingMinute(value)
+    if (part === 'period') setMeetingPeriod(value)
+    setForm((prev) => ({
+      ...prev,
+      meetingTime: `${next.hour}:${next.minute} ${next.period}`,
+    }))
   }
 
   async function handleSubmit(e) {
@@ -142,6 +162,42 @@ export default function RegisterClubPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-ink">Meeting Time</label>
+                <div className="mt-1.5 flex gap-2">
+                  <select
+                    value={meetingHour}
+                    onChange={(e) => handleMeetingTimeChange('hour', e.target.value)}
+                    className="w-full rounded-xl border border-accent/40 bg-cream px-3 py-2.5 text-sm text-ink focus:border-primary focus:outline-none"
+                  >
+                    {hours.map((h) => (
+                      <option key={h} value={h}>
+                        {h}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={meetingMinute}
+                    onChange={(e) => handleMeetingTimeChange('minute', e.target.value)}
+                    className="w-full rounded-xl border border-accent/40 bg-cream px-3 py-2.5 text-sm text-ink focus:border-primary focus:outline-none"
+                  >
+                    {minutes.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={meetingPeriod}
+                    onChange={(e) => handleMeetingTimeChange('period', e.target.value)}
+                    className="w-full rounded-xl border border-accent/40 bg-cream px-3 py-2.5 text-sm text-ink focus:border-primary focus:outline-none"
+                  >
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
+                  </select>
+                </div>
               </div>
 
               {fields.map((field) => (
