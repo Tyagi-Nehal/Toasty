@@ -203,8 +203,15 @@ export default function MemberLayout({ children }) {
                 className="flex items-center gap-1.5 rounded-full py-1 pl-1 pr-2 transition hover:bg-white"
               >
                 <Avatar name={account?.name ?? 'Member'} size={32} />
-                <span className="hidden text-sm font-medium text-ink sm:block">
-                  {account?.name?.split(' ')[0] ?? 'Member'}
+                <span className="hidden items-center gap-1.5 sm:flex">
+                  <span className="text-sm font-medium text-ink">
+                    {account?.name?.split(' ')[0] ?? 'Member'}
+                  </span>
+                  {isExcomMember && (
+                    <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                      {account.excomRoles[0]}
+                    </span>
+                  )}
                 </span>
                 <ChevronDown size={14} className="text-ink/40" />
               </button>
