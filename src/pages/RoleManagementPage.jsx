@@ -9,12 +9,13 @@ import {
   getNotifications,
   overrideRole,
 } from '../lib/mockRolesStore.js'
+import { scoringWeights } from '../lib/mockRosterStore.js'
 
 const algorithmParams = [
-  { label: 'Attendance weight', value: 30 },
-  { label: 'Role recency weight', value: 25 },
-  { label: 'Frequency weight', value: 25 },
-  { label: 'Projects completed weight', value: 20 },
+  { label: 'Attendance weight', value: Math.round(scoringWeights.attendance * 100) },
+  { label: 'Role recency weight', value: Math.round(scoringWeights.roleRecency * 100) },
+  { label: 'Frequency weight', value: Math.round(scoringWeights.frequency * 100) },
+  { label: 'Projects completed weight', value: null },
 ]
 
 const statusLabels = {
@@ -47,8 +48,8 @@ export default function RoleManagementPage() {
     setNotifications(getNotifications())
   }
 
-  function handleAutoAssign() {
-    autoAssignMeeting(activeMeetingId)
+  async function handleAutoAssign() {
+    await autoAssignMeeting(activeMeetingId)
     refresh()
   }
 
@@ -112,18 +113,23 @@ export default function RoleManagementPage() {
                 <SlidersHorizontal size={16} className="text-primary" />
                 Auto-Assign Algorithm Parameters
               </div>
-              <p className="mt-1 text-xs text-ink/50">Read-only for now.</p>
+              <p className="mt-1 text-xs text-ink/50">
+                Used by "Trigger Auto-Assign Now" to pick real members based on
+                attendance and role history.
+              </p>
               <div className="mt-4 space-y-3">
                 {algorithmParams.map((param) => (
                   <div key={param.label}>
                     <div className="flex items-center justify-between text-xs text-ink/60">
                       <span>{param.label}</span>
-                      <span className="font-medium text-ink">{param.value}%</span>
+                      <span className="font-medium text-ink">
+                        {param.value === null ? 'No data source yet' : `${param.value}%`}
+                      </span>
                     </div>
                     <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-cream">
                       <div
-                        className="h-full rounded-full bg-primary"
-                        style={{ width: `${param.value}%` }}
+                        className={`h-full rounded-full ${param.value === null ? 'bg-ink/15' : 'bg-primary'}`}
+                        style={{ width: `${param.value ?? 0}%` }}
                       />
                     </div>
                   </div>

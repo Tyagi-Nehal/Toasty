@@ -10,16 +10,16 @@
 import { initialMeetings } from '../data/mockMeetings.js'
 import { roleCatalog } from '../data/roleCatalog.js'
 import { pushNotification } from './mockNotificationsStore.js'
+import {
+  getMembers,
+  getRoleHistory,
+  recordRoleAssignment,
+  scoreMemberForRole,
+} from './mockRosterStore.js'
 
 const MEETINGS_KEY = 'toasty_meetings'
 const LOG_KEY = 'toasty_role_notifications'
 const MAX_LOG_ENTRIES = 25
-
-// Generic placeholder pool established across the mock data — never real names.
-const NAME_POOL = [
-  'Riya', 'Kabir', 'Ananya', 'Dev', 'Meera', 'Neha', 'Vikram',
-  'Priyanka', 'Rohan', 'Aarav', 'Diya', 'Simran', 'Arjun', 'Tanvi',
-]
 
 function readMeetings() {
   try {
@@ -137,7 +137,12 @@ export function overrideRole(meetingId, roleId, { status, takenBy }) {
   }
 }
 
-export function autoAssignMeeting(meetingId) {
+// Picks the best-fit real member (by attendance + role rotation/fairness
+// — see mockRosterStore.js) for each still-open role in the meeting,
+// instead of the old random-placeholder-name shift. Every successful
+// pick is also recorded to role_history, so the algorithm's own output
+// becomes next time's input.
+export async function autoAssignMeeting(meetingId) {
   const meetings = readMeetings()
   const meeting = meetings.find((m) => m.id === meetingId)
   const usedNames = new Set(
@@ -145,21 +150,31 @@ export function autoAssignMeeting(meetingId) {
       .map((entry) => entry.takenBy)
       .filter(Boolean),
   )
-  const available = NAME_POOL.filter((name) => !usedNames.has(name))
+
+  const [members, roleHistory] = await Promise.all([getMembers(), getRoleHistory()])
 
   let filledCount = 0
   const updatedRoles = { ...meeting.roles }
+  const newAssignments = []
   for (const [roleId, entry] of Object.entries(meeting.roles)) {
     if (entry.status !== 'open') continue
-    const name = available.shift()
-    if (!name) break
-    updatedRoles[roleId] = { status: 'auto', takenBy: name }
+    const available = members.filter((m) => !usedNames.has(m.name))
+    if (available.length === 0) break
+    const [best] = available
+      .map((member) => ({ member, score: scoreMemberForRole(member, roleId, roleHistory) }))
+      .sort((a, b) => b.score - a.score)
+    updatedRoles[roleId] = { status: 'auto', takenBy: best.member.name }
+    usedNames.add(best.member.name)
+    newAssignments.push({ name: best.member.name, roleId })
     filledCount += 1
   }
 
   writeMeetings(
     meetings.map((m) => (m.id !== meetingId ? m : { ...m, roles: updatedRoles })),
   )
+  for (const assignment of newAssignments) {
+    await recordRoleAssignment(assignment.name, assignment.roleId)
+  }
   logAction(
     filledCount > 0
       ? `Auto-assign triggered by VPE — ${filledCount} role${filledCount > 1 ? 's' : ''} filled for ${meeting.dateLabel}`

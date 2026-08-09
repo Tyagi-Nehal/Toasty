@@ -1,5 +1,15 @@
 export const roleCatalog = [
   {
+    id: 'saa',
+    name: 'Sergeant at Arms',
+    description: 'Opens the meeting and manages the room/logistics.',
+  },
+  {
+    id: 'po',
+    name: 'Presiding Officer',
+    description: 'Opens and closes the meeting and handles club business.',
+  },
+  {
     id: 'tmod',
     name: 'Toastmaster of the Day',
     description: 'Hosts and runs the meeting from start to finish.',
@@ -15,11 +25,6 @@ export const roleCatalog = [
     description: 'Runs the impromptu speaking segment.',
   },
   {
-    id: 'po',
-    name: 'Presiding Officer',
-    description: 'Opens and closes the meeting and handles club business.',
-  },
-  {
     id: 'speaker-1',
     name: 'Prepared Speaker 1',
     description: 'Delivers a prepared speech project.',
@@ -27,6 +32,11 @@ export const roleCatalog = [
   {
     id: 'speaker-2',
     name: 'Prepared Speaker 2',
+    description: 'Delivers a prepared speech project.',
+  },
+  {
+    id: 'speaker-3',
+    name: 'Prepared Speaker 3',
     description: 'Delivers a prepared speech project.',
   },
   {
@@ -38,6 +48,11 @@ export const roleCatalog = [
     id: 'evaluator-2',
     name: 'Individual Evaluator 2',
     description: "Evaluates Prepared Speaker 2's speech.",
+  },
+  {
+    id: 'evaluator-3',
+    name: 'Individual Evaluator 3',
+    description: "Evaluates Prepared Speaker 3's speech.",
   },
   {
     id: 'timer',

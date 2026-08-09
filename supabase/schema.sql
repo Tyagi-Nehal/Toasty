@@ -221,3 +221,67 @@ create policy "signups vpm or president update" on member_signups
 
 grant select, insert, update on member_signups to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
+
+-- Real club roster + role history, for attendance/rotation-based role
+-- auto-assignment (replaces a random-placeholder-name shift). Seeded
+-- once from the club's real attendance sheet and meeting roster (see
+-- accompanying seed SQL) — not a public-facing form, so no anon access.
+create table if not exists members (
+  id bigint generated always as identity primary key,
+  name text not null unique,
+  attendance_percentage numeric
+);
+
+create table if not exists role_history (
+  id bigint generated always as identity primary key,
+  member_name text not null,
+  role_id text not null,
+  meeting_date date not null,
+  submitted_at timestamptz not null default now()
+);
+
+alter table members enable row level security;
+alter table role_history enable row level security;
+
+-- SELECT open to any signed-in user (same reasoning as excom_appointments
+-- — a club roster isn't sensitive for a small pilot). Writes restricted
+-- to whoever is currently VPE or an approved President (same "who runs
+-- role assignment" logic already used for member_signups' VPM/President
+-- check).
+drop policy if exists "members authenticated select" on members;
+create policy "members authenticated select" on members
+  for select to authenticated using (true);
+drop policy if exists "members vpe or president write" on members;
+create policy "members vpe or president write" on members
+  for all to authenticated
+  using (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPE'
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
+drop policy if exists "role_history authenticated select" on role_history;
+create policy "role_history authenticated select" on role_history
+  for select to authenticated using (true);
+drop policy if exists "role_history vpe or president insert" on role_history;
+create policy "role_history vpe or president insert" on role_history
+  for insert to authenticated
+  with check (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPE'
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
+grant select, insert, update on members to authenticated;
+grant select, insert on role_history to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
