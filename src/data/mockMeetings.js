@@ -1,6 +1,28 @@
-// "takenBy" names are generic placeholder first names representing other
-// members in this mock — not any of the real named people from the club's
-// actual ExCom roster. '__me__' marks the current signed-in mock member.
+// All roles start open so real auto-assignment (mockRolesStore.js +
+// mockRosterStore.js) picks real club members for every role, not just
+// whichever happened to be left open in an old placeholder seed.
+// '__me__' marks the current signed-in mock member's own self-selection.
+
+function allOpenRoles(overrides = {}) {
+  return {
+    saa: { status: 'open' },
+    po: { status: 'open' },
+    tmod: { status: 'open' },
+    ge: { status: 'open' },
+    ttm: { status: 'open' },
+    'speaker-1': { status: 'open' },
+    'speaker-2': { status: 'open' },
+    'speaker-3': { status: 'open' },
+    'evaluator-1': { status: 'open' },
+    'evaluator-2': { status: 'open' },
+    'evaluator-3': { status: 'open' },
+    timer: { status: 'open' },
+    'ah-counter': { status: 'open' },
+    grammarian: { status: 'open' },
+    listener: { status: 'open' },
+    ...overrides,
+  }
+}
 
 export const initialMeetings = [
   {
@@ -10,20 +32,7 @@ export const initialMeetings = [
     time: '5:15 PM',
     hoursUntilMeeting: 18,
     myRoleId: null,
-    roles: {
-      tmod: { status: 'taken', takenBy: 'Riya' },
-      ge: { status: 'open' },
-      ttm: { status: 'auto', takenBy: 'Kabir' },
-      po: { status: 'taken', takenBy: 'Ananya' },
-      'speaker-1': { status: 'open' },
-      'speaker-2': { status: 'taken', takenBy: 'Dev' },
-      'evaluator-1': { status: 'open' },
-      'evaluator-2': { status: 'open' },
-      timer: { status: 'open' },
-      'ah-counter': { status: 'taken', takenBy: 'Meera' },
-      grammarian: { status: 'open' },
-      listener: { status: 'open' },
-    },
+    roles: allOpenRoles(),
   },
   {
     id: 'meeting-2',
@@ -32,20 +41,9 @@ export const initialMeetings = [
     time: '5:15 PM',
     hoursUntilMeeting: 40,
     myRoleId: 'evaluator-1',
-    roles: {
-      tmod: { status: 'taken', takenBy: 'Dev' },
-      ge: { status: 'taken', takenBy: 'Riya' },
-      ttm: { status: 'open' },
-      po: { status: 'open' },
-      'speaker-1': { status: 'taken', takenBy: 'Meera' },
-      'speaker-2': { status: 'open' },
+    roles: allOpenRoles({
       'evaluator-1': { status: 'taken', takenBy: '__me__' },
-      'evaluator-2': { status: 'open' },
-      timer: { status: 'taken', takenBy: 'Kabir' },
-      'ah-counter': { status: 'open' },
-      grammarian: { status: 'open' },
-      listener: { status: 'open' },
-    },
+    }),
   },
   {
     id: 'meeting-3',
@@ -54,19 +52,6 @@ export const initialMeetings = [
     time: '5:15 PM',
     hoursUntilMeeting: 170,
     myRoleId: null,
-    roles: {
-      tmod: { status: 'open' },
-      ge: { status: 'open' },
-      ttm: { status: 'open' },
-      po: { status: 'taken', takenBy: 'Ananya' },
-      'speaker-1': { status: 'open' },
-      'speaker-2': { status: 'open' },
-      'evaluator-1': { status: 'open' },
-      'evaluator-2': { status: 'open' },
-      timer: { status: 'open' },
-      'ah-counter': { status: 'open' },
-      grammarian: { status: 'taken', takenBy: 'Dev' },
-      listener: { status: 'open' },
-    },
+    roles: allOpenRoles(),
   },
 ]
