@@ -31,12 +31,12 @@ export default function AgendaPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    getMeetings().then((meetings) => {
+    getMeetings().then(async (meetings) => {
       // Nearest upcoming meeting first; fall back to the most recent one.
       const upcoming = meetings.find((m) => (m.hoursUntilMeeting ?? -1) >= 0)
       const target = upcoming ?? meetings[meetings.length - 1]
       setMeeting(target ?? null)
-      setAgenda(target ? getAgenda(target.id) : null)
+      setAgenda(target ? await getAgenda(target.id) : null)
       setLoading(false)
     })
   }, [])

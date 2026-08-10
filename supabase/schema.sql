@@ -383,3 +383,47 @@ create policy "assignments update" on meeting_role_assignments
 grant select, insert, update on meetings to authenticated;
 grant select, insert, update on meeting_role_assignments to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
+
+-- Per-meeting agenda (was localStorage-only, mockAgendaStore.js) — a VPE
+-- editing the agenda on their own device was invisible to members on
+-- theirs, same cross-device gap meetings/roles had before. Rows are
+-- stored as a JSONB array since the VPE can freely add/remove/reorder
+-- them (a different speaker count every meeting) — no separate rows
+-- table needed for that flexibility.
+create table if not exists agendas (
+  id bigint generated always as identity primary key,
+  meeting_id bigint not null unique references meetings(id) on delete cascade,
+  date_label text,
+  theme text,
+  word_of_day text,
+  meaning text,
+  venue text,
+  overall_start_time text,
+  overall_end_time text,
+  items jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now(),
+  sent_at timestamptz,
+  sent_snapshot jsonb
+);
+
+alter table agendas enable row level security;
+
+drop policy if exists "agendas authenticated select" on agendas;
+create policy "agendas authenticated select" on agendas
+  for select to authenticated using (true);
+drop policy if exists "agendas vpe or president write" on agendas;
+create policy "agendas vpe or president write" on agendas
+  for all to authenticated
+  using (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPE'
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
+grant select, insert, update on agendas to authenticated;
+grant usage, select on all sequences in schema public to authenticated;

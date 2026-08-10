@@ -1,19 +1,25 @@
-// Shared source of truth for a meeting's agenda — read by the
-// member-facing Agenda page AND written by the VPE-facing Agenda Editor.
-// Still localStorage (unlike meetings/roles, which now live in Supabase)
-// — the agenda is just a generated/editable view derived from the real
-// role assignments, not something that needs its own cross-device sync
-// for this pass. Keyed by meetingId, one localStorage record per meeting.
+// Per-meeting agenda — backed by Supabase (supabase/schema.sql,
+// `agendas` table) so a VPE's edits are visible to members on their own
+// devices, not just in the VPE's own browser (the earlier localStorage
+// version was invisible cross-device — the exact gap meetings/roles had
+// before that migration).
 //
-// Agenda rows are a free-form ordered list (not fixed 1:1 by roleId) so
-// the VPE can add/remove rows — a meeting can have a different number of
-// speakers than the last one. Row shape:
+// Rows are a free-form ordered list stored as JSONB (not a separate rows
+// table) since the VPE can add/remove/reorder them — a meeting can have
+// a different number of speakers than the last one. Row shape:
 //   { id, startTime, endTime, segment, rolePlayer, name }
+//
+// Design note: text fields (theme, row names, etc.) are edited live via
+// onChange in the UI. Writing to Supabase on every keystroke would be
+// both slow and wasteful, so the page keeps the agenda in local React
+// state for instant typing and calls `persistAgenda` on a short debounce
+// after the user pauses — see AgendaEditorPage.jsx. Discrete actions
+// (generate, add speaker, remove row, send) write immediately.
 
+import { supabase } from './supabaseClient.js'
 import { getMeeting } from './mockRolesStore.js'
 import { pushNotification } from './mockNotificationsStore.js'
 
-const STORAGE_KEY = 'toasty_agendas'
 const LOG_KEY = 'toasty_agenda_history'
 const MAX_LOG_ENTRIES = 25
 
@@ -23,19 +29,6 @@ const MAX_LOG_ENTRIES = 25
 // time, this only governs what a fresh/regenerated agenda starts with.
 const DEFAULT_SAA_NAME = 'TM Durva Sharma'
 const DEFAULT_PO_NAME = 'TM Sarvajit Srivatsa'
-
-function readAll() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : {}
-  } catch {
-    return {}
-  }
-}
-
-function writeAll(all) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
-}
 
 function logAction(message) {
   const entry = { id: crypto.randomUUID(), message, time: new Date().toISOString() }
@@ -78,8 +71,54 @@ function minutesToTime(totalMinutes) {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${meridiem}`
 }
 
-export function getAgenda(meetingId) {
-  return readAll()[meetingId] ?? null
+// snake_case DB row -> camelCase object the pages work with.
+function fromRow(row) {
+  if (!row) return null
+  return {
+    meetingId: row.meeting_id,
+    dateLabel: row.date_label ?? '',
+    theme: row.theme ?? '',
+    wordOfDay: row.word_of_day ?? '',
+    meaning: row.meaning ?? '',
+    venue: row.venue ?? '',
+    overallStartTime: row.overall_start_time ?? '',
+    overallEndTime: row.overall_end_time ?? '',
+    items: row.items ?? [],
+    updatedAt: row.updated_at,
+    sentAt: row.sent_at,
+    sentSnapshot: row.sent_snapshot,
+  }
+}
+
+// camelCase object -> snake_case row for writes.
+function toRow(meetingId, agenda) {
+  return {
+    meeting_id: meetingId,
+    date_label: agenda.dateLabel,
+    theme: agenda.theme,
+    word_of_day: agenda.wordOfDay,
+    meaning: agenda.meaning,
+    venue: agenda.venue,
+    overall_start_time: agenda.overallStartTime,
+    overall_end_time: agenda.overallEndTime,
+    items: agenda.items,
+    updated_at: new Date().toISOString(),
+    sent_at: agenda.sentAt ?? null,
+    sent_snapshot: agenda.sentSnapshot ?? null,
+  }
+}
+
+export async function getAgenda(meetingId) {
+  const { data } = await supabase.from('agendas').select('*').eq('meeting_id', meetingId).maybeSingle()
+  return fromRow(data)
+}
+
+// Silent full-record upsert — no log entry. Used by the debounced
+// autosave while the VPE is typing, and internally by the discrete
+// actions below (which log separately).
+export async function persistAgenda(meetingId, agenda) {
+  await supabase.from('agendas').upsert(toRow(meetingId, agenda), { onConflict: 'meeting_id' })
+  return agenda
 }
 
 // Builds the agenda's row list matching the club's real weekly format
@@ -87,8 +126,9 @@ export function getAgenda(meetingId) {
 // blocks / Table Topics / General Evaluation / closing). One speaker
 // block is generated per speaker/evaluator pair that already has a real
 // assignment on the role board — the VPE adds more via "+ Add Speaker"
-// for meetings with a different speaker count.
-export async function generateAgenda(meetingId) {
+// for meetings with a different speaker count. Preserves any header
+// fields (theme/word of day/meaning/venue) already set by the VPE.
+export async function generateAgenda(meetingId, existingAgenda) {
   const meeting = await getMeeting(meetingId)
   const named = (roleId) => {
     const takenBy = meeting.roles[roleId]?.takenBy
@@ -110,7 +150,7 @@ export async function generateAgenda(meetingId) {
       name,
     })
   }
-  function addSpeakerBlock(n) {
+  function addSpeakerRows(n) {
     addRow(`Toastmaster of the Day + Evaluator ${n} Introduction`, 'TMOD', tmod, 1)
     addRow('Speech Guidelines', 'Evaluator', named(`evaluator-${n}`), 1)
     addRow('Toastmaster of the Day + Speaker Introduction', 'TMOD', tmod, 1)
@@ -139,7 +179,7 @@ export async function generateAgenda(meetingId) {
     const status = meeting.roles[`speaker-${n}`]?.status
     return status && status !== 'open'
   })
-  for (const n of speakerNumbers) addSpeakerBlock(n)
+  for (const n of speakerNumbers) addSpeakerRows(n)
 
   addRow('Table Topic Master Introduction by TMOD', 'TMOD', tmod, 1)
   addRow('Table Topics Session', 'TTM', named('ttm'), 15)
@@ -151,14 +191,13 @@ export async function generateAgenda(meetingId) {
   addRow('Networking', 'All', 'All', 10)
   const overallEndTime = minutesToTime(cursor)
 
-  const existing = readAll()[meetingId]
-  const state = {
+  const agenda = {
     meetingId,
     dateLabel: meeting.dateLabel,
-    theme: existing?.theme ?? meeting.theme ?? '',
-    wordOfDay: existing?.wordOfDay ?? '',
-    meaning: existing?.meaning ?? '',
-    venue: existing?.venue ?? '',
+    theme: existingAgenda?.theme ?? meeting.theme ?? '',
+    wordOfDay: existingAgenda?.wordOfDay ?? '',
+    meaning: existingAgenda?.meaning ?? '',
+    venue: existingAgenda?.venue ?? '',
     overallStartTime,
     overallEndTime,
     items,
@@ -166,46 +205,17 @@ export async function generateAgenda(meetingId) {
     sentAt: null,
     sentSnapshot: null,
   }
-  const all = readAll()
-  writeAll({ ...all, [meetingId]: state })
+  await persistAgenda(meetingId, agenda)
   logAction(`Agenda auto-generated from confirmed roles for ${meeting.dateLabel}`)
-  return state
-}
-
-// Header fields (theme, word of the day, meaning, venue, overall start/
-// end time) — separate from the per-row updater below since they live
-// directly on the agenda record, not inside `items`.
-export function updateAgendaField(meetingId, field, value) {
-  const all = readAll()
-  const state = all[meetingId]
-  if (!state) return null
-  const next = { ...state, [field]: value, updatedAt: new Date().toISOString() }
-  writeAll({ ...all, [meetingId]: next })
-  return next
-}
-
-export function updateAgendaItem(meetingId, itemId, field, value) {
-  const all = readAll()
-  const state = all[meetingId]
-  if (!state) return null
-  const next = {
-    ...state,
-    items: state.items.map((item) => (item.id === itemId ? { ...item, [field]: value } : item)),
-    updatedAt: new Date().toISOString(),
-  }
-  writeAll({ ...all, [meetingId]: next })
-  return next
+  return agenda
 }
 
 // "+ Add Speaker" — inserts the standard 4-row block (TMOD+Evaluator
 // intro, Speech Guidelines, TMOD+Speaker intro, Speech Delivery) for the
 // next speaker number, right before Table Topics. Every row it creates
 // is independently editable/deletable like any other row afterward.
-export function addSpeakerBlock(meetingId) {
-  const all = readAll()
-  const state = all[meetingId]
-  if (!state) return null
-  const n = state.items.filter((i) => i.segment === 'Speech Delivery').length + 1
+export async function addSpeakerBlock(meetingId, agenda) {
+  const n = agenda.items.filter((i) => i.segment === 'Speech Delivery').length + 1
   const newRows = [
     {
       id: crypto.randomUUID(),
@@ -240,44 +250,38 @@ export function addSpeakerBlock(meetingId) {
       name: '',
     },
   ]
-  const insertIndex = state.items.findIndex(
+  const insertIndex = agenda.items.findIndex(
     (i) => i.segment === 'Table Topic Master Introduction by TMOD',
   )
   const items =
     insertIndex === -1
-      ? [...state.items, ...newRows]
-      : [...state.items.slice(0, insertIndex), ...newRows, ...state.items.slice(insertIndex)]
-  const next = { ...state, items, updatedAt: new Date().toISOString() }
-  writeAll({ ...all, [meetingId]: next })
-  logAction(`VPE added Speaker ${n} to the agenda for ${state.dateLabel}`)
+      ? [...agenda.items, ...newRows]
+      : [...agenda.items.slice(0, insertIndex), ...newRows, ...agenda.items.slice(insertIndex)]
+  const next = { ...agenda, items, updatedAt: new Date().toISOString() }
+  await persistAgenda(meetingId, next)
+  logAction(`VPE added Speaker ${n} to the agenda for ${agenda.dateLabel}`)
   return next
 }
 
-export function removeAgendaRow(meetingId, itemId) {
-  const all = readAll()
-  const state = all[meetingId]
-  if (!state) return null
-  const removed = state.items.find((i) => i.id === itemId)
+export async function removeAgendaRow(meetingId, agenda, itemId) {
+  const removed = agenda.items.find((i) => i.id === itemId)
   const next = {
-    ...state,
-    items: state.items.filter((i) => i.id !== itemId),
+    ...agenda,
+    items: agenda.items.filter((i) => i.id !== itemId),
     updatedAt: new Date().toISOString(),
   }
-  writeAll({ ...all, [meetingId]: next })
-  if (removed) logAction(`VPE removed "${removed.segment}" from the agenda for ${state.dateLabel}`)
+  await persistAgenda(meetingId, next)
+  if (removed) logAction(`VPE removed "${removed.segment}" from the agenda for ${agenda.dateLabel}`)
   return next
 }
 
-export function sendAgendaToMembers(meetingId) {
-  const all = readAll()
-  const state = all[meetingId]
-  if (!state) return null
-  const next = { ...state, sentAt: new Date().toISOString(), sentSnapshot: state.items }
-  writeAll({ ...all, [meetingId]: next })
-  logAction(`Agenda sent to members for ${state.dateLabel}`)
+export async function sendAgendaToMembers(meetingId, agenda) {
+  const next = { ...agenda, sentAt: new Date().toISOString(), sentSnapshot: agenda.items }
+  await persistAgenda(meetingId, next)
+  logAction(`Agenda sent to members for ${agenda.dateLabel}`)
   pushNotification({
     type: 'agenda_updated',
-    message: `The agenda for ${state.dateLabel} was sent to members.`,
+    message: `The agenda for ${agenda.dateLabel} was sent to members.`,
     link: '/agenda',
   })
   return next
@@ -285,14 +289,14 @@ export function sendAgendaToMembers(meetingId) {
 
 // Describes what changed since the agenda was last sent, so both the editor
 // and the member view can show the same "Agenda Updated" summary. Rows are
-// compared by their own id now (segment text can repeat, e.g. multiple
-// "TMOD" rows), and added/removed rows are called out too since the row
-// list itself can now change shape.
-export function getAgendaChangeSummary(state) {
-  if (!state?.sentAt || !state.sentSnapshot) return null
+// compared by their own id (segment text can repeat, e.g. multiple "TMOD"
+// rows), and added/removed rows are called out too since the row list
+// itself can now change shape.
+export function getAgendaChangeSummary(agenda) {
+  if (!agenda?.sentAt || !agenda.sentSnapshot) return null
   const changes = []
-  for (const item of state.items) {
-    const before = state.sentSnapshot.find((s) => s.id === item.id)
+  for (const item of agenda.items) {
+    const before = agenda.sentSnapshot.find((s) => s.id === item.id)
     if (!before) {
       changes.push(`${item.segment} added`)
       continue
@@ -305,8 +309,8 @@ export function getAgendaChangeSummary(state) {
       changes.push(`${item.segment} time updated`)
     }
   }
-  const removedCount = state.sentSnapshot.filter(
-    (s) => !state.items.some((i) => i.id === s.id),
+  const removedCount = agenda.sentSnapshot.filter(
+    (s) => !agenda.items.some((i) => i.id === s.id),
   ).length
   if (removedCount > 0) changes.push(`${removedCount} row${removedCount > 1 ? 's' : ''} removed`)
   return changes.length > 0 ? changes.join('; ') : null

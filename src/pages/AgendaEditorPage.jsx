@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Clock, History, Megaphone, Plus, Send, Sparkles, Trash2 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import {
@@ -7,10 +7,9 @@ import {
   getAgenda,
   getAgendaChangeSummary,
   getAgendaHistory,
+  persistAgenda,
   removeAgendaRow,
   sendAgendaToMembers,
-  updateAgendaField,
-  updateAgendaItem,
 } from '../lib/mockAgendaStore.js'
 import { getMeetings } from '../lib/mockRolesStore.js'
 
@@ -41,6 +40,8 @@ export default function AgendaEditorPage() {
   const [activeMeetingId, setActiveMeetingId] = useState(null)
   const [agenda, setAgenda] = useState(null)
   const [history, setHistory] = useState(() => getAgendaHistory())
+  const [saving, setSaving] = useState(false)
+  const saveTimerRef = useRef(null)
 
   useEffect(() => {
     getMeetings().then((fetched) => {
@@ -51,7 +52,7 @@ export default function AgendaEditorPage() {
   }, [])
 
   useEffect(() => {
-    if (activeMeetingId) setAgenda(getAgenda(activeMeetingId))
+    if (activeMeetingId) getAgenda(activeMeetingId).then(setAgenda)
   }, [activeMeetingId])
 
   function refresh(next) {
@@ -59,28 +60,54 @@ export default function AgendaEditorPage() {
     setHistory(getAgendaHistory())
   }
 
+  // Typing updates local state instantly; the write to Supabase is
+  // debounced so a member on another device sees it shortly after the
+  // VPE pauses, without a network round-trip on every keystroke. The
+  // meetingId is captured here (not read inside the timeout) so a tab
+  // switch mid-edit still saves to the meeting the edit was actually
+  // made for.
+  function scheduleSave(meetingId, nextAgenda) {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(async () => {
+      setSaving(true)
+      await persistAgenda(meetingId, nextAgenda)
+      setSaving(false)
+    }, 700)
+  }
+
   async function handleGenerate() {
-    refresh(await generateAgenda(activeMeetingId))
+    refresh(await generateAgenda(activeMeetingId, agenda))
   }
 
   function handleHeaderChange(field, value) {
-    refresh(updateAgendaField(activeMeetingId, field, value))
+    setAgenda((prev) => {
+      const next = { ...prev, [field]: value }
+      scheduleSave(activeMeetingId, next)
+      return next
+    })
   }
 
   function handleFieldChange(itemId, field, value) {
-    refresh(updateAgendaItem(activeMeetingId, itemId, field, value))
+    setAgenda((prev) => {
+      const next = {
+        ...prev,
+        items: prev.items.map((item) => (item.id === itemId ? { ...item, [field]: value } : item)),
+      }
+      scheduleSave(activeMeetingId, next)
+      return next
+    })
   }
 
-  function handleAddSpeaker() {
-    refresh(addSpeakerBlock(activeMeetingId))
+  async function handleAddSpeaker() {
+    refresh(await addSpeakerBlock(activeMeetingId, agenda))
   }
 
-  function handleRemoveRow(itemId) {
-    refresh(removeAgendaRow(activeMeetingId, itemId))
+  async function handleRemoveRow(itemId) {
+    refresh(await removeAgendaRow(activeMeetingId, agenda, itemId))
   }
 
-  function handleSend() {
-    refresh(sendAgendaToMembers(activeMeetingId))
+  async function handleSend() {
+    refresh(await sendAgendaToMembers(activeMeetingId, agenda))
   }
 
   const changeSummary = agenda ? getAgendaChangeSummary(agenda) : null
@@ -164,6 +191,7 @@ export default function AgendaEditorPage() {
             Last sent to members:{' '}
             {agenda?.sentAt ? timeAgo(agenda.sentAt) : 'never'}
           </span>
+          {saving && <span className="font-medium text-primary">Saving…</span>}
         </div>
 
         {changeSummary && (
