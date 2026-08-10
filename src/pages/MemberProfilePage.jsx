@@ -1,8 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   CalendarDays,
   CheckCircle2,
-  Clock,
   Mail,
   ReceiptText,
   Star,
@@ -12,7 +11,7 @@ import {
 import MemberLayout from '../components/MemberLayout.jsx'
 import Avatar from '../components/Avatar.jsx'
 import { getAccount } from '../lib/mockAuth.js'
-import { getRenewalStatus, markPaymentDone } from '../lib/mockRenewalStore.js'
+import { getMyMembershipStatus } from '../lib/mockMembershipStore.js'
 import { roleHistory, pointsBreakdown } from '../data/mockProfileData.js'
 import { mentors } from '../data/mentors.js'
 
@@ -22,15 +21,16 @@ const categoryLabels = {
   recognition: 'Recognition',
 }
 
+const paymentStatusLabel = { paid: 'Paid', pending: 'Pending', overdue: 'Overdue' }
+
 export default function MemberProfilePage() {
   const account = getAccount()
-  const [renewal, setRenewal] = useState(getRenewalStatus())
-  const [utrInput, setUtrInput] = useState('')
+  const [renewal, setRenewal] = useState(null)
   const myMentor = mentors[0] ?? null
 
-  function handlePaymentDone() {
-    setRenewal(markPaymentDone(utrInput))
-  }
+  useEffect(() => {
+    getMyMembershipStatus().then(setRenewal)
+  }, [])
 
   return (
     <MemberLayout>
@@ -146,49 +146,44 @@ export default function MemberProfilePage() {
           </div>
         </div>
 
-        {/* Renewal status */}
+        {/* Renewal status — read-only, the Treasurer is the only one who
+            can change any of this (Renewal Management page). */}
         <div className="mt-6 rounded-3xl border border-accent/30 bg-white p-6">
           <div className="flex items-center gap-2 text-sm font-semibold text-ink">
             <ReceiptText size={16} className="text-primary" />
             Renewal Status
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
-            <div>
-              {renewal.status === 'paid' ? (
-                <p className="flex items-center gap-1.5 font-medium text-ink">
-                  <CheckCircle2 size={16} className="text-primary" />
-                  Fee paid: {renewal.paidThroughTerm}
-                </p>
-              ) : renewal.status === 'awaiting_confirmation' ? (
-                <p className="flex items-center gap-1.5 font-medium text-ink/70">
-                  <Clock size={16} className="text-primary" />
-                  Payment submitted — awaiting Treasurer confirmation
-                </p>
-              ) : (
-                <p className="font-medium text-ink/70">Renewal Pending</p>
+          {!renewal ? (
+            <p className="mt-4 text-sm text-ink/50">Loading...</p>
+          ) : (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <span
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${
+                  renewal.paymentStatus === 'paid'
+                    ? 'bg-primary/10 text-primary'
+                    : renewal.paymentStatus === 'overdue'
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-accent/20 text-ink/60'
+                }`}
+              >
+                {renewal.paymentStatus === 'paid' && <CheckCircle2 size={13} />}
+                {paymentStatusLabel[renewal.paymentStatus]}
+              </span>
+              <span
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                  renewal.isActive ? 'bg-primary/10 text-primary' : 'bg-ink/10 text-ink/50'
+                }`}
+              >
+                {renewal.isActive ? 'Active' : 'Inactive'}
+              </span>
+              {renewal.membershipStart && renewal.membershipEnd && (
+                <span className="text-sm text-ink/60">
+                  {renewal.membershipStart} – {renewal.membershipEnd}
+                </span>
               )}
             </div>
-
-            {renewal.status === 'pending' && (
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  type="text"
-                  value={utrInput}
-                  onChange={(e) => setUtrInput(e.target.value)}
-                  placeholder="UTR reference (optional)"
-                  className="rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={handlePaymentDone}
-                  className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
-                >
-                  Payment Done
-                </button>
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
         {/* My mentor */}

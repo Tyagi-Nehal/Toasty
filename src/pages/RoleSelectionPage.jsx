@@ -4,6 +4,7 @@ import MemberLayout from '../components/MemberLayout.jsx'
 import DeclineRoleModal from '../components/DeclineRoleModal.jsx'
 import { roleCatalog } from '../data/roleCatalog.js'
 import { getMeetings, selectRole, declineMyRole } from '../lib/mockRolesStore.js'
+import { getMyMembershipStatus } from '../lib/mockMembershipStore.js'
 
 function StatusBadge({ role, isMine }) {
   if (isMine) {
@@ -40,6 +41,7 @@ export default function RoleSelectionPage() {
   const [meetings, setMeetings] = useState([])
   const [activeMeetingId, setActiveMeetingId] = useState(null)
   const [isDeclineOpen, setIsDeclineOpen] = useState(false)
+  const [membership, setMembership] = useState(null)
 
   function refresh() {
     getMeetings().then((fetched) => {
@@ -56,7 +58,10 @@ export default function RoleSelectionPage() {
 
   useEffect(() => {
     refresh()
+    getMyMembershipStatus().then(setMembership)
   }, [])
+
+  const isActiveMember = membership?.isActive === true
 
   const activeMeeting = meetings.find((m) => m.id === activeMeetingId)
 
@@ -122,6 +127,13 @@ export default function RoleSelectionPage() {
           })}
         </div>
 
+        {membership && !membership.isActive && (
+          <div className="mt-6 rounded-2xl bg-cream p-4 text-sm text-ink/60">
+            Your membership is inactive — contact the Treasurer to renew. You can
+            still view roles, but selecting or declining is turned off until then.
+          </div>
+        )}
+
         {/* My role card */}
         {myRole && (
           <div className="mt-6 rounded-3xl border border-primary/30 bg-white p-5">
@@ -136,7 +148,7 @@ export default function RoleSelectionPage() {
               <button
                 type="button"
                 onClick={() => setIsDeclineOpen(true)}
-                disabled={activeMeeting.finalized}
+                disabled={activeMeeting.finalized || !isActiveMember}
                 className="flex items-center gap-1.5 rounded-full border border-accent/50 px-4 py-2 text-sm font-semibold text-ink/70 transition hover:bg-cream disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <X size={15} />
@@ -151,7 +163,10 @@ export default function RoleSelectionPage() {
           {roleCatalog.map((role) => {
             const entry = activeMeeting.roles[role.id]
             const canSelect =
-              entry.status === 'open' && !activeMeeting.myRoleId && !activeMeeting.finalized
+              entry.status === 'open' &&
+              !activeMeeting.myRoleId &&
+              !activeMeeting.finalized &&
+              isActiveMember
             const isMine = activeMeeting.myRoleId === role.id
 
             return (
@@ -182,7 +197,9 @@ export default function RoleSelectionPage() {
                       title={
                         activeMeeting.finalized
                           ? 'Roles for this meeting are finalized'
-                          : 'You already have a role for this meeting'
+                          : !isActiveMember
+                            ? 'Your membership is inactive'
+                            : 'You already have a role for this meeting'
                       }
                     >
                       <Lock size={12} />

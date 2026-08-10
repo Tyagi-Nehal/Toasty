@@ -4,8 +4,7 @@
 // Real actions elsewhere in the app push into it via pushNotification()
 // rather than keeping a disconnected static list: see the call sites in
 // mockAgendaStore.js (agenda sent), mockPollStore.js (poll released),
-// mockRenewalManagementStore.js (renewal confirmed), and mockRolesStore.js
-// (VPE assigns you a role).
+// and mockRolesStore.js (VPE assigns you a role).
 
 const STORAGE_KEY = 'toasty_notifications'
 const MAX_ENTRIES = 30

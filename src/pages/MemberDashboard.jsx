@@ -14,6 +14,7 @@ import DeclineRoleModal from '../components/DeclineRoleModal.jsx'
 import { getAccount } from '../lib/mockAuth.js'
 import { roleCatalog } from '../data/roleCatalog.js'
 import { acceptAutoAssignedRole, declineMyRole, getMeetings } from '../lib/mockRolesStore.js'
+import { getMyMembershipStatus } from '../lib/mockMembershipStore.js'
 import { getNotifications, markAllRead } from '../lib/mockNotificationsStore.js'
 import { notificationIcons, defaultNotificationIcon } from '../components/notificationMeta.js'
 
@@ -37,6 +38,7 @@ export default function MemberDashboard() {
   const [loadingMeeting, setLoadingMeeting] = useState(true)
   const [isDeclineOpen, setIsDeclineOpen] = useState(false)
   const [notifications, setNotifications] = useState(() => getNotifications())
+  const [membership, setMembership] = useState(null)
 
   function refresh() {
     getMeetings().then((fetched) => {
@@ -47,6 +49,7 @@ export default function MemberDashboard() {
 
   useEffect(() => {
     refresh()
+    getMyMembershipStatus().then(setMembership)
   }, [])
 
   useEffect(() => {
@@ -78,9 +81,20 @@ export default function MemberDashboard() {
   return (
     <MemberLayout>
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
-        <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">
-          Hi {firstName}!
-        </h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">
+            Hi {firstName}!
+          </h1>
+          {membership && (
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                membership.isActive ? 'bg-primary/10 text-primary' : 'bg-ink/10 text-ink/50'
+              }`}
+            >
+              {membership.isActive ? 'Active' : 'Inactive'}
+            </span>
+          )}
+        </div>
         <p className="mt-1 text-sm text-ink/60">
           Here's what's happening in your club this week.
         </p>
@@ -153,16 +167,44 @@ export default function MemberDashboard() {
                             </p>
                           )}
                         </div>
-                        {myRoleEntry.status === 'auto' && !myRoleEntry.acceptedAt && (
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={handleAccept}
-                              className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
-                            >
-                              <Check size={15} />
-                              Accept
-                            </button>
+                        {myRoleEntry.status === 'auto' &&
+                          !myRoleEntry.acceptedAt &&
+                          (membership && !membership.isActive ? (
+                            <p className="text-xs font-medium text-ink/50">
+                              Your membership is inactive — contact the Treasurer to renew.
+                            </p>
+                          ) : (
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={handleAccept}
+                                className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
+                              >
+                                <Check size={15} />
+                                Accept
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setIsDeclineOpen(true)}
+                                className="flex items-center gap-1.5 rounded-full border border-accent/50 px-4 py-2 text-sm font-semibold text-ink/70 transition hover:bg-white"
+                              >
+                                <X size={15} />
+                                Decline
+                              </button>
+                            </div>
+                          ))}
+                        {myRoleEntry.status === 'auto' && myRoleEntry.acceptedAt && (
+                          <span className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
+                            <CheckCircle2 size={14} />
+                            You're all set
+                          </span>
+                        )}
+                        {myRoleEntry.status === 'taken' &&
+                          (membership && !membership.isActive ? (
+                            <p className="text-xs font-medium text-ink/50">
+                              Your membership is inactive — contact the Treasurer to renew.
+                            </p>
+                          ) : (
                             <button
                               type="button"
                               onClick={() => setIsDeclineOpen(true)}
@@ -171,24 +213,7 @@ export default function MemberDashboard() {
                               <X size={15} />
                               Decline
                             </button>
-                          </div>
-                        )}
-                        {myRoleEntry.status === 'auto' && myRoleEntry.acceptedAt && (
-                          <span className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
-                            <CheckCircle2 size={14} />
-                            You're all set
-                          </span>
-                        )}
-                        {myRoleEntry.status === 'taken' && (
-                          <button
-                            type="button"
-                            onClick={() => setIsDeclineOpen(true)}
-                            className="flex items-center gap-1.5 rounded-full border border-accent/50 px-4 py-2 text-sm font-semibold text-ink/70 transition hover:bg-white"
-                          >
-                            <X size={15} />
-                            Decline
-                          </button>
-                        )}
+                          ))}
                       </div>
                     )}
                   </div>

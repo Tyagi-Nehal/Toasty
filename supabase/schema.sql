@@ -438,3 +438,40 @@ create policy "agendas vpe or president write" on agendas
 
 grant select, insert, update on agendas to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
+
+-- Real Treasurer-controlled membership renewals (was fully fabricated —
+-- mockRenewals.js's 4 placeholder names, self-service UTR flow). Kept
+-- separate from `members` (VPE's attendance-roster domain) so this has
+-- its own clean RLS boundary instead of a cross-permission leak into
+-- attendance data. Active/inactive isn't its own column — it's derived
+-- from membership_end at read time (see mockMembershipStore.js).
+create table if not exists member_renewals (
+  id bigint generated always as identity primary key,
+  member_name text not null unique,
+  payment_status text not null default 'pending' check (payment_status in ('paid','pending','overdue')),
+  membership_start date,
+  membership_end date,
+  updated_at timestamptz not null default now()
+);
+
+alter table member_renewals enable row level security;
+
+drop policy if exists "member_renewals authenticated select" on member_renewals;
+create policy "member_renewals authenticated select" on member_renewals
+  for select to authenticated using (true);
+drop policy if exists "member_renewals treasurer or president write" on member_renewals;
+create policy "member_renewals treasurer or president write" on member_renewals
+  for all to authenticated
+  using (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'Treasurer'
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
+grant select, insert, update on member_renewals to authenticated;
+grant usage, select on all sequences in schema public to authenticated;

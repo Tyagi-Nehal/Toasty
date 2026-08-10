@@ -1,21 +1,23 @@
-import { useState } from 'react'
-import { Wallet, Check, History, Hash, CalendarDays } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Wallet, History } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import Avatar from '../components/Avatar.jsx'
 import {
-  getRenewalRoster,
-  confirmRenewal,
+  getMembersWithStatus,
   getRenewalLog,
-  CURRENT_TERM,
-} from '../lib/mockRenewalManagementStore.js'
+  updateMemberRenewal,
+} from '../lib/mockMembershipStore.js'
 
 const filters = ['All', 'Paid', 'Pending', 'Overdue']
 
 const statusBadge = {
-  Paid: 'bg-primary/10 text-primary',
-  Pending: 'bg-accent/20 text-ink/60',
-  Overdue: 'bg-red-100 text-red-700',
+  paid: 'bg-primary/10 text-primary',
+  pending: 'bg-accent/20 text-ink/60',
+  overdue: 'bg-red-100 text-red-700',
 }
+
+const selectClass =
+  'rounded-lg border border-accent/40 bg-cream px-2.5 py-1.5 text-sm text-ink focus:border-primary focus:outline-none'
 
 function timeAgo(isoString) {
   const diffMs = Date.now() - new Date(isoString).getTime()
@@ -29,25 +31,35 @@ function timeAgo(isoString) {
 }
 
 export default function RenewalManagementPage() {
-  const [roster, setRoster] = useState(() => getRenewalRoster())
+  const [members, setMembers] = useState([])
   const [log, setLog] = useState(() => getRenewalLog())
   const [filter, setFilter] = useState('All')
 
   function refresh() {
-    setRoster(getRenewalRoster())
+    getMembersWithStatus().then(setMembers)
     setLog(getRenewalLog())
   }
 
-  function handleConfirm(id) {
-    confirmRenewal(id)
+  useEffect(() => {
+    refresh()
+  }, [])
+
+  async function handleFieldChange(member, field, value) {
+    await updateMemberRenewal(member.name, {
+      paymentStatus: member.paymentStatus,
+      membershipStart: member.membershipStart,
+      membershipEnd: member.membershipEnd,
+      [field]: value,
+    })
     refresh()
   }
 
-  const visible = filter === 'All' ? roster : roster.filter((r) => r.status === filter)
+  const visible =
+    filter === 'All' ? members : members.filter((m) => m.paymentStatus === filter.toLowerCase())
 
   return (
     <MemberLayout>
-      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-10">
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
         <div className="flex items-center gap-2">
           <Wallet size={22} className="text-primary" />
           <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">
@@ -55,7 +67,8 @@ export default function RenewalManagementPage() {
           </h1>
         </div>
         <p className="mt-1 text-sm text-ink/60">
-          Confirm membership renewals for the {CURRENT_TERM} term.
+          Set each member's payment status and membership period. Active/Inactive
+          follows automatically from the membership end date.
         </p>
 
         {/* Filter */}
@@ -78,68 +91,65 @@ export default function RenewalManagementPage() {
 
         <div className="mt-4 overflow-hidden rounded-2xl border border-accent/30 bg-white">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-sm">
+            <table className="w-full min-w-[720px] text-left text-sm">
               <thead>
                 <tr className="border-b border-accent/20 bg-cream/60 text-xs uppercase tracking-wide text-ink/50">
                   <th className="px-4 py-3 font-semibold">Member</th>
+                  <th className="px-4 py-3 font-semibold">Payment Status</th>
+                  <th className="px-4 py-3 font-semibold">Membership Start</th>
+                  <th className="px-4 py-3 font-semibold">Membership End</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold">Date Claimed</th>
-                  <th className="px-4 py-3 font-semibold">UTR Reference</th>
-                  <th className="px-4 py-3 font-semibold" />
                 </tr>
               </thead>
               <tbody>
                 {visible.map((member) => (
-                  <tr key={member.id} className="border-b border-accent/10 last:border-0">
+                  <tr key={member.name} className="border-b border-accent/10 last:border-0">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         <Avatar name={member.name} size={28} />
-                        <span className="font-medium text-ink">
-                          {member.name}
-                          {member.isMe && (
-                            <span className="ml-1.5 text-xs font-normal text-ink/40">(you)</span>
-                          )}
-                        </span>
+                        <span className="font-medium text-ink">{member.name}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge[member.status]}`}
+                      <select
+                        value={member.paymentStatus}
+                        onChange={(e) => handleFieldChange(member, 'paymentStatus', e.target.value)}
+                        className={selectClass}
                       >
-                        {member.status}
+                        <option value="paid">Paid</option>
+                        <option value="pending">Pending</option>
+                        <option value="overdue">Overdue</option>
+                      </select>
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="date"
+                        value={member.membershipStart ?? ''}
+                        onChange={(e) => handleFieldChange(member, 'membershipStart', e.target.value)}
+                        className={selectClass}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="date"
+                        value={member.membershipEnd ?? ''}
+                        onChange={(e) => handleFieldChange(member, 'membershipEnd', e.target.value)}
+                        className={selectClass}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge[member.paymentStatus]}`}
+                      >
+                        {member.paymentStatus[0].toUpperCase() + member.paymentStatus.slice(1)}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-ink/60">
-                      {member.dateClaimed ? (
-                        <span className="flex items-center gap-1">
-                          <CalendarDays size={12} />
-                          {member.dateClaimed}
-                        </span>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-ink/60">
-                      {member.utr ? (
-                        <span className="flex items-center gap-1">
-                          <Hash size={12} />
-                          {member.utr}
-                        </span>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {member.status !== 'Paid' && member.dateClaimed && (
-                        <button
-                          type="button"
-                          onClick={() => handleConfirm(member.id)}
-                          className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
-                        >
-                          <Check size={12} />
-                          Confirm Renewal
-                        </button>
-                      )}
+                      <span
+                        className={`ml-2 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          member.isActive ? 'bg-primary/10 text-primary' : 'bg-ink/10 text-ink/50'
+                        }`}
+                      >
+                        {member.isActive ? 'Active' : 'Inactive'}
+                      </span>
                     </td>
                   </tr>
                 ))}

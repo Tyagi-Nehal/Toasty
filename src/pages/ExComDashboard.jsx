@@ -9,16 +9,18 @@ import {
   MessageSquare,
   UserCheck2,
   UserCog,
+  UsersRound,
   Vote,
   Wallet,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import MemberLayout from '../components/MemberLayout.jsx'
+import Avatar from '../components/Avatar.jsx'
 import { getAccount, hasExcomRole } from '../lib/mockAuth.js'
 import { getMeetings, getNotifications as getRoleNotifications } from '../lib/mockRolesStore.js'
 import { getPendingSignups } from '../lib/mockMemberSignups.js'
-import { getRenewalRoster } from '../lib/mockRenewalManagementStore.js'
+import { getMembersWithStatus } from '../lib/mockMembershipStore.js'
 import { getAgendaHistory } from '../lib/mockAgendaStore.js'
 import { getVisitRequestsLog } from '../lib/mockVisitRequests.js'
 import { getAllFeedback } from '../lib/mockFeedbackStore.js'
@@ -92,6 +94,9 @@ export default function ExComDashboard() {
   const [pendingSignupsCount, setPendingSignupsCount] = useState(0)
   const [upcomingMeeting, setUpcomingMeeting] = useState(null)
   const [recentActivity, setRecentActivity] = useState(() => getRecentActivity())
+  const [members, setMembers] = useState([])
+  const [pendingRenewalsCount, setPendingRenewalsCount] = useState(0)
+  const canSeeMembers = hasExcomRole('VPM') || hasExcomRole('Treasurer')
 
   useEffect(() => {
     if (hasExcomRole('VPM')) {
@@ -101,6 +106,12 @@ export default function ExComDashboard() {
       const upcoming = meetings.find((m) => (m.hoursUntilMeeting ?? -1) >= 0)
       setUpcomingMeeting(upcoming ?? meetings[meetings.length - 1] ?? null)
     })
+    if (canSeeMembers) {
+      getMembersWithStatus().then((list) => {
+        setMembers(list)
+        setPendingRenewalsCount(list.filter((m) => m.paymentStatus !== 'paid').length)
+      })
+    }
   }, [])
 
   if (!account?.excomRoles?.length) {
@@ -113,7 +124,6 @@ export default function ExComDashboard() {
   const filledRoles = roleEntries.filter((r) => r.status !== 'open').length
   const totalRoles = roleEntries.length
 
-  const pendingRenewalsCount = getRenewalRoster().filter((r) => r.status !== 'Paid').length
   const unreadFeedbackCount = getAllFeedback().filter((f) => !f.read).length
 
   const overviewCards = [
@@ -237,6 +247,41 @@ export default function ExComDashboard() {
             )}
           </div>
         </div>
+
+        {/* Members list — visible to VPM/Treasurer (President included via
+            the existing superuser rule in hasExcomRole). */}
+        {canSeeMembers && (
+          <div className="mt-6 rounded-3xl border border-accent/30 bg-white p-6">
+            <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+              <UsersRound size={16} className="text-primary" />
+              Members
+            </div>
+            {members.length > 0 ? (
+              <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                {members.map((m) => (
+                  <div
+                    key={m.name}
+                    className="flex items-center gap-2.5 rounded-2xl border border-accent/20 p-3"
+                  >
+                    <Avatar name={m.name} size={28} />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
+                      {m.name}
+                    </span>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        m.isActive ? 'bg-primary/10 text-primary' : 'bg-ink/10 text-ink/50'
+                      }`}
+                    >
+                      {m.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 text-sm text-ink/50">Loading members...</p>
+            )}
+          </div>
+        )}
       </div>
     </MemberLayout>
   )
