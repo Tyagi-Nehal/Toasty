@@ -81,17 +81,20 @@ function formatCutoffLabel(cutoff) {
   })
 }
 
-// Builds the { roleId: { status, takenBy } } shape every page expects,
-// filling in any role from roleCatalog that has no row yet as 'open'.
+// Builds the { roleId: { status, takenBy, acceptedAt } } shape every page
+// expects, filling in any role from roleCatalog that has no row yet as
+// 'open'.
 function buildRolesObject(assignments) {
   const roles = {}
   for (const role of roleCatalog) {
     roles[role.id] = { status: 'open' }
   }
   for (const a of assignments) {
-    roles[a.role_id] = a.taken_by_name
-      ? { status: a.status, takenBy: a.taken_by_name }
-      : { status: a.status }
+    roles[a.role_id] = {
+      status: a.status,
+      ...(a.taken_by_name ? { takenBy: a.taken_by_name } : {}),
+      ...(a.accepted_at ? { acceptedAt: a.accepted_at } : {}),
+    }
   }
   return roles
 }
@@ -201,20 +204,43 @@ export async function declineMyRole(meetingId) {
 
   await supabase
     .from('meeting_role_assignments')
-    .update({ status: 'open', taken_by_name: null, taken_by_email: null })
+    .update({ status: 'open', taken_by_name: null, taken_by_email: null, accepted_at: null })
     .eq('meeting_id', meetingId)
     .eq('role_id', myRoleId)
   logAction(`You declined ${roleName(myRoleId)} for ${meeting.dateLabel}`)
 }
 
-export async function overrideRole(meetingId, roleId, { status, takenBy }) {
+// Acknowledges an auto-assigned role — status stays 'auto' (accepting
+// doesn't retroactively make it "self-selected", per the rule that only
+// a member's own pick counts as that), but also claims taken_by_email
+// for the caller, since auto-assign only ever records taken_by_name.
+export async function acceptAutoAssignedRole(meetingId) {
+  const account = getAccount()
+  const meeting = await getMeeting(meetingId)
+  const myRoleId = meeting?.myRoleId
+  if (!myRoleId) return
+
+  await supabase
+    .from('meeting_role_assignments')
+    .update({ accepted_at: new Date().toISOString(), taken_by_email: account?.email })
+    .eq('meeting_id', meetingId)
+    .eq('role_id', myRoleId)
+  logAction(`You accepted your auto-assigned ${roleName(myRoleId)} for ${meeting.dateLabel}`)
+}
+
+// Status is always system-decided, never chosen by the VPE: a name
+// means it's now auto-assigned (whether the system or the VPE put it
+// there), no name means it's reopened. Only a member's own self-select
+// (selectRole, above) ever produces 'taken'.
+export async function overrideRole(meetingId, roleId, { takenBy }) {
   const meeting = await getMeeting(meetingId)
   await supabase
     .from('meeting_role_assignments')
     .update({
-      status,
+      status: takenBy ? 'auto' : 'open',
       taken_by_name: takenBy || null,
       taken_by_email: null,
+      accepted_at: null,
     })
     .eq('meeting_id', meetingId)
     .eq('role_id', roleId)

@@ -1,19 +1,12 @@
 import { useState } from 'react'
 import { UserCog, X } from 'lucide-react'
 
-export default function RoleOverrideModal({
-  roleName,
-  currentAssignee,
-  currentStatus,
-  onClose,
-  onConfirm,
-}) {
+export default function RoleOverrideModal({ roleName, currentAssignee, onClose, onConfirm }) {
   const [name, setName] = useState(currentAssignee ?? '')
-  const [markAs, setMarkAs] = useState(currentStatus === 'auto' ? 'auto' : 'taken')
 
   function handleConfirm() {
     const trimmed = name.trim()
-    onConfirm(trimmed ? { status: markAs, takenBy: trimmed } : { status: 'open', takenBy: null })
+    onConfirm({ takenBy: trimmed || null })
   }
 
   return (
@@ -54,20 +47,10 @@ export default function RoleOverrideModal({
         />
 
         {name.trim() && (
-          <>
-            <label htmlFor="override-status" className="mt-4 block text-sm font-medium text-ink">
-              Mark as
-            </label>
-            <select
-              id="override-status"
-              value={markAs}
-              onChange={(e) => setMarkAs(e.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-accent/40 bg-cream px-4 py-2.5 text-sm text-ink focus:border-primary focus:outline-none"
-            >
-              <option value="taken">Self-selected</option>
-              <option value="auto">Auto-assigned</option>
-            </select>
-          </>
+          <p className="mt-3 text-xs text-ink/50">
+            Assigning a name here always marks the role as auto-assigned — only a
+            member picking it themselves counts as self-selected.
+          </p>
         )}
 
         <div className="mt-5 flex gap-3">

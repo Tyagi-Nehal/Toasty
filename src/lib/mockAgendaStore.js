@@ -5,9 +5,14 @@
 // before that migration).
 //
 // Rows are a free-form ordered list stored as JSONB (not a separate rows
-// table) since the VPE can add/remove/reorder them — a meeting can have
-// a different number of speakers than the last one. Row shape:
-//   { id, startTime, endTime, segment, rolePlayer, name }
+// table) since the VPE can add/remove them — a meeting can have a
+// different number of speakers than the last one. Row shape:
+//   { id, startTime, endTime, segment, rolePlayer, name, roleIds }
+// roleIds records which real role(s) a row's Name reflects (empty for
+// PO/SAA — those use the fixed-default mechanism below, not the role
+// board — and for manually-added rows). Rows with roleIds get their name
+// re-synced from the live role board on every load — see
+// syncAgendaWithRoleBoard.
 //
 // Design note: text fields (theme, row names, etc.) are edited live via
 // onChange in the UI. Writing to Supabase on every keystroke would be
@@ -146,7 +151,7 @@ export async function generateAgenda(meetingId, existingAgenda) {
 
   const items = []
   let cursor = timeToMinutes('05:00 PM')
-  function addRow(segment, rolePlayer, name, durationMin) {
+  function addRow(segment, rolePlayer, name, durationMin, roleIds = []) {
     const startTime = minutesToTime(cursor)
     cursor += durationMin
     items.push({
@@ -156,13 +161,14 @@ export async function generateAgenda(meetingId, existingAgenda) {
       segment,
       rolePlayer,
       name,
+      roleIds,
     })
   }
   function addSpeakerRows(n) {
-    addRow(`Toastmaster of the Day + Evaluator ${n} Introduction`, 'TMOD', tmod, 1)
-    addRow('Speech Guidelines', 'Evaluator', named(`evaluator-${n}`), 1)
-    addRow('Toastmaster of the Day + Speaker Introduction', 'TMOD', tmod, 1)
-    addRow('Speech Delivery', 'Speaker', named(`speaker-${n}`), 15)
+    addRow(`Toastmaster of the Day + Evaluator ${n} Introduction`, 'TMOD', tmod, 1, ['tmod'])
+    addRow('Speech Guidelines', 'Evaluator', named(`evaluator-${n}`), 1, [`evaluator-${n}`])
+    addRow('Toastmaster of the Day + Speaker Introduction', 'TMOD', tmod, 1, ['tmod'])
+    addRow('Speech Delivery', 'Speaker', named(`speaker-${n}`), 15, [`speaker-${n}`])
   }
 
   addRow('Networking', 'All', 'All', 15)
@@ -173,14 +179,15 @@ export async function generateAgenda(meetingId, existingAgenda) {
     'TMOD',
     tmod,
     4,
+    ['tmod'],
   )
+  const taglRoleIds = ['ge', 'timer', 'ah-counter', 'grammarian', 'listener']
   addRow(
     'General Evaluator + TAGL Team Introduction',
     'GE\nTIMER\nAH COUNTER\nGRAMMARIAN\nLISTENER',
-    [named('ge'), named('timer'), named('ah-counter'), named('grammarian'), named('listener')].join(
-      '\n',
-    ),
+    taglRoleIds.map(named).join('\n'),
     6,
+    taglRoleIds,
   )
 
   const speakerNumbers = ['1', '2', '3'].filter((n) => {
@@ -189,11 +196,11 @@ export async function generateAgenda(meetingId, existingAgenda) {
   })
   for (const n of speakerNumbers) addSpeakerRows(n)
 
-  addRow('Table Topic Master Introduction by TMOD', 'TMOD', tmod, 1)
-  addRow('Table Topics Session', 'TTM', named('ttm'), 15)
-  addRow('Toastmaster Of The Day + GE Introduction', 'TMOD', tmod, 6)
-  addRow('General Evaluation Session', 'GE', named('ge'), 28)
-  addRow('Toastmaster of the Day', 'TMOD', tmod, 5)
+  addRow('Table Topic Master Introduction by TMOD', 'TMOD', tmod, 1, ['tmod'])
+  addRow('Table Topics Session', 'TTM', named('ttm'), 15, ['ttm'])
+  addRow('Toastmaster Of The Day + GE Introduction', 'TMOD', tmod, 6, ['tmod'])
+  addRow('General Evaluation Session', 'GE', named('ge'), 28, ['ge'])
+  addRow('Toastmaster of the Day', 'TMOD', tmod, 5, ['tmod'])
   addRow('Presiding Officer Address + Poll Session', 'PO', DEFAULT_PO_NAME, 10)
   const overallStartTime = minutesToTime(timeToMinutes('05:00 PM'))
   addRow('Networking', 'All', 'All', 10)
@@ -205,7 +212,7 @@ export async function generateAgenda(meetingId, existingAgenda) {
     theme: existingAgenda?.theme ?? meeting.theme ?? '',
     wordOfDay: existingAgenda?.wordOfDay ?? '',
     meaning: existingAgenda?.meaning ?? '',
-    venue: existingAgenda?.venue ?? '',
+    venue: existingAgenda?.venue ?? 'AB1 103',
     overallStartTime,
     overallEndTime,
     items,
@@ -218,56 +225,52 @@ export async function generateAgenda(meetingId, existingAgenda) {
   return agenda
 }
 
-// "+ Add Speaker" — inserts the standard 4-row block (TMOD+Evaluator
-// intro, Speech Guidelines, TMOD+Speaker intro, Speech Delivery) for the
-// next speaker number, right before Table Topics. Every row it creates
-// is independently editable/deletable like any other row afterward.
-export async function addSpeakerBlock(meetingId, agenda) {
-  const n = agenda.items.filter((i) => i.segment === 'Speech Delivery').length + 1
-  const newRows = [
-    {
-      id: crypto.randomUUID(),
-      startTime: '',
-      endTime: '',
-      segment: `Toastmaster of the Day + Evaluator ${n} Introduction`,
-      rolePlayer: 'TMOD',
-      name: '',
-    },
-    {
-      id: crypto.randomUUID(),
-      startTime: '',
-      endTime: '',
-      segment: 'Speech Guidelines',
-      rolePlayer: 'Evaluator',
-      name: '',
-    },
-    {
-      id: crypto.randomUUID(),
-      startTime: '',
-      endTime: '',
-      segment: 'Toastmaster of the Day + Speaker Introduction',
-      rolePlayer: 'TMOD',
-      name: '',
-    },
-    {
-      id: crypto.randomUUID(),
-      startTime: '',
-      endTime: '',
-      segment: 'Speech Delivery',
-      rolePlayer: 'Speaker',
-      name: '',
-    },
-  ]
-  const insertIndex = agenda.items.findIndex(
-    (i) => i.segment === 'Table Topic Master Introduction by TMOD',
-  )
-  const items =
-    insertIndex === -1
-      ? [...agenda.items, ...newRows]
-      : [...agenda.items.slice(0, insertIndex), ...newRows, ...agenda.items.slice(insertIndex)]
+// "+ Add Row" — appends exactly one blank, fully manual row (no
+// roleIds, so it's never touched by the role-board sync below) to the
+// end of the list. The VPE fills in every column themselves.
+export async function addAgendaRow(meetingId, agenda) {
+  const newRow = {
+    id: crypto.randomUUID(),
+    startTime: '',
+    endTime: '',
+    segment: '',
+    rolePlayer: '',
+    name: '',
+    roleIds: [],
+  }
+  const next = { ...agenda, items: [...agenda.items, newRow], updatedAt: new Date().toISOString() }
+  await persistAgenda(meetingId, next)
+  logAction(`VPE added a row to the agenda for ${agenda.dateLabel}`)
+  return next
+}
+
+// Keeps role-mapped rows (TMOD/GE/TAGL/TTM/Speaker/Evaluator — anything
+// with roleIds) showing the current role board, without needing a
+// realtime subscription (this app has none anywhere): called on every
+// page load of the Agenda Editor and the member Agenda view, so a
+// Role Management override, auto-assign, or member self-select becomes
+// visible the next time either page is opened. PO/SAA and manually added
+// rows (roleIds: []) are untouched — they're never auto-synced. Returns
+// the possibly-updated agenda; persists only if something changed.
+export async function syncAgendaWithRoleBoard(meetingId, agenda) {
+  if (!agenda?.items?.some((i) => i.roleIds?.length)) return agenda
+  const meeting = await getMeeting(meetingId)
+  if (!meeting) return agenda
+  const named = (roleId) => {
+    const takenBy = meeting.roles[roleId]?.takenBy
+    return takenBy ? `TM ${takenBy}` : ''
+  }
+  let changed = false
+  const items = agenda.items.map((item) => {
+    if (!item.roleIds?.length) return item
+    const freshName = item.roleIds.map(named).join('\n')
+    if (freshName === item.name) return item
+    changed = true
+    return { ...item, name: freshName }
+  })
+  if (!changed) return agenda
   const next = { ...agenda, items, updatedAt: new Date().toISOString() }
   await persistAgenda(meetingId, next)
-  logAction(`VPE added Speaker ${n} to the agenda for ${agenda.dateLabel}`)
   return next
 }
 

@@ -72,8 +72,8 @@ export default function RoleManagementPage() {
     refresh()
   }
 
-  async function handleOverrideConfirm({ status, takenBy }) {
-    await overrideRole(activeMeetingId, overrideTarget.id, { status, takenBy })
+  async function handleOverrideConfirm({ takenBy }) {
+    await overrideRole(activeMeetingId, overrideTarget.id, { takenBy })
     setOverrideTarget(null)
     refresh()
   }
@@ -303,7 +303,6 @@ export default function RoleManagementPage() {
         <RoleOverrideModal
           roleName={overrideTarget.name}
           currentAssignee={activeMeeting.roles[overrideTarget.id].takenBy}
-          currentStatus={activeMeeting.roles[overrideTarget.id].status}
           onClose={() => setOverrideTarget(null)}
           onConfirm={handleOverrideConfirm}
         />

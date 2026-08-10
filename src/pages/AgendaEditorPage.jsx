@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Clock, History, Megaphone, Plus, Send, Sparkles, Trash2 } from 'lucide-react'
+import { Clock, History, Lock, Megaphone, Plus, Send, Sparkles, Trash2 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import {
-  addSpeakerBlock,
+  addAgendaRow,
   generateAgenda,
   getAgenda,
   getAgendaChangeSummary,
@@ -10,13 +10,14 @@ import {
   persistAgenda,
   removeAgendaRow,
   sendAgendaToMembers,
+  syncAgendaWithRoleBoard,
 } from '../lib/mockAgendaStore.js'
 import { getMeetings } from '../lib/mockRolesStore.js'
 
 const inputClass =
-  'w-full rounded-lg border border-accent/30 bg-cream px-2.5 py-1.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none'
+  'w-full rounded-lg border border-accent/30 bg-cream px-2.5 py-1.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60'
 const headerInputClass =
-  'mt-1 w-full rounded-lg border border-accent/30 bg-white px-3 py-2 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none'
+  'mt-1 w-full rounded-lg border border-accent/30 bg-white px-3 py-2 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60'
 const headerLabelClass = 'text-xs font-medium text-ink/50'
 
 function multilineRows(...values) {
@@ -52,7 +53,16 @@ export default function AgendaEditorPage() {
   }, [])
 
   useEffect(() => {
-    if (activeMeetingId) getAgenda(activeMeetingId).then(setAgenda)
+    if (!activeMeetingId) return
+    getAgenda(activeMeetingId).then(async (loaded) => {
+      if (!loaded) {
+        setAgenda(null)
+        return
+      }
+      // Pull in any Role Management / self-select changes that happened
+      // since this agenda was last opened.
+      setAgenda(await syncAgendaWithRoleBoard(activeMeetingId, loaded))
+    })
   }, [activeMeetingId])
 
   function refresh(next) {
@@ -98,8 +108,8 @@ export default function AgendaEditorPage() {
     })
   }
 
-  async function handleAddSpeaker() {
-    refresh(await addSpeakerBlock(activeMeetingId, agenda))
+  async function handleAddRow() {
+    refresh(await addAgendaRow(activeMeetingId, agenda))
   }
 
   async function handleRemoveRow(itemId) {
@@ -112,6 +122,7 @@ export default function AgendaEditorPage() {
 
   const changeSummary = agenda ? getAgendaChangeSummary(agenda) : null
   const activeMeeting = meetings.find((m) => m.id === activeMeetingId)
+  const isPast = (activeMeeting?.hoursUntilMeeting ?? 0) < 0
 
   if (!activeMeeting) {
     return (
@@ -139,14 +150,15 @@ export default function AgendaEditorPage() {
             <button
               type="button"
               onClick={handleGenerate}
-              className="flex items-center gap-2 rounded-xl border border-primary px-4 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary hover:text-cream"
+              disabled={isPast}
+              className="flex items-center gap-2 rounded-xl border border-primary px-4 py-2.5 text-sm font-semibold text-primary transition enabled:hover:bg-primary enabled:hover:text-cream disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Sparkles size={16} />
               Auto-Generate Agenda
             </button>
             <button
               type="button"
-              disabled={!agenda}
+              disabled={!agenda || isPast}
               onClick={handleSend}
               className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -194,6 +206,13 @@ export default function AgendaEditorPage() {
           {saving && <span className="font-medium text-primary">Saving…</span>}
         </div>
 
+        {isPast && (
+          <div className="mt-4 flex items-start gap-3 rounded-2xl bg-cream p-4 text-sm text-ink/70">
+            <Lock size={18} className="mt-0.5 shrink-0 text-ink/40" />
+            <p>This meeting has already happened — the agenda is read-only.</p>
+          </div>
+        )}
+
         {changeSummary && (
           <div className="mt-4 flex items-start gap-3 rounded-2xl bg-accent/15 p-4 text-sm text-ink/70">
             <Megaphone size={18} className="mt-0.5 shrink-0 text-primary" />
@@ -216,7 +235,8 @@ export default function AgendaEditorPage() {
             <button
               type="button"
               onClick={handleGenerate}
-              className="mt-1 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
+              disabled={isPast}
+              className="mt-1 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
             >
               Auto-Generate Agenda
             </button>
@@ -234,6 +254,7 @@ export default function AgendaEditorPage() {
                     <label className={headerLabelClass}>Theme</label>
                     <input
                       type="text"
+                      disabled={isPast}
                       value={agenda.theme}
                       onChange={(e) => handleHeaderChange('theme', e.target.value)}
                       placeholder="e.g. Lost and Found"
@@ -244,6 +265,7 @@ export default function AgendaEditorPage() {
                     <label className={headerLabelClass}>Word Of The Day</label>
                     <input
                       type="text"
+                      disabled={isPast}
                       value={agenda.wordOfDay}
                       onChange={(e) => handleHeaderChange('wordOfDay', e.target.value)}
                       placeholder="e.g. Motif"
@@ -254,6 +276,7 @@ export default function AgendaEditorPage() {
                     <label className={headerLabelClass}>Meaning</label>
                     <input
                       type="text"
+                      disabled={isPast}
                       value={agenda.meaning}
                       onChange={(e) => handleHeaderChange('meaning', e.target.value)}
                       placeholder="What the word of the day means"
@@ -264,6 +287,7 @@ export default function AgendaEditorPage() {
                     <label className={headerLabelClass}>Venue</label>
                     <input
                       type="text"
+                      disabled={isPast}
                       value={agenda.venue}
                       onChange={(e) => handleHeaderChange('venue', e.target.value)}
                       placeholder="e.g. AB1 103"
@@ -275,6 +299,7 @@ export default function AgendaEditorPage() {
                       <label className={headerLabelClass}>Start Time</label>
                       <input
                         type="text"
+                        disabled={isPast}
                         value={agenda.overallStartTime}
                         onChange={(e) => handleHeaderChange('overallStartTime', e.target.value)}
                         className={headerInputClass}
@@ -284,6 +309,7 @@ export default function AgendaEditorPage() {
                       <label className={headerLabelClass}>End Time</label>
                       <input
                         type="text"
+                        disabled={isPast}
                         value={agenda.overallEndTime}
                         onChange={(e) => handleHeaderChange('overallEndTime', e.target.value)}
                         className={headerInputClass}
@@ -315,6 +341,7 @@ export default function AgendaEditorPage() {
                             <td className="px-3 py-2 align-top">
                               <input
                                 type="text"
+                                disabled={isPast}
                                 value={item.startTime}
                                 onChange={(e) =>
                                   handleFieldChange(item.id, 'startTime', e.target.value)
@@ -325,6 +352,7 @@ export default function AgendaEditorPage() {
                             <td className="px-3 py-2 align-top">
                               <input
                                 type="text"
+                                disabled={isPast}
                                 value={item.endTime}
                                 onChange={(e) =>
                                   handleFieldChange(item.id, 'endTime', e.target.value)
@@ -335,6 +363,7 @@ export default function AgendaEditorPage() {
                             <td className="px-3 py-2 align-top">
                               <input
                                 type="text"
+                                disabled={isPast}
                                 value={item.segment}
                                 onChange={(e) =>
                                   handleFieldChange(item.id, 'segment', e.target.value)
@@ -345,30 +374,33 @@ export default function AgendaEditorPage() {
                             <td className="px-3 py-2 align-top">
                               <textarea
                                 rows={rows}
+                                disabled={isPast}
                                 value={item.rolePlayer}
                                 onChange={(e) =>
                                   handleFieldChange(item.id, 'rolePlayer', e.target.value)
                                 }
-                                className={`${inputClass} w-32 resize-none`}
+                                className={`${inputClass} w-32 resize-none whitespace-pre overflow-x-auto`}
                               />
                             </td>
                             <td className="px-3 py-2 align-top">
                               <textarea
                                 rows={rows}
+                                disabled={isPast}
                                 value={item.name}
                                 placeholder="Unassigned"
                                 onChange={(e) =>
                                   handleFieldChange(item.id, 'name', e.target.value)
                                 }
-                                className={`${inputClass} w-36 resize-none`}
+                                className={`${inputClass} w-36 resize-none whitespace-pre overflow-x-auto`}
                               />
                             </td>
                             <td className="px-2 py-2 align-top">
                               <button
                                 type="button"
+                                disabled={isPast}
                                 onClick={() => handleRemoveRow(item.id)}
                                 aria-label="Remove row"
-                                className="rounded-lg p-1.5 text-ink/40 transition hover:bg-red-50 hover:text-red-600"
+                                className="rounded-lg p-1.5 text-ink/40 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
                               >
                                 <Trash2 size={14} />
                               </button>
@@ -382,11 +414,12 @@ export default function AgendaEditorPage() {
                 <div className="border-t border-accent/20 p-3">
                   <button
                     type="button"
-                    onClick={handleAddSpeaker}
-                    className="flex items-center gap-1.5 rounded-xl border border-dashed border-accent/50 px-4 py-2.5 text-sm font-semibold text-ink/60 transition hover:border-primary hover:text-primary"
+                    onClick={handleAddRow}
+                    disabled={isPast}
+                    className="flex items-center gap-1.5 rounded-xl border border-dashed border-accent/50 px-4 py-2.5 text-sm font-semibold text-ink/60 transition hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Plus size={15} />
-                    Add Speaker
+                    Add Row
                   </button>
                 </div>
               </div>

@@ -124,7 +124,9 @@ export default function ExComDashboard() {
       icon: CalendarDays,
       label: 'Upcoming Meeting',
       value: upcomingMeeting ? `${filledRoles}/${totalRoles} roles filled` : '—',
-      sub: upcomingMeeting?.dateLabel ?? 'Loading...',
+      sub: upcomingMeeting
+        ? `${upcomingMeeting.dateLabel}${upcomingMeeting.time ? `, ${upcomingMeeting.time}` : ''}`
+        : 'Loading...',
     },
     {
       key: 'renewals',

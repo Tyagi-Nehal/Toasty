@@ -12,7 +12,8 @@ import {
 import MemberLayout from '../components/MemberLayout.jsx'
 import DeclineRoleModal from '../components/DeclineRoleModal.jsx'
 import { getAccount } from '../lib/mockAuth.js'
-import { memberStats, upcomingMeeting } from '../data/mockMemberData.js'
+import { roleCatalog } from '../data/roleCatalog.js'
+import { acceptAutoAssignedRole, declineMyRole, getMeetings } from '../lib/mockRolesStore.js'
 import { getNotifications, markAllRead } from '../lib/mockNotificationsStore.js'
 import { notificationIcons, defaultNotificationIcon } from '../components/notificationMeta.js'
 
@@ -32,9 +33,21 @@ export default function MemberDashboard() {
   const firstName = account?.name?.split(' ')[0] ?? 'there'
   const location = useLocation()
 
-  const [roleStatus, setRoleStatus] = useState('pending') // 'pending' | 'confirmed' | 'declined'
+  const [meetings, setMeetings] = useState([])
+  const [loadingMeeting, setLoadingMeeting] = useState(true)
   const [isDeclineOpen, setIsDeclineOpen] = useState(false)
   const [notifications, setNotifications] = useState(() => getNotifications())
+
+  function refresh() {
+    getMeetings().then((fetched) => {
+      setMeetings(fetched)
+      setLoadingMeeting(false)
+    })
+  }
+
+  useEffect(() => {
+    refresh()
+  }, [])
 
   useEffect(() => {
     if (location.hash === '#notifications') {
@@ -47,13 +60,18 @@ export default function MemberDashboard() {
     setNotifications(getNotifications())
   }
 
-  const progressPct = Math.min(
-    100,
-    Math.round((memberStats.pointsThisMonth / memberStats.topScore) * 100),
-  )
+  const upcoming = meetings.find((m) => (m.hoursUntilMeeting ?? -1) >= 0)
+  const myRole = upcoming?.myRoleId ? roleCatalog.find((r) => r.id === upcoming.myRoleId) : null
+  const myRoleEntry = upcoming?.myRoleId ? upcoming.roles[upcoming.myRoleId] : null
 
-  function handleDeclineConfirm() {
-    setRoleStatus('declined')
+  async function handleAccept() {
+    await acceptAutoAssignedRole(upcoming.id)
+    refresh()
+  }
+
+  async function handleDeclineConfirm() {
+    await declineMyRole(upcoming.id)
+    refresh()
     setIsDeclineOpen(false)
   }
 
@@ -76,27 +94,14 @@ export default function MemberDashboard() {
                 <div>
                   <p className="text-sm text-ink/60">My points this month</p>
                   <p className="text-3xl font-extrabold text-ink">
-                    {memberStats.pointsThisMonth}
-                    <span className="ml-1 text-base font-medium text-ink/40">pts</span>
+                    0<span className="ml-1 text-base font-medium text-ink/40">pts</span>
                   </p>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent/20 text-primary">
                   <TrendingUp size={22} />
                 </div>
               </div>
-
-              <div className="mt-4">
-                <div className="h-2.5 w-full overflow-hidden rounded-full bg-cream">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all"
-                    style={{ width: `${progressPct}%` }}
-                  />
-                </div>
-                <p className="mt-2 text-xs text-ink/50">
-                  Rank #{memberStats.rank} of {memberStats.totalMembers} members
-                  this month
-                </p>
-              </div>
+              <p className="mt-3 text-xs text-ink/50">Points tracking is coming soon.</p>
             </div>
 
             {/* Upcoming meeting card */}
@@ -105,53 +110,76 @@ export default function MemberDashboard() {
                 <CalendarDays size={16} />
                 Upcoming Meeting
               </div>
-              <p className="mt-2 text-lg font-bold text-ink">
-                {upcomingMeeting.dateLabel}, {upcomingMeeting.time}
-              </p>
 
-              <div className="mt-4 rounded-2xl bg-cream p-4">
-                {roleStatus === 'declined' ? (
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm text-ink/60">My Role</p>
-                      <p className="font-semibold text-ink/50 line-through">
-                        {upcomingMeeting.role}
-                      </p>
-                      <p className="mt-1 text-xs font-medium text-red-600">
-                        Declined
-                      </p>
-                    </div>
-                    <Link
-                      to="/roles"
-                      className="flex items-center gap-1 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
-                    >
-                      Select a Role
-                      <ArrowRight size={14} />
-                    </Link>
-                  </div>
-                ) : upcomingMeeting.role ? (
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm text-ink/60">My Role</p>
-                      <p className="font-semibold text-ink">{upcomingMeeting.role}</p>
-                      {upcomingMeeting.assignmentType === 'auto' && (
-                        <p className="mt-1 text-xs font-medium text-primary">
-                          Auto-assigned
-                          {roleStatus === 'confirmed' ? ' · Confirmed' : ' · Awaiting your response'}
-                        </p>
-                      )}
-                    </div>
-                    {upcomingMeeting.assignmentType === 'auto' &&
-                      roleStatus === 'pending' && (
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setRoleStatus('confirmed')}
-                            className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
-                          >
-                            <Check size={15} />
-                            Accept
-                          </button>
+              {loadingMeeting ? (
+                <p className="mt-3 text-sm text-ink/50">Loading...</p>
+              ) : !upcoming ? (
+                <p className="mt-3 text-sm text-ink/50">No upcoming meeting scheduled yet.</p>
+              ) : (
+                <>
+                  <p className="mt-2 text-lg font-bold text-ink">
+                    {upcoming.dateLabel}
+                    {upcoming.time ? `, ${upcoming.time}` : ''}
+                  </p>
+
+                  <div className="mt-4 rounded-2xl bg-cream p-4">
+                    {!myRole ? (
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm text-ink/60">My Role</p>
+                          <p className="font-semibold text-ink/50">
+                            {upcoming.pastCutoff
+                              ? 'No role assigned for this meeting'
+                              : 'Please select a role for the next meeting'}
+                          </p>
+                        </div>
+                        <Link
+                          to="/roles"
+                          className="flex items-center gap-1 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
+                        >
+                          Select a Role
+                          <ArrowRight size={14} />
+                        </Link>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm text-ink/60">My Role</p>
+                          <p className="font-semibold text-ink">{myRole.name}</p>
+                          {myRoleEntry.status === 'auto' && (
+                            <p className="mt-1 text-xs font-medium text-primary">
+                              Auto-assigned
+                              {myRoleEntry.acceptedAt ? ' · Confirmed' : ' · Awaiting your response'}
+                            </p>
+                          )}
+                        </div>
+                        {myRoleEntry.status === 'auto' && !myRoleEntry.acceptedAt && (
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={handleAccept}
+                              className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
+                            >
+                              <Check size={15} />
+                              Accept
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsDeclineOpen(true)}
+                              className="flex items-center gap-1.5 rounded-full border border-accent/50 px-4 py-2 text-sm font-semibold text-ink/70 transition hover:bg-white"
+                            >
+                              <X size={15} />
+                              Decline
+                            </button>
+                          </div>
+                        )}
+                        {myRoleEntry.status === 'auto' && myRoleEntry.acceptedAt && (
+                          <span className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
+                            <CheckCircle2 size={14} />
+                            You're all set
+                          </span>
+                        )}
+                        {myRoleEntry.status === 'taken' && (
                           <button
                             type="button"
                             onClick={() => setIsDeclineOpen(true)}
@@ -160,31 +188,12 @@ export default function MemberDashboard() {
                             <X size={15} />
                             Decline
                           </button>
-                        </div>
-                      )}
-                    {roleStatus === 'confirmed' && (
-                      <span className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
-                        <CheckCircle2 size={14} />
-                        You're all set
-                      </span>
+                        )}
+                      </div>
                     )}
                   </div>
-                ) : (
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm text-ink/60">My Role</p>
-                      <p className="font-semibold text-ink/50">No role selected yet</p>
-                    </div>
-                    <Link
-                      to="/roles"
-                      className="flex items-center gap-1 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
-                    >
-                      Select a Role
-                      <ArrowRight size={14} />
-                    </Link>
-                  </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -244,11 +253,11 @@ export default function MemberDashboard() {
         </div>
       </div>
 
-      {isDeclineOpen && (
+      {isDeclineOpen && myRole && upcoming && (
         <DeclineRoleModal
-          roleName={upcomingMeeting.role}
-          meetingLabel={`${upcomingMeeting.dateLabel}, ${upcomingMeeting.time}`}
-          hoursUntilMeeting={upcomingMeeting.hoursUntilMeeting}
+          roleName={myRole.name}
+          meetingLabel={`${upcoming.dateLabel}, ${upcoming.time}`}
+          hoursUntilMeeting={upcoming.hoursUntilMeeting ?? 999}
           onClose={() => setIsDeclineOpen(false)}
           onConfirm={handleDeclineConfirm}
         />

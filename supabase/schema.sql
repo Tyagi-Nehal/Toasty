@@ -352,12 +352,23 @@ create policy "assignments vpe or president insert" on meeting_role_assignments
   );
 -- Update allowed for VPE/President (any row), or a member claiming an
 -- open role, or a member releasing a role that's already theirs.
+-- Adds accepted_at so a member can acknowledge an auto-assigned role
+-- (separate from status, which stays 'auto' either way — accepting
+-- doesn't retroactively make it "self-selected").
+alter table meeting_role_assignments add column if not exists accepted_at timestamptz;
+
 drop policy if exists "assignments update" on meeting_role_assignments;
 create policy "assignments update" on meeting_role_assignments
   for update to authenticated
   using (
     status = 'open'
     or lower(taken_by_email) = lower(auth.jwt() ->> 'email')
+    -- Claiming/accepting or declining your own not-yet-claimed
+    -- auto-assigned role. Auto-assign only ever records taken_by_name
+    -- (no email), so without this clause a member could never actually
+    -- act on their own auto-assigned role — a real bug found while
+    -- wiring up Accept, not new looseness added for it.
+    or (status = 'auto' and taken_by_email is null)
     or exists (
       select 1 from excom_appointments
       where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPE'
