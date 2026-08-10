@@ -264,9 +264,7 @@ export default function ExComDashboard() {
                     className="flex items-center gap-2.5 rounded-2xl border border-accent/20 p-3"
                   >
                     <Avatar name={m.name} size={28} />
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
-                      {m.name}
-                    </span>
+                    <span className="min-w-0 truncate text-sm font-medium text-ink">{m.name}</span>
                     <span
                       className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
                         m.isActive ? 'bg-primary/10 text-primary' : 'bg-ink/10 text-ink/50'

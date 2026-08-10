@@ -10,12 +10,6 @@ import {
 
 const filters = ['All', 'Paid', 'Pending', 'Overdue']
 
-const statusBadge = {
-  paid: 'bg-primary/10 text-primary',
-  pending: 'bg-accent/20 text-ink/60',
-  overdue: 'bg-red-100 text-red-700',
-}
-
 const selectClass =
   'rounded-lg border border-accent/40 bg-cream px-2.5 py-1.5 text-sm text-ink focus:border-primary focus:outline-none'
 
@@ -98,7 +92,6 @@ export default function RenewalManagementPage() {
                   <th className="px-4 py-3 font-semibold">Payment Status</th>
                   <th className="px-4 py-3 font-semibold">Membership Start</th>
                   <th className="px-4 py-3 font-semibold">Membership End</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -108,6 +101,13 @@ export default function RenewalManagementPage() {
                       <div className="flex items-center gap-2.5">
                         <Avatar name={member.name} size={28} />
                         <span className="font-medium text-ink">{member.name}</span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            member.isActive ? 'bg-primary/10 text-primary' : 'bg-ink/10 text-ink/50'
+                          }`}
+                        >
+                          {member.isActive ? 'Active' : 'Inactive'}
+                        </span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -137,25 +137,11 @@ export default function RenewalManagementPage() {
                         className={selectClass}
                       />
                     </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge[member.paymentStatus]}`}
-                      >
-                        {member.paymentStatus[0].toUpperCase() + member.paymentStatus.slice(1)}
-                      </span>
-                      <span
-                        className={`ml-2 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          member.isActive ? 'bg-primary/10 text-primary' : 'bg-ink/10 text-ink/50'
-                        }`}
-                      >
-                        {member.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
                   </tr>
                 ))}
                 {visible.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-sm text-ink/50">
+                    <td colSpan={4} className="px-4 py-8 text-center text-sm text-ink/50">
                       No members with this status.
                     </td>
                   </tr>
