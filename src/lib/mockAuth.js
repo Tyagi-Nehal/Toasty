@@ -1,4 +1,4 @@
-import { getRoleForEmail, getNameForEmail } from './mockExcomRegistry.js'
+import { getRolesForEmail, getNameForEmail } from './mockExcomRegistry.js'
 import { verifyPresident } from './mockClubRegistry.js'
 import { getOrCreateSignupStatus } from './mockMemberSignups.js'
 
@@ -36,10 +36,10 @@ export async function syncAccountFromSupabaseUser(user) {
   sessionStorage.removeItem(APPLIED_FOR_EXCOM_KEY)
 
   const { verified: isPresident, name: presidentName } = await verifyPresident(email)
-  const role = isPresident ? 'President' : await getRoleForEmail(email)
+  const roles = isPresident ? ['President'] : await getRolesForEmail(email)
 
   let status, resolvedName
-  if (role) {
+  if (roles.length > 0) {
     const registeredName = isPresident ? presidentName : await getNameForEmail(email)
     resolvedName = registeredName || googleName || email
     status = 'approved'
@@ -57,7 +57,7 @@ export async function syncAccountFromSupabaseUser(user) {
     name: resolvedName,
     email,
     status,
-    excomRoles: role ? [role] : [],
+    excomRoles: roles,
     appliedForExcom,
   }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(account))

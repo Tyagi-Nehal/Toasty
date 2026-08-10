@@ -78,6 +78,21 @@ export async function getRoleForEmail(email) {
   return data?.role ?? null
 }
 
+// Returns every distinct role registered to this email (most-recent
+// first), instead of just the single most-recent one — lets one email
+// hold multiple ExCom roles at once, e.g. for testing several role
+// dashboards without needing a separate real Google account per role.
+export async function getRolesForEmail(email) {
+  const normalized = normalizeEmail(email)
+  if (!normalized) return []
+  const { data } = await supabase
+    .from('excom_appointments')
+    .select('role')
+    .eq('email', normalized)
+    .order('appointed_at', { ascending: false })
+  return [...new Set((data ?? []).map((row) => row.role))]
+}
+
 export async function getNameForEmail(email) {
   const normalized = normalizeEmail(email)
   if (!normalized) return null
