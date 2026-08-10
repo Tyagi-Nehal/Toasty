@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react'
 import { Clock, Megaphone, User, CalendarClock } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import { getAccount } from '../lib/mockAuth.js'
 import { roleCatalog } from '../data/roleCatalog.js'
 import { getAgenda, getAgendaChangeSummary } from '../lib/mockAgendaStore.js'
+import { getMeetings } from '../lib/mockRolesStore.js'
 
 function roleName(roleId) {
   return roleCatalog.find((r) => r.id === roleId)?.name ?? roleId
@@ -19,7 +21,28 @@ function formatTimestamp(iso) {
 
 export default function AgendaPage() {
   const account = getAccount()
-  const agenda = getAgenda()
+  const [agenda, setAgenda] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    getMeetings().then((meetings) => {
+      // Nearest upcoming meeting first; fall back to the most recent one.
+      const upcoming = meetings.find((m) => (m.hoursUntilMeeting ?? -1) >= 0)
+      const target = upcoming ?? meetings[meetings.length - 1]
+      setAgenda(target ? getAgenda(target.id) : null)
+      setLoading(false)
+    })
+  }, [])
+
+  if (loading) {
+    return (
+      <MemberLayout>
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <p className="text-sm text-ink/50">Loading...</p>
+        </div>
+      </MemberLayout>
+    )
+  }
 
   if (!agenda) {
     return (
@@ -45,7 +68,7 @@ export default function AgendaPage() {
         <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">
           {agenda.dateLabel} Agenda
         </h1>
-        <p className="mt-1 text-sm text-ink/60">Theme: {agenda.theme}</p>
+        {agenda.theme && <p className="mt-1 text-sm text-ink/60">Theme: {agenda.theme}</p>}
         <p className="mt-3 flex items-center gap-1.5 text-xs text-ink/50">
           <Clock size={13} />
           Last updated: {formatTimestamp(agenda.updatedAt)}

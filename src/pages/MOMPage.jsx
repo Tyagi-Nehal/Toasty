@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   FileText,
   Clock,
@@ -9,10 +9,13 @@ import {
   Award,
   Send,
   CheckCircle2,
+  Plus,
+  Trash2,
 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
-import { momMeta, initialMOM } from '../data/mockMOM.js'
+import { blankMOM } from '../data/mockMOM.js'
 import { getSubmittedMOM, saveSubmittedMOM } from '../lib/mockMOMStore.js'
+import { getMeetings } from '../lib/mockRolesStore.js'
 
 const inputClass =
   'w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60'
@@ -31,13 +34,99 @@ function Section({ icon: Icon, title, children }) {
   )
 }
 
+// A singular role's { name, comments } pair — SAA, PO, TMOD, GE, TTM,
+// Timer, Ah-Counter, Grammarian, Listener all use this same shape.
+function RoleFields({ label, value, disabled, onChange }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <div>
+        <label className={labelClass}>{label}</label>
+        <input
+          type="text"
+          disabled={disabled}
+          value={value.name}
+          onChange={(e) => onChange('name', e.target.value)}
+          className={`mt-1 ${inputClass}`}
+        />
+      </div>
+      <div>
+        <label className={labelClass}>Comments</label>
+        <input
+          type="text"
+          disabled={disabled}
+          value={value.comments}
+          onChange={(e) => onChange('comments', e.target.value)}
+          className={`mt-1 ${inputClass}`}
+        />
+      </div>
+    </div>
+  )
+}
+
+function emptySpeaker() {
+  return { key: crypto.randomUUID(), name: '', project: '', comments: '' }
+}
+function emptyEvaluator() {
+  return { key: crypto.randomUUID(), name: '', speakerEvaluated: '', comments: '' }
+}
+function emptyTtSpeaker() {
+  return { key: crypto.randomUUID(), name: '', comments: '' }
+}
+
 export default function MOMPage() {
-  const existing = getSubmittedMOM()
-  const [mom, setMom] = useState(existing ?? initialMOM)
-  const [submitted, setSubmitted] = useState(Boolean(existing))
+  const [meetings, setMeetings] = useState([])
+  const [activeMeetingId, setActiveMeetingId] = useState(null)
+  const [mom, setMom] = useState(null)
+  const [submitted, setSubmitted] = useState(false)
+
+  useEffect(() => {
+    getMeetings().then((fetched) => {
+      setMeetings(fetched)
+      const upcoming = fetched.find((m) => (m.hoursUntilMeeting ?? -1) >= 0)
+      setActiveMeetingId((prev) => prev ?? upcoming?.id ?? fetched[fetched.length - 1]?.id ?? null)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!activeMeetingId) return
+    const meeting = meetings.find((m) => m.id === activeMeetingId)
+    const existing = getSubmittedMOM(activeMeetingId)
+    if (existing) {
+      setMom(existing)
+      setSubmitted(true)
+      return
+    }
+    // Prefill singular-role names from the meeting's real assignments —
+    // still fully editable either way.
+    const blank = blankMOM()
+    if (meeting) {
+      for (const [key, roleId] of [
+        ['saa', 'saa'],
+        ['presidingOfficer', 'po'],
+        ['tmod', 'tmod'],
+        ['ge', 'ge'],
+        ['ttMaster', 'ttm'],
+        ['timer', 'timer'],
+        ['ahCounter', 'ah-counter'],
+        ['grammarian', 'grammarian'],
+        ['listener', 'listener'],
+      ]) {
+        const takenBy = meeting.roles[roleId]?.takenBy
+        if (takenBy) blank[key] = { ...blank[key], name: takenBy }
+      }
+    }
+    setMom(blank)
+    setSubmitted(false)
+  }, [activeMeetingId, meetings])
+
+  const activeMeeting = meetings.find((m) => m.id === activeMeetingId)
 
   function setField(key, value) {
     setMom((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function setRoleField(roleKey, field, value) {
+    setMom((prev) => ({ ...prev, [roleKey]: { ...prev[roleKey], [field]: value } }))
   }
 
   function setArrayField(arrayKey, index, field, value) {
@@ -49,9 +138,33 @@ export default function MOMPage() {
     }))
   }
 
+  function addArrayItem(arrayKey, factory) {
+    setMom((prev) => ({ ...prev, [arrayKey]: [...prev[arrayKey], factory()] }))
+  }
+
+  function removeArrayItem(arrayKey, index) {
+    setMom((prev) => ({
+      ...prev,
+      [arrayKey]: prev[arrayKey].filter((_, i) => i !== index),
+    }))
+  }
+
   function handleSubmit() {
-    saveSubmittedMOM(mom, { dateLabel: momMeta.dateLabel, theme: momMeta.theme, startTime: momMeta.startTime })
+    saveSubmittedMOM(activeMeetingId, mom, {
+      dateLabel: activeMeeting.dateLabel,
+      theme: activeMeeting.theme ?? '',
+    })
     setSubmitted(true)
+  }
+
+  if (!activeMeeting || !mom) {
+    return (
+      <MemberLayout>
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <p className="text-sm text-ink/50">Loading meetings...</p>
+        </div>
+      </MemberLayout>
+    )
   }
 
   return (
@@ -64,9 +177,8 @@ export default function MOMPage() {
               Minutes of Meeting
             </div>
             <h1 className="mt-1 text-2xl font-extrabold text-ink sm:text-3xl">
-              {momMeta.dateLabel}
+              {activeMeeting.dateLabel}
             </h1>
-            <p className="text-sm text-ink/60">Theme: {momMeta.theme}</p>
           </div>
           <span
             className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
@@ -76,10 +188,30 @@ export default function MOMPage() {
             {submitted ? 'Submitted' : 'Pending'}
           </span>
         </div>
-        <p className="mt-2 flex items-center gap-1.5 text-xs text-ink/50">
-          <Clock size={13} />
-          Due by {momMeta.deadlineLabel}
-        </p>
+
+        {/* Meeting tabs */}
+        <div className="mt-4 flex gap-2 overflow-x-auto">
+          {meetings.map((m) => {
+            const active = m.id === activeMeetingId
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setActiveMeetingId(m.id)}
+                className={`shrink-0 rounded-2xl border px-4 py-2.5 text-left transition ${
+                  active
+                    ? 'border-primary bg-primary text-cream'
+                    : 'border-accent/30 bg-white text-ink hover:border-primary/50'
+                }`}
+              >
+                <p className="text-sm font-semibold">{m.label}</p>
+                <p className={`text-xs ${active ? 'text-cream/80' : 'text-ink/50'}`}>
+                  {m.dateLabel}
+                </p>
+              </button>
+            )
+          })}
+        </div>
 
         {/* Meeting details */}
         <Section icon={MapPin} title="Meeting Details">
@@ -94,45 +226,15 @@ export default function MOMPage() {
               className={`mt-1 ${inputClass}`}
             />
           </div>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <label className={labelClass}>Presiding Officer</label>
-              <input
-                type="text"
-                disabled={submitted}
-                value={mom.presidingOfficer}
-                onChange={(e) => setField('presidingOfficer', e.target.value)}
-                className={`mt-1 ${inputClass}`}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Toastmaster of the Day</label>
-              <input
-                type="text"
-                disabled={submitted}
-                value={mom.tmod}
-                onChange={(e) => setField('tmod', e.target.value)}
-                className={`mt-1 ${inputClass}`}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>General Evaluator</label>
-              <input
-                type="text"
-                disabled={submitted}
-                value={mom.ge}
-                onChange={(e) => setField('ge', e.target.value)}
-                className={`mt-1 ${inputClass}`}
-              />
-            </div>
-          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>Meeting start time (auto-filled)</label>
+              <label className={labelClass}>Meeting start time</label>
               <input
                 type="text"
-                disabled
-                value={momMeta.startTime}
+                disabled={submitted}
+                value={mom.startTime}
+                onChange={(e) => setField('startTime', e.target.value)}
+                placeholder="e.g. 5:15 PM"
                 className={`mt-1 ${inputClass}`}
               />
             </div>
@@ -143,17 +245,66 @@ export default function MOMPage() {
                 disabled={submitted}
                 value={mom.endTime}
                 onChange={(e) => setField('endTime', e.target.value)}
+                placeholder="e.g. 6:50 PM"
                 className={`mt-1 ${inputClass}`}
               />
             </div>
           </div>
         </Section>
 
+        {/* Sergeant at Arms */}
+        <Section icon={MessageSquare} title="Sergeant at Arms">
+          <RoleFields
+            label="Name"
+            value={mom.saa}
+            disabled={submitted}
+            onChange={(field, value) => setRoleField('saa', field, value)}
+          />
+        </Section>
+
+        {/* Presiding Officer */}
+        <Section icon={MessageSquare} title="Presiding Officer">
+          <RoleFields
+            label="Name"
+            value={mom.presidingOfficer}
+            disabled={submitted}
+            onChange={(field, value) => setRoleField('presidingOfficer', field, value)}
+          />
+        </Section>
+
+        {/* TMOD */}
+        <Section icon={MessageSquare} title="Toastmaster of the Day">
+          <RoleFields
+            label="Name"
+            value={mom.tmod}
+            disabled={submitted}
+            onChange={(field, value) => setRoleField('tmod', field, value)}
+          />
+        </Section>
+
         {/* Speakers */}
         <Section icon={Mic} title="Speakers">
           {mom.speakers.map((speaker, i) => (
-            <div key={speaker.name} className="rounded-2xl bg-cream/60 p-4">
-              <p className="text-sm font-semibold text-ink">{speaker.name}</p>
+            <div key={speaker.key} className="rounded-2xl bg-cream/60 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <label className={labelClass}>Name</label>
+                <button
+                  type="button"
+                  disabled={submitted}
+                  onClick={() => removeArrayItem('speakers', i)}
+                  aria-label="Remove speaker"
+                  className="rounded-lg p-1 text-ink/40 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+              <input
+                type="text"
+                disabled={submitted}
+                value={speaker.name}
+                onChange={(e) => setArrayField('speakers', i, 'name', e.target.value)}
+                className={`mt-1 ${inputClass}`}
+              />
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className={labelClass}>Project</label>
@@ -179,134 +330,185 @@ export default function MOMPage() {
               </div>
             </div>
           ))}
+          <button
+            type="button"
+            disabled={submitted}
+            onClick={() => addArrayItem('speakers', emptySpeaker)}
+            className="flex items-center gap-1.5 rounded-xl border border-dashed border-accent/50 px-4 py-2.5 text-sm font-semibold text-ink/60 transition hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Plus size={15} />
+            Add Speaker
+          </button>
         </Section>
 
         {/* Evaluators */}
         <Section icon={MessageSquare} title="Evaluators">
           {mom.evaluators.map((evaluator, i) => (
-            <div key={evaluator.name} className="rounded-2xl bg-cream/60 p-4">
-              <p className="text-sm font-semibold text-ink">
-                {evaluator.name}{' '}
-                <span className="font-normal text-ink/50">
-                  evaluated {evaluator.speakerEvaluated}
-                </span>
-              </p>
-              <div className="mt-3">
-                <label className={labelClass}>Comments</label>
-                <input
-                  type="text"
+            <div key={evaluator.key} className="rounded-2xl bg-cream/60 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <label className={labelClass}>Name</label>
+                <button
+                  type="button"
                   disabled={submitted}
-                  value={evaluator.comments}
-                  onChange={(e) => setArrayField('evaluators', i, 'comments', e.target.value)}
-                  className={`mt-1 ${inputClass}`}
-                />
+                  onClick={() => removeArrayItem('evaluators', i)}
+                  aria-label="Remove evaluator"
+                  className="rounded-lg p-1 text-ink/40 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+              <input
+                type="text"
+                disabled={submitted}
+                value={evaluator.name}
+                onChange={(e) => setArrayField('evaluators', i, 'name', e.target.value)}
+                className={`mt-1 ${inputClass}`}
+              />
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className={labelClass}>Speaker Evaluated</label>
+                  <input
+                    type="text"
+                    disabled={submitted}
+                    value={evaluator.speakerEvaluated}
+                    onChange={(e) =>
+                      setArrayField('evaluators', i, 'speakerEvaluated', e.target.value)
+                    }
+                    className={`mt-1 ${inputClass}`}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Comments</label>
+                  <input
+                    type="text"
+                    disabled={submitted}
+                    value={evaluator.comments}
+                    onChange={(e) => setArrayField('evaluators', i, 'comments', e.target.value)}
+                    className={`mt-1 ${inputClass}`}
+                  />
+                </div>
               </div>
             </div>
           ))}
+          <button
+            type="button"
+            disabled={submitted}
+            onClick={() => addArrayItem('evaluators', emptyEvaluator)}
+            className="flex items-center gap-1.5 rounded-xl border border-dashed border-accent/50 px-4 py-2.5 text-sm font-semibold text-ink/60 transition hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Plus size={15} />
+            Add Evaluator
+          </button>
         </Section>
 
         {/* Table Topics */}
         <Section icon={MessageSquare} title="Table Topics">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className={labelClass}>TT Master</label>
-              <input
-                type="text"
-                disabled={submitted}
-                value={mom.ttMaster}
-                onChange={(e) => setField('ttMaster', e.target.value)}
-                className={`mt-1 ${inputClass}`}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>TT Speakers</label>
-              <input
-                type="text"
-                disabled={submitted}
-                value={mom.ttSpeakers}
-                onChange={(e) => setField('ttSpeakers', e.target.value)}
-                className={`mt-1 ${inputClass}`}
-              />
-            </div>
-          </div>
-          <div>
-            <label className={labelClass}>Comments</label>
-            <textarea
-              rows={2}
+          <RoleFields
+            label="TT Master"
+            value={mom.ttMaster}
+            disabled={submitted}
+            onChange={(field, value) => setRoleField('ttMaster', field, value)}
+          />
+          <div className="space-y-3">
+            <label className={labelClass}>Table Topic Speakers</label>
+            {mom.ttSpeakers.map((speaker, i) => (
+              <div key={speaker.key} className="rounded-2xl bg-cream/60 p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <label className={labelClass}>Name</label>
+                  <button
+                    type="button"
+                    disabled={submitted}
+                    onClick={() => removeArrayItem('ttSpeakers', i)}
+                    aria-label="Remove table topic speaker"
+                    className="rounded-lg p-1 text-ink/40 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  disabled={submitted}
+                  value={speaker.name}
+                  onChange={(e) => setArrayField('ttSpeakers', i, 'name', e.target.value)}
+                  className={`mt-1 ${inputClass}`}
+                />
+                <div className="mt-3">
+                  <label className={labelClass}>Comments</label>
+                  <input
+                    type="text"
+                    disabled={submitted}
+                    value={speaker.comments}
+                    onChange={(e) => setArrayField('ttSpeakers', i, 'comments', e.target.value)}
+                    className={`mt-1 ${inputClass}`}
+                  />
+                </div>
+              </div>
+            ))}
+            <button
+              type="button"
               disabled={submitted}
-              value={mom.ttComments}
-              onChange={(e) => setField('ttComments', e.target.value)}
-              className={`mt-1 ${textareaClass}`}
-            />
+              onClick={() => addArrayItem('ttSpeakers', emptyTtSpeaker)}
+              className="flex items-center gap-1.5 rounded-xl border border-dashed border-accent/50 px-4 py-2.5 text-sm font-semibold text-ink/60 transition hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Plus size={15} />
+              Add Table Topic Speaker
+            </button>
           </div>
         </Section>
 
         {/* TAGL */}
-        <Section icon={ListChecks} title="TAGL">
-          <div className="grid gap-4 sm:grid-cols-4">
-            <div>
-              <label className={labelClass}>Timer</label>
-              <input
-                type="text"
-                disabled={submitted}
-                value={mom.timer}
-                onChange={(e) => setField('timer', e.target.value)}
-                className={`mt-1 ${inputClass}`}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Ah-Counter</label>
-              <input
-                type="text"
-                disabled={submitted}
-                value={mom.ahCounter}
-                onChange={(e) => setField('ahCounter', e.target.value)}
-                className={`mt-1 ${inputClass}`}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Grammarian</label>
-              <input
-                type="text"
-                disabled={submitted}
-                value={mom.grammarian}
-                onChange={(e) => setField('grammarian', e.target.value)}
-                className={`mt-1 ${inputClass}`}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Listener</label>
-              <input
-                type="text"
-                disabled={submitted}
-                value={mom.listener}
-                onChange={(e) => setField('listener', e.target.value)}
-                className={`mt-1 ${inputClass}`}
-              />
-            </div>
-          </div>
+        <Section icon={ListChecks} title="Timer">
+          <RoleFields
+            label="Name"
+            value={mom.timer}
+            disabled={submitted}
+            onChange={(field, value) => setRoleField('timer', field, value)}
+          />
+        </Section>
+        <Section icon={ListChecks} title="Ah-Counter">
+          <RoleFields
+            label="Name"
+            value={mom.ahCounter}
+            disabled={submitted}
+            onChange={(field, value) => setRoleField('ahCounter', field, value)}
+          />
+        </Section>
+        <Section icon={ListChecks} title="Grammarian">
+          <RoleFields
+            label="Name"
+            value={mom.grammarian}
+            disabled={submitted}
+            onChange={(field, value) => setRoleField('grammarian', field, value)}
+          />
+        </Section>
+        <Section icon={ListChecks} title="Listener">
+          <RoleFields
+            label="Name"
+            value={mom.listener}
+            disabled={submitted}
+            onChange={(field, value) => setRoleField('listener', field, value)}
+          />
+        </Section>
+
+        {/* General Evaluator */}
+        <Section icon={MessageSquare} title="General Evaluator">
+          <RoleFields
+            label="Name"
+            value={mom.ge}
+            disabled={submitted}
+            onChange={(field, value) => setRoleField('ge', field, value)}
+          />
           <div>
-            <label className={labelClass}>Comments</label>
+            <label className={labelClass}>Overall Meeting Evaluation</label>
             <textarea
-              rows={2}
+              rows={3}
               disabled={submitted}
-              value={mom.taglComments}
-              onChange={(e) => setField('taglComments', e.target.value)}
+              value={mom.geOverallComments}
+              onChange={(e) => setField('geOverallComments', e.target.value)}
+              placeholder="The GE's own assessment of the meeting..."
               className={`mt-1 ${textareaClass}`}
             />
           </div>
-        </Section>
-
-        {/* GE comments */}
-        <Section icon={MessageSquare} title="General Evaluator Comments">
-          <textarea
-            rows={3}
-            disabled={submitted}
-            value={mom.geComments}
-            onChange={(e) => setField('geComments', e.target.value)}
-            placeholder="Overall meeting evaluation..."
-            className={textareaClass}
-          />
         </Section>
 
         {/* Awards */}
@@ -316,7 +518,7 @@ export default function MOMPage() {
             disabled={submitted}
             value={mom.awardsGiven}
             onChange={(e) => setField('awardsGiven', e.target.value)}
-            placeholder="e.g. Best Speaker: Vikram"
+            placeholder="e.g. Best Speaker: ..."
             className={textareaClass}
           />
         </Section>
@@ -336,7 +538,7 @@ export default function MOMPage() {
         {submitted ? (
           <div className="mt-6 flex items-center gap-2 rounded-2xl bg-primary/10 p-4 text-sm font-medium text-primary">
             <CheckCircle2 size={18} />
-            MOM submitted for {momMeta.dateLabel}.
+            MOM submitted for {activeMeeting.dateLabel}.
           </div>
         ) : (
           <button

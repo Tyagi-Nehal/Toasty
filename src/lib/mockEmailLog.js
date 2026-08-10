@@ -35,6 +35,34 @@ export function sendClubApprovalEmail(club) {
   return email
 }
 
+// Drafted content only — no real email service is wired up yet (see
+// PROJECT_BRIEF addendum). This is what would be sent to a visitor once
+// the VPM acknowledges their "I'm visiting" request; logged the same way
+// as sendClubApprovalEmail so it's visible via getEmailLog().
+export function draftVisitWelcomeEmail(request, club) {
+  const meetingLine = [club.meetingDay, club.meetingTime].filter(Boolean).join(', ')
+  const email = {
+    to: request.email,
+    subject: `You're welcome at ${club.name}!`,
+    body: `Hi ${request.name},
+
+Thank you for your interest in visiting ${club.name}! The whole team is excited to have you join us.
+
+Here are the details for our next meeting:
+${meetingLine ? `When: ${meetingLine}` : ''}
+${club.meetingLocation ? `Where: ${club.meetingLocation}` : ''}
+
+Just show up and introduce yourself — we'll take care of the rest. If you have any questions before then, feel free to reply to this email.
+
+See you soon!
+${club.name}`,
+    sentAt: new Date().toISOString(),
+  }
+  writeLog([...readLog(), email])
+  console.info('[mock email]', email)
+  return email
+}
+
 export function getEmailLog() {
   return readLog()
 }

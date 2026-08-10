@@ -1,10 +1,11 @@
-import { useState } from 'react'
-import { Bell, PencilLine, SlidersHorizontal, Zap } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Bell, CheckCircle2, Lock, PencilLine, SlidersHorizontal, Zap } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import RoleOverrideModal from '../components/RoleOverrideModal.jsx'
 import { roleCatalog } from '../data/roleCatalog.js'
 import {
   autoAssignMeeting,
+  finalizeMeeting,
   getMeetings,
   getNotifications,
   overrideRole,
@@ -36,27 +37,49 @@ function timeAgo(isoString) {
 }
 
 export default function RoleManagementPage() {
-  const [meetings, setMeetings] = useState(() => getMeetings())
-  const [activeMeetingId, setActiveMeetingId] = useState(() => getMeetings()[0].id)
+  const [meetings, setMeetings] = useState([])
+  const [activeMeetingId, setActiveMeetingId] = useState(null)
   const [notifications, setNotifications] = useState(() => getNotifications())
   const [overrideTarget, setOverrideTarget] = useState(null)
 
   const activeMeeting = meetings.find((m) => m.id === activeMeetingId)
 
   function refresh() {
-    setMeetings(getMeetings())
+    getMeetings().then((fetched) => {
+      setMeetings(fetched)
+      setActiveMeetingId((prev) => prev ?? fetched[0]?.id ?? null)
+    })
     setNotifications(getNotifications())
   }
+
+  useEffect(() => {
+    refresh()
+  }, [])
 
   async function handleAutoAssign() {
     await autoAssignMeeting(activeMeetingId)
     refresh()
   }
 
-  function handleOverrideConfirm({ status, takenBy }) {
-    overrideRole(activeMeetingId, overrideTarget.id, { status, takenBy })
+  async function handleFinalize() {
+    await finalizeMeeting(activeMeetingId)
+    refresh()
+  }
+
+  async function handleOverrideConfirm({ status, takenBy }) {
+    await overrideRole(activeMeetingId, overrideTarget.id, { status, takenBy })
     setOverrideTarget(null)
     refresh()
+  }
+
+  if (!activeMeeting) {
+    return (
+      <MemberLayout>
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <p className="text-sm text-ink/50">Loading meetings...</p>
+        </div>
+      </MemberLayout>
+    )
   }
 
   return (
@@ -71,14 +94,32 @@ export default function RoleManagementPage() {
               Manage role assignments for upcoming meetings.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleAutoAssign}
-            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
-          >
-            <Zap size={16} />
-            Trigger Auto-Assign Now
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleAutoAssign}
+              disabled={activeMeeting.finalized}
+              className="flex items-center gap-2 rounded-xl border border-primary px-4 py-2.5 text-sm font-semibold text-primary transition enabled:hover:bg-primary enabled:hover:text-cream disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Zap size={16} />
+              Trigger Auto-Assign Now
+            </button>
+            {activeMeeting.finalized ? (
+              <span className="flex items-center gap-1.5 rounded-xl bg-primary/10 px-4 py-2.5 text-sm font-semibold text-primary">
+                <Lock size={15} />
+                Finalized
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleFinalize}
+                className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
+              >
+                <CheckCircle2 size={16} />
+                Finalize Roles
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Meeting tabs */}
@@ -99,6 +140,7 @@ export default function RoleManagementPage() {
                 <p className="text-sm font-semibold">{m.label}</p>
                 <p className={`text-xs ${active ? 'text-cream/80' : 'text-ink/50'}`}>
                   {m.dateLabel}
+                  {m.finalized ? ' · Finalized' : ''}
                 </p>
               </button>
             )
@@ -161,9 +203,7 @@ export default function RoleManagementPage() {
                       return (
                         <tr key={role.id} className="border-b border-accent/10 last:border-0">
                           <td className="px-4 py-2.5 font-medium text-ink">{role.name}</td>
-                          <td className="px-4 py-2.5 text-ink/70">
-                            {entry.takenBy === '__me__' ? 'You' : entry.takenBy ?? '—'}
-                          </td>
+                          <td className="px-4 py-2.5 text-ink/70">{entry.takenBy ?? '—'}</td>
                           <td className="px-4 py-2.5">
                             <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${badge.className}`}>
                               {badge.text}
@@ -173,7 +213,8 @@ export default function RoleManagementPage() {
                             <button
                               type="button"
                               onClick={() => setOverrideTarget(role)}
-                              className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                              disabled={activeMeeting.finalized}
+                              className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               <PencilLine size={12} />
                               Override
@@ -200,13 +241,12 @@ export default function RoleManagementPage() {
                         </span>
                       </div>
                       <div className="mt-1.5 flex items-center justify-between">
-                        <p className="text-sm text-ink/60">
-                          {entry.takenBy === '__me__' ? 'You' : entry.takenBy ?? 'Unassigned'}
-                        </p>
+                        <p className="text-sm text-ink/60">{entry.takenBy ?? 'Unassigned'}</p>
                         <button
                           type="button"
                           onClick={() => setOverrideTarget(role)}
-                          className="flex items-center gap-1 text-xs font-semibold text-primary"
+                          disabled={activeMeeting.finalized}
+                          className="flex items-center gap-1 text-xs font-semibold text-primary disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           <PencilLine size={12} />
                           Override
@@ -244,11 +284,7 @@ export default function RoleManagementPage() {
       {overrideTarget && (
         <RoleOverrideModal
           roleName={overrideTarget.name}
-          currentAssignee={
-            activeMeeting.roles[overrideTarget.id].takenBy === '__me__'
-              ? 'You'
-              : activeMeeting.roles[overrideTarget.id].takenBy
-          }
+          currentAssignee={activeMeeting.roles[overrideTarget.id].takenBy}
           currentStatus={activeMeeting.roles[overrideTarget.id].status}
           onClose={() => setOverrideTarget(null)}
           onConfirm={handleOverrideConfirm}

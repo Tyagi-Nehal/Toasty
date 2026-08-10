@@ -28,6 +28,8 @@ import {
   rejectSignup,
 } from '../lib/mockMemberSignups.js'
 import { acknowledgeVisitRequest, getVisitRequests } from '../lib/mockVisitRequests.js'
+import { getClubById } from '../lib/mockClubRegistry.js'
+import { draftVisitWelcomeEmail } from '../lib/mockEmailLog.js'
 
 function timeAgo(isoString) {
   const diffMs = Date.now() - new Date(isoString).getTime()
@@ -60,8 +62,13 @@ export default function NewMemberApprovalsPage() {
     refresh()
   }, [])
 
-  function handleAcknowledgeVisit(id) {
+  async function handleAcknowledgeVisit(id) {
     acknowledgeVisitRequest(id)
+    const request = visitRequests.find((r) => r.id === id)
+    if (request) {
+      const club = await getClubById(request.clubId)
+      if (club) draftVisitWelcomeEmail(request, club)
+    }
     refresh()
   }
 

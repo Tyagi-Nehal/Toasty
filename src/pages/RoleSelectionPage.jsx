@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CheckCircle2, X, Lock, CircleDot } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import DeclineRoleModal from '../components/DeclineRoleModal.jsx'
@@ -37,11 +37,33 @@ function StatusBadge({ role, isMine }) {
 }
 
 export default function RoleSelectionPage() {
-  const [meetings, setMeetings] = useState(() => getMeetings())
-  const [activeMeetingId, setActiveMeetingId] = useState(() => getMeetings()[0].id)
+  const [meetings, setMeetings] = useState([])
+  const [activeMeetingId, setActiveMeetingId] = useState(null)
   const [isDeclineOpen, setIsDeclineOpen] = useState(false)
 
+  function refresh() {
+    getMeetings().then((fetched) => {
+      setMeetings(fetched)
+      setActiveMeetingId((prev) => prev ?? fetched[0]?.id ?? null)
+    })
+  }
+
+  useEffect(() => {
+    refresh()
+  }, [])
+
   const activeMeeting = meetings.find((m) => m.id === activeMeetingId)
+
+  if (!activeMeeting) {
+    return (
+      <MemberLayout>
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <p className="text-sm text-ink/50">Loading meetings...</p>
+        </div>
+      </MemberLayout>
+    )
+  }
+
   const myRole = activeMeeting.myRoleId
     ? roleCatalog.find((r) => r.id === activeMeeting.myRoleId)
     : null
@@ -49,14 +71,14 @@ export default function RoleSelectionPage() {
     ? activeMeeting.roles[activeMeeting.myRoleId]
     : null
 
-  function handleSelectRole(roleId) {
-    selectRole(activeMeetingId, roleId)
-    setMeetings(getMeetings())
+  async function handleSelectRole(roleId) {
+    await selectRole(activeMeetingId, roleId)
+    refresh()
   }
 
-  function handleDeclineConfirm() {
-    declineMyRole(activeMeetingId)
-    setMeetings(getMeetings())
+  async function handleDeclineConfirm() {
+    await declineMyRole(activeMeetingId)
+    refresh()
     setIsDeclineOpen(false)
   }
 
@@ -67,7 +89,7 @@ export default function RoleSelectionPage() {
           Select Your Role
         </h1>
         <p className="mt-1 text-sm text-ink/60">
-          Pick a role for one of the next three meetings.
+          Pick a role for one of the upcoming meetings.
         </p>
 
         {/* Meeting tabs */}
@@ -108,7 +130,8 @@ export default function RoleSelectionPage() {
               <button
                 type="button"
                 onClick={() => setIsDeclineOpen(true)}
-                className="flex items-center gap-1.5 rounded-full border border-accent/50 px-4 py-2 text-sm font-semibold text-ink/70 transition hover:bg-cream"
+                disabled={activeMeeting.finalized}
+                className="flex items-center gap-1.5 rounded-full border border-accent/50 px-4 py-2 text-sm font-semibold text-ink/70 transition hover:bg-cream disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <X size={15} />
                 Decline Role
@@ -121,8 +144,9 @@ export default function RoleSelectionPage() {
         <div className="mt-6 space-y-3">
           {roleCatalog.map((role) => {
             const entry = activeMeeting.roles[role.id]
+            const canSelect =
+              entry.status === 'open' && !activeMeeting.myRoleId && !activeMeeting.finalized
             const isMine = activeMeeting.myRoleId === role.id
-            const canSelect = entry.status === 'open' && !activeMeeting.myRoleId
 
             return (
               <div
@@ -149,7 +173,11 @@ export default function RoleSelectionPage() {
                   {!canSelect && entry.status === 'open' && !isMine && (
                     <span
                       className="flex items-center gap-1 text-xs text-ink/40"
-                      title="You already have a role for this meeting"
+                      title={
+                        activeMeeting.finalized
+                          ? 'Roles for this meeting are finalized'
+                          : 'You already have a role for this meeting'
+                      }
                     >
                       <Lock size={12} />
                       Unavailable
@@ -166,7 +194,7 @@ export default function RoleSelectionPage() {
         <DeclineRoleModal
           roleName={myRole.name}
           meetingLabel={`${activeMeeting.dateLabel}, ${activeMeeting.time}`}
-          hoursUntilMeeting={activeMeeting.hoursUntilMeeting}
+          hoursUntilMeeting={activeMeeting.hoursUntilMeeting ?? 999}
           onClose={() => setIsDeclineOpen(false)}
           onConfirm={handleDeclineConfirm}
         />

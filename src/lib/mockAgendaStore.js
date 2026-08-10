@@ -1,23 +1,23 @@
-// Shared source of truth for the current meeting's agenda — read by the
-// member-facing Agenda page AND written by the VPE-facing Agenda Editor, so
-// a generate/edit/send on one side is reflected on the other. Persisted to
-// localStorage like the other shared mock stores (mockRolesStore.js,
-// mockMOMStore.js).
+// Shared source of truth for a meeting's agenda — read by the
+// member-facing Agenda page AND written by the VPE-facing Agenda Editor.
+// Still localStorage (unlike meetings/roles, which now live in Supabase)
+// — the agenda is just a generated/editable view derived from the real
+// role assignments, not something that needs its own cross-device sync
+// for this pass. Keyed by meetingId now that there's more than one real
+// meeting, instead of a single hardcoded 'meeting-1' blob.
 
 import { getMeeting } from './mockRolesStore.js'
 import { roleCatalog } from '../data/roleCatalog.js'
 import { pushNotification } from './mockNotificationsStore.js'
 
-const STORAGE_KEY = 'toasty_agenda'
+const STORAGE_KEY = 'toasty_agendas'
 const LOG_KEY = 'toasty_agenda_history'
 const MAX_LOG_ENTRIES = 25
-
-const MEETING_ID = 'meeting-1'
-const THEME = 'Turning Points'
 
 // Order + time slots the agenda is generated in — independent of the role
 // catalog's own ordering.
 const TIME_TEMPLATE = [
+  ['saa', '5:10 – 5:15 PM'],
   ['po', '5:15 – 5:20 PM'],
   ['tmod', '5:20 – 5:25 PM'],
   ['timer', '5:25 – 5:28 PM'],
@@ -32,17 +32,17 @@ const TIME_TEMPLATE = [
   ['ge', '6:35 – 6:50 PM'],
 ]
 
-function readState() {
+function readAll() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : null
+    return raw ? JSON.parse(raw) : {}
   } catch {
-    return null
+    return {}
   }
 }
 
-function writeState(state) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+function writeAll(all) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
 }
 
 function logAction(message) {
@@ -72,39 +72,36 @@ function roleName(roleId) {
   return roleCatalog.find((r) => r.id === roleId)?.name ?? roleId
 }
 
-function displayName(takenBy) {
-  if (!takenBy) return ''
-  return takenBy === '__me__' ? 'You' : takenBy
+export function getAgenda(meetingId) {
+  return readAll()[meetingId] ?? null
 }
 
-export function getAgenda() {
-  return readState()
-}
-
-export function generateAgenda() {
-  const meeting = getMeeting(MEETING_ID)
+export async function generateAgenda(meetingId) {
+  const meeting = await getMeeting(meetingId)
   const items = TIME_TEMPLATE.map(([roleId, time]) => ({
     roleId,
     time,
-    member: displayName(meeting.roles[roleId]?.takenBy),
+    member: meeting.roles[roleId]?.takenBy ?? '',
     notes: '',
   }))
   const state = {
-    meetingId: MEETING_ID,
+    meetingId,
     dateLabel: meeting.dateLabel,
-    theme: THEME,
+    theme: meeting.theme ?? '',
     items,
     updatedAt: new Date().toISOString(),
     sentAt: null,
     sentSnapshot: null,
   }
-  writeState(state)
+  const all = readAll()
+  writeAll({ ...all, [meetingId]: state })
   logAction(`Agenda auto-generated from confirmed roles for ${meeting.dateLabel}`)
   return state
 }
 
-export function updateAgendaItem(roleId, field, value) {
-  const state = readState()
+export function updateAgendaItem(meetingId, roleId, field, value) {
+  const all = readAll()
+  const state = all[meetingId]
   if (!state) return null
   const next = {
     ...state,
@@ -113,17 +110,18 @@ export function updateAgendaItem(roleId, field, value) {
     ),
     updatedAt: new Date().toISOString(),
   }
-  writeState(next)
+  writeAll({ ...all, [meetingId]: next })
   const fieldLabel = field === 'member' ? 'assigned member' : field
   logAction(`VPE updated ${fieldLabel} for ${roleName(roleId)}`)
   return next
 }
 
-export function sendAgendaToMembers() {
-  const state = readState()
+export function sendAgendaToMembers(meetingId) {
+  const all = readAll()
+  const state = all[meetingId]
   if (!state) return null
   const next = { ...state, sentAt: new Date().toISOString(), sentSnapshot: state.items }
-  writeState(next)
+  writeAll({ ...all, [meetingId]: next })
   logAction(`Agenda sent to members for ${state.dateLabel}`)
   pushNotification({
     type: 'agenda_updated',

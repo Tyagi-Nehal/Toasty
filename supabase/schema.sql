@@ -285,3 +285,101 @@ create policy "role_history vpe or president insert" on role_history
 grant select, insert, update on members to authenticated;
 grant select, insert on role_history to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
+
+-- Real meetings + per-meeting role assignments (was localStorage-only,
+-- mockRolesStore.js). "VPE finalizes roles -> shown to members" is
+-- meaningless if it only works in one browser, so this moves the whole
+-- meetings/roles system here, same as clubs/president/ExCom already are.
+create table if not exists meetings (
+  id bigint generated always as identity primary key,
+  label text not null,
+  meeting_date date,
+  time text,
+  theme text,
+  finalized boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists meeting_role_assignments (
+  id bigint generated always as identity primary key,
+  meeting_id bigint not null references meetings(id) on delete cascade,
+  role_id text not null,
+  status text not null default 'open' check (status in ('open','taken','auto')),
+  taken_by_name text,
+  taken_by_email text,
+  updated_at timestamptz not null default now(),
+  unique (meeting_id, role_id)
+);
+
+alter table meetings enable row level security;
+alter table meeting_role_assignments enable row level security;
+
+-- Everyone signed in needs to see the meeting list and role board.
+drop policy if exists "meetings authenticated select" on meetings;
+create policy "meetings authenticated select" on meetings
+  for select to authenticated using (true);
+-- Creating meetings / finalizing is VPE-or-President only.
+drop policy if exists "meetings vpe or president write" on meetings;
+create policy "meetings vpe or president write" on meetings
+  for all to authenticated
+  using (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPE'
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
+drop policy if exists "assignments authenticated select" on meeting_role_assignments;
+create policy "assignments authenticated select" on meeting_role_assignments
+  for select to authenticated using (true);
+-- VPE/President can insert (seeding a new meeting's role rows).
+drop policy if exists "assignments vpe or president insert" on meeting_role_assignments;
+create policy "assignments vpe or president insert" on meeting_role_assignments
+  for insert to authenticated
+  with check (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPE'
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+-- Update allowed for VPE/President (any row), or a member claiming an
+-- open role, or a member releasing a role that's already theirs.
+drop policy if exists "assignments update" on meeting_role_assignments;
+create policy "assignments update" on meeting_role_assignments
+  for update to authenticated
+  using (
+    status = 'open'
+    or lower(taken_by_email) = lower(auth.jwt() ->> 'email')
+    or exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPE'
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  )
+  with check (
+    lower(taken_by_email) = lower(auth.jwt() ->> 'email')
+    or taken_by_email is null
+    or exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPE'
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
+grant select, insert, update on meetings to authenticated;
+grant select, insert, update on meeting_role_assignments to authenticated;
+grant usage, select on all sequences in schema public to authenticated;

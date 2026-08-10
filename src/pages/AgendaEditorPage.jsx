@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Clock, History, Megaphone, Send, Sparkles } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import {
@@ -9,6 +9,7 @@ import {
   sendAgendaToMembers,
   updateAgendaItem,
 } from '../lib/mockAgendaStore.js'
+import { getMeetings } from '../lib/mockRolesStore.js'
 import { roleCatalog } from '../data/roleCatalog.js'
 
 const inputClass =
@@ -31,27 +32,52 @@ function timeAgo(isoString) {
 }
 
 export default function AgendaEditorPage() {
-  const [agenda, setAgenda] = useState(() => getAgenda())
+  const [meetings, setMeetings] = useState([])
+  const [activeMeetingId, setActiveMeetingId] = useState(null)
+  const [agenda, setAgenda] = useState(null)
   const [history, setHistory] = useState(() => getAgendaHistory())
+
+  useEffect(() => {
+    getMeetings().then((fetched) => {
+      setMeetings(fetched)
+      const notFinalized = fetched.find((m) => !m.finalized)
+      setActiveMeetingId((prev) => prev ?? notFinalized?.id ?? fetched[0]?.id ?? null)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (activeMeetingId) setAgenda(getAgenda(activeMeetingId))
+  }, [activeMeetingId])
 
   function refresh(next) {
     setAgenda(next)
     setHistory(getAgendaHistory())
   }
 
-  function handleGenerate() {
-    refresh(generateAgenda())
+  async function handleGenerate() {
+    refresh(await generateAgenda(activeMeetingId))
   }
 
   function handleFieldChange(roleId, field, value) {
-    refresh(updateAgendaItem(roleId, field, value))
+    refresh(updateAgendaItem(activeMeetingId, roleId, field, value))
   }
 
   function handleSend() {
-    refresh(sendAgendaToMembers())
+    refresh(sendAgendaToMembers(activeMeetingId))
   }
 
   const changeSummary = agenda ? getAgendaChangeSummary(agenda) : null
+  const activeMeeting = meetings.find((m) => m.id === activeMeetingId)
+
+  if (!activeMeeting) {
+    return (
+      <MemberLayout>
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <p className="text-sm text-ink/50">Loading meetings...</p>
+        </div>
+      </MemberLayout>
+    )
+  }
 
   return (
     <MemberLayout>
@@ -62,7 +88,7 @@ export default function AgendaEditorPage() {
               Agenda Editor
             </h1>
             <p className="mt-1 text-sm text-ink/60">
-              Build and send the agenda for the current meeting.
+              Build and send the agenda for the selected meeting.
             </p>
           </div>
           <div className="flex flex-wrap gap-2.5">
@@ -84,6 +110,30 @@ export default function AgendaEditorPage() {
               Send to Members
             </button>
           </div>
+        </div>
+
+        {/* Meeting tabs */}
+        <div className="mt-6 flex gap-2 overflow-x-auto">
+          {meetings.map((m) => {
+            const active = m.id === activeMeetingId
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setActiveMeetingId(m.id)}
+                className={`shrink-0 rounded-2xl border px-4 py-2.5 text-left transition ${
+                  active
+                    ? 'border-primary bg-primary text-cream'
+                    : 'border-accent/30 bg-white text-ink hover:border-primary/50'
+                }`}
+              >
+                <p className="text-sm font-semibold">{m.label}</p>
+                <p className={`text-xs ${active ? 'text-cream/80' : 'text-ink/50'}`}>
+                  {m.dateLabel}
+                </p>
+              </button>
+            )
+          })}
         </div>
 
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink/50">
@@ -131,7 +181,8 @@ export default function AgendaEditorPage() {
             <div className="overflow-hidden rounded-3xl border border-accent/30 bg-white lg:col-span-2">
               <div className="border-b border-accent/20 bg-cream/60 px-6 py-3">
                 <h2 className="text-sm font-semibold text-ink">
-                  {agenda.dateLabel} · {agenda.theme}
+                  {agenda.dateLabel}
+                  {agenda.theme ? ` · ${agenda.theme}` : ''}
                 </h2>
               </div>
               <div className="overflow-x-auto">

@@ -68,11 +68,16 @@ const quickActionsByRole = [
 export default function ExComDashboard() {
   const account = getAccount()
   const [pendingSignupsCount, setPendingSignupsCount] = useState(0)
+  const [upcomingMeeting, setUpcomingMeeting] = useState(null)
 
   useEffect(() => {
     if (hasExcomRole('VPM')) {
       getPendingSignups().then((signups) => setPendingSignupsCount(signups.length))
     }
+    getMeetings().then((meetings) => {
+      const upcoming = meetings.find((m) => (m.hoursUntilMeeting ?? -1) >= 0)
+      setUpcomingMeeting(upcoming ?? meetings[meetings.length - 1] ?? null)
+    })
   }, [])
 
   if (!account?.excomRoles?.length) {
@@ -81,8 +86,7 @@ export default function ExComDashboard() {
 
   const firstName = account?.name?.split(' ')[0] ?? 'there'
 
-  const upcomingMeeting = getMeetings()[0]
-  const roleEntries = Object.values(upcomingMeeting.roles)
+  const roleEntries = upcomingMeeting ? Object.values(upcomingMeeting.roles) : []
   const filledRoles = roleEntries.filter((r) => r.status !== 'open').length
   const totalRoles = roleEntries.length
 
@@ -96,8 +100,8 @@ export default function ExComDashboard() {
       to: '/role-management',
       icon: CalendarDays,
       label: 'Upcoming Meeting',
-      value: `${filledRoles}/${totalRoles} roles filled`,
-      sub: upcomingMeeting.dateLabel,
+      value: upcomingMeeting ? `${filledRoles}/${totalRoles} roles filled` : '—',
+      sub: upcomingMeeting?.dateLabel ?? 'Loading...',
     },
     {
       key: 'renewals',
