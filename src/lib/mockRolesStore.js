@@ -10,7 +10,7 @@
 
 import { roleCatalog } from '../data/roleCatalog.js'
 import { pushNotification } from './mockNotificationsStore.js'
-import { getAccount } from './mockAuth.js'
+import { getAccount, hasExcomRole } from './mockAuth.js'
 import { supabase } from './supabaseClient.js'
 import {
   getMembers,
@@ -58,6 +58,29 @@ function formatDateLabel(meetingDate) {
   })
 }
 
+// Members self-select freely up to the Saturday before the meeting,
+// 9:00 AM; whatever's still open after that is fair game for
+// auto-assign. Meetings are weekly on Thursday, so there's exactly one
+// Saturday in between — 5 days before the meeting date.
+function getAutoAssignCutoff(meetingDate) {
+  if (!meetingDate) return null
+  const cutoff = new Date(`${meetingDate}T00:00:00`)
+  cutoff.setDate(cutoff.getDate() - 5)
+  cutoff.setHours(9, 0, 0, 0)
+  return cutoff
+}
+
+function formatCutoffLabel(cutoff) {
+  if (!cutoff) return ''
+  return cutoff.toLocaleString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 // Builds the { roleId: { status, takenBy } } shape every page expects,
 // filling in any role from roleCatalog that has no row yet as 'open'.
 function buildRolesObject(assignments) {
@@ -88,7 +111,11 @@ function deriveMyRoleId(assignments, account) {
   return mine?.role_id ?? null
 }
 
-export async function getMeetings() {
+// No-catch-up, no-recursion fetch — the building block both the public
+// getMeetings()/getMeeting() and the internal auto-assign catch-up (below)
+// share, so the catch-up can read/write meeting data without looping back
+// into getMeetings() and re-triggering itself.
+async function fetchRawViews() {
   const [{ data: meetings }, { data: assignments }] = await Promise.all([
     supabase.from('meetings').select('*').order('meeting_date', { ascending: true }),
     supabase.from('meeting_role_assignments').select('*'),
@@ -100,6 +127,7 @@ export async function getMeetings() {
     const hoursUntilMeeting = m.meeting_date
       ? Math.round((new Date(`${m.meeting_date}T00:00:00`).getTime() - Date.now()) / 3600000)
       : null
+    const autoAssignCutoff = getAutoAssignCutoff(m.meeting_date)
 
     return {
       id: m.id,
@@ -108,10 +136,45 @@ export async function getMeetings() {
       time: m.time,
       finalized: m.finalized,
       hoursUntilMeeting,
+      autoAssignCutoff,
+      autoAssignCutoffLabel: formatCutoffLabel(autoAssignCutoff),
+      pastCutoff: autoAssignCutoff ? Date.now() >= autoAssignCutoff.getTime() : true,
       roles: buildRolesObject(meetingAssignments),
       myRoleId: deriveMyRoleId(meetingAssignments, account),
     }
   })
+}
+
+async function getMeetingRaw(meetingId) {
+  const views = await fetchRawViews()
+  return views.find((m) => m.id === meetingId)
+}
+
+// Best-effort catch-up for the "no autoassign till Saturday 9 AM" rule —
+// there's no backend/cron in this app, so this runs opportunistically
+// whenever a VPE or President's session fetches meetings, instead of at
+// the exact cutoff instant. Gating to VPE/President isn't just a design
+// choice: the role_history insert inside runAutoAssign is RLS-restricted
+// to VPE/President, so anyone else's session couldn't complete it anyway.
+async function runDueAutoAssignments(views) {
+  const due = views.filter(
+    (v) =>
+      !v.finalized &&
+      v.pastCutoff &&
+      Object.values(v.roles).some((r) => r.status === 'open'),
+  )
+  for (const v of due) {
+    await runAutoAssign(v.id, 'the Saturday 9 AM cutoff')
+  }
+  return due.length > 0
+}
+
+export async function getMeetings() {
+  let views = await fetchRawViews()
+  if (hasExcomRole('VPE') && (await runDueAutoAssignments(views))) {
+    views = await fetchRawViews()
+  }
+  return views
 }
 
 export async function getMeeting(meetingId) {
@@ -166,9 +229,11 @@ export async function overrideRole(meetingId, roleId, { status, takenBy }) {
 // — see mockRosterStore.js) for each still-open role in the meeting,
 // instead of the old random-placeholder-name shift. Every successful
 // pick is also recorded to role_history, so the algorithm's own output
-// becomes next time's input.
-export async function autoAssignMeeting(meetingId) {
-  const meeting = await getMeeting(meetingId)
+// becomes next time's input. Uses getMeetingRaw (not the public
+// getMeeting/getMeetings) so the automatic Saturday-cutoff catch-up in
+// getMeetings() can call this without looping back into itself.
+async function runAutoAssign(meetingId, trigger) {
+  const meeting = await getMeetingRaw(meetingId)
   const usedNames = new Set(
     Object.values(meeting.roles)
       .map((entry) => entry.takenBy)
@@ -202,10 +267,14 @@ export async function autoAssignMeeting(meetingId) {
 
   logAction(
     filledCount > 0
-      ? `Auto-assign triggered by VPE — ${filledCount} role${filledCount > 1 ? 's' : ''} filled for ${meeting.dateLabel}`
-      : `Auto-assign triggered by VPE — no open roles left for ${meeting.dateLabel}`,
+      ? `Auto-assign triggered by ${trigger} — ${filledCount} role${filledCount > 1 ? 's' : ''} filled for ${meeting.dateLabel}`
+      : `Auto-assign triggered by ${trigger} — no open roles left for ${meeting.dateLabel}`,
   )
   return filledCount
+}
+
+export async function autoAssignMeeting(meetingId) {
+  return runAutoAssign(meetingId, 'VPE')
 }
 
 // Locks in the current role assignments and announces them — same

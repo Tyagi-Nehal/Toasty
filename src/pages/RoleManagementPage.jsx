@@ -47,7 +47,13 @@ export default function RoleManagementPage() {
   function refresh() {
     getMeetings().then((fetched) => {
       setMeetings(fetched)
-      setActiveMeetingId((prev) => prev ?? fetched[0]?.id ?? null)
+      // Default to the first not-finalized meeting, not the earliest
+      // one overall — the earliest is usually long past and fully
+      // resolved, nothing left to manage there.
+      const notFinalized = fetched.find((m) => !m.finalized)
+      setActiveMeetingId(
+        (prev) => prev ?? notFinalized?.id ?? fetched[fetched.length - 1]?.id ?? null,
+      )
     })
     setNotifications(getNotifications())
   }
@@ -95,15 +101,27 @@ export default function RoleManagementPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleAutoAssign}
-              disabled={activeMeeting.finalized}
-              className="flex items-center gap-2 rounded-xl border border-primary px-4 py-2.5 text-sm font-semibold text-primary transition enabled:hover:bg-primary enabled:hover:text-cream disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Zap size={16} />
-              Trigger Auto-Assign Now
-            </button>
+            <div className="flex flex-col items-end gap-1">
+              <button
+                type="button"
+                onClick={handleAutoAssign}
+                disabled={activeMeeting.finalized || !activeMeeting.pastCutoff}
+                title={
+                  !activeMeeting.pastCutoff
+                    ? `Members can still self-select until ${activeMeeting.autoAssignCutoffLabel}`
+                    : undefined
+                }
+                className="flex items-center gap-2 rounded-xl border border-primary px-4 py-2.5 text-sm font-semibold text-primary transition enabled:hover:bg-primary enabled:hover:text-cream disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Zap size={16} />
+                Trigger Auto-Assign Now
+              </button>
+              {!activeMeeting.finalized && !activeMeeting.pastCutoff && (
+                <p className="text-xs text-ink/40">
+                  Available from {activeMeeting.autoAssignCutoffLabel}
+                </p>
+              )}
+            </div>
             {activeMeeting.finalized ? (
               <span className="flex items-center gap-1.5 rounded-xl bg-primary/10 px-4 py-2.5 text-sm font-semibold text-primary">
                 <Lock size={15} />

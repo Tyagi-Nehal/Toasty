@@ -16,11 +16,33 @@ import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import MemberLayout from '../components/MemberLayout.jsx'
 import { getAccount, hasExcomRole } from '../lib/mockAuth.js'
-import { getMeetings } from '../lib/mockRolesStore.js'
+import { getMeetings, getNotifications as getRoleNotifications } from '../lib/mockRolesStore.js'
 import { getPendingSignups } from '../lib/mockMemberSignups.js'
 import { getRenewalRoster } from '../lib/mockRenewalManagementStore.js'
-import { activityFeed } from '../data/mockActivityFeed.js'
+import { getAgendaHistory } from '../lib/mockAgendaStore.js'
+import { getVisitRequestsLog } from '../lib/mockVisitRequests.js'
 import { getAllFeedback } from '../lib/mockFeedbackStore.js'
+
+function timeAgo(isoString) {
+  const diffMs = Date.now() - new Date(isoString).getTime()
+  const mins = Math.floor(diffMs / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins} min${mins > 1 ? 's' : ''} ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`
+  const days = Math.floor(hours / 24)
+  return `${days} day${days > 1 ? 's' : ''} ago`
+}
+
+// Merges the app's real, name-driven activity logs (role selection/
+// override/auto-assign/finalize, agenda edits/sends, visit requests) into
+// one feed, newest first. Renewals/referral logs are excluded — those
+// still run off the placeholder roster, a separate documented scope
+// boundary, not genuinely real yet.
+function getRecentActivity(limit = 6) {
+  const combined = [...getRoleNotifications(), ...getAgendaHistory(), ...getVisitRequestsLog()]
+  return combined.sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, limit)
+}
 
 const quickActionsByRole = [
   {
@@ -69,6 +91,7 @@ export default function ExComDashboard() {
   const account = getAccount()
   const [pendingSignupsCount, setPendingSignupsCount] = useState(0)
   const [upcomingMeeting, setUpcomingMeeting] = useState(null)
+  const [recentActivity, setRecentActivity] = useState(() => getRecentActivity())
 
   useEffect(() => {
     if (hasExcomRole('VPM')) {
@@ -198,14 +221,18 @@ export default function ExComDashboard() {
               <Activity size={16} className="text-primary" />
               Recent Activity
             </div>
-            <ul className="mt-4 space-y-4">
-              {activityFeed.map((item) => (
-                <li key={item.id} className="border-l-2 border-accent/30 pl-3">
-                  <p className="text-sm leading-snug text-ink/80">{item.message}</p>
-                  <p className="mt-0.5 text-xs text-ink/40">{item.time}</p>
-                </li>
-              ))}
-            </ul>
+            {recentActivity.length > 0 ? (
+              <ul className="mt-4 space-y-4">
+                {recentActivity.map((item) => (
+                  <li key={item.id} className="border-l-2 border-accent/30 pl-3">
+                    <p className="text-sm leading-snug text-ink/80">{item.message}</p>
+                    <p className="mt-0.5 text-xs text-ink/40">{timeAgo(item.time)}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-4 text-sm text-ink/50">No activity yet.</p>
+            )}
           </div>
         </div>
       </div>

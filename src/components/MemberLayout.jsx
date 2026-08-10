@@ -10,7 +10,6 @@ import {
   Images,
   ClipboardCheck,
   FileText,
-  FileEdit,
   BookOpen,
   Inbox,
   LayoutGrid,
@@ -46,7 +45,6 @@ const baseNavLinks = [
 ]
 
 const excomNavLinks = [
-  { to: '/agenda-editor', label: 'Agenda Editor', icon: FileEdit, role: 'VPE' },
   { to: '/poll-editor', label: 'Poll Editor', icon: Vote, role: 'SAA' },
   { to: '/approvals', label: 'Approvals', icon: UserCheck2, role: 'VPM' },
   { to: '/renewals', label: 'Renewals', icon: Wallet, role: 'Treasurer' },

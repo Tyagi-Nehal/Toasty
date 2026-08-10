@@ -1,22 +1,27 @@
 import { useEffect, useState } from 'react'
-import { Clock, History, Megaphone, Send, Sparkles } from 'lucide-react'
+import { Clock, History, Megaphone, Plus, Send, Sparkles, Trash2 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import {
+  addSpeakerBlock,
   generateAgenda,
   getAgenda,
   getAgendaChangeSummary,
   getAgendaHistory,
+  removeAgendaRow,
   sendAgendaToMembers,
+  updateAgendaField,
   updateAgendaItem,
 } from '../lib/mockAgendaStore.js'
 import { getMeetings } from '../lib/mockRolesStore.js'
-import { roleCatalog } from '../data/roleCatalog.js'
 
 const inputClass =
   'w-full rounded-lg border border-accent/30 bg-cream px-2.5 py-1.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none'
+const headerInputClass =
+  'mt-1 w-full rounded-lg border border-accent/30 bg-white px-3 py-2 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none'
+const headerLabelClass = 'text-xs font-medium text-ink/50'
 
-function roleName(roleId) {
-  return roleCatalog.find((r) => r.id === roleId)?.name ?? roleId
+function multilineRows(...values) {
+  return Math.max(1, ...values.map((v) => (v || '').split('\n').length))
 }
 
 function timeAgo(isoString) {
@@ -41,7 +46,7 @@ export default function AgendaEditorPage() {
     getMeetings().then((fetched) => {
       setMeetings(fetched)
       const notFinalized = fetched.find((m) => !m.finalized)
-      setActiveMeetingId((prev) => prev ?? notFinalized?.id ?? fetched[0]?.id ?? null)
+      setActiveMeetingId((prev) => prev ?? notFinalized?.id ?? fetched[fetched.length - 1]?.id ?? null)
     })
   }, [])
 
@@ -58,8 +63,20 @@ export default function AgendaEditorPage() {
     refresh(await generateAgenda(activeMeetingId))
   }
 
-  function handleFieldChange(roleId, field, value) {
-    refresh(updateAgendaItem(activeMeetingId, roleId, field, value))
+  function handleHeaderChange(field, value) {
+    refresh(updateAgendaField(activeMeetingId, field, value))
+  }
+
+  function handleFieldChange(itemId, field, value) {
+    refresh(updateAgendaItem(activeMeetingId, itemId, field, value))
+  }
+
+  function handleAddSpeaker() {
+    refresh(addSpeakerBlock(activeMeetingId))
+  }
+
+  function handleRemoveRow(itemId) {
+    refresh(removeAgendaRow(activeMeetingId, itemId))
   }
 
   function handleSend() {
@@ -178,65 +195,172 @@ export default function AgendaEditorPage() {
           </div>
         ) : (
           <div className="mt-6 grid gap-6 lg:grid-cols-3">
-            <div className="overflow-hidden rounded-3xl border border-accent/30 bg-white lg:col-span-2">
-              <div className="border-b border-accent/20 bg-cream/60 px-6 py-3">
+            <div className="space-y-6 lg:col-span-2">
+              {/* Header info block, matching the club's printed agenda */}
+              <div className="rounded-3xl border border-accent/30 bg-white p-6">
                 <h2 className="text-sm font-semibold text-ink">
-                  {agenda.dateLabel}
-                  {agenda.theme ? ` · ${agenda.theme}` : ''}
+                  {activeMeeting.label} — {agenda.dateLabel}
                 </h2>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className={headerLabelClass}>Theme</label>
+                    <input
+                      type="text"
+                      value={agenda.theme}
+                      onChange={(e) => handleHeaderChange('theme', e.target.value)}
+                      placeholder="e.g. Lost and Found"
+                      className={headerInputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={headerLabelClass}>Word Of The Day</label>
+                    <input
+                      type="text"
+                      value={agenda.wordOfDay}
+                      onChange={(e) => handleHeaderChange('wordOfDay', e.target.value)}
+                      placeholder="e.g. Motif"
+                      className={headerInputClass}
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className={headerLabelClass}>Meaning</label>
+                    <input
+                      type="text"
+                      value={agenda.meaning}
+                      onChange={(e) => handleHeaderChange('meaning', e.target.value)}
+                      placeholder="What the word of the day means"
+                      className={headerInputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={headerLabelClass}>Venue</label>
+                    <input
+                      type="text"
+                      value={agenda.venue}
+                      onChange={(e) => handleHeaderChange('venue', e.target.value)}
+                      placeholder="e.g. AB1 103"
+                      className={headerInputClass}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={headerLabelClass}>Start Time</label>
+                      <input
+                        type="text"
+                        value={agenda.overallStartTime}
+                        onChange={(e) => handleHeaderChange('overallStartTime', e.target.value)}
+                        className={headerInputClass}
+                      />
+                    </div>
+                    <div>
+                      <label className={headerLabelClass}>End Time</label>
+                      <input
+                        type="text"
+                        value={agenda.overallEndTime}
+                        onChange={(e) => handleHeaderChange('overallEndTime', e.target.value)}
+                        className={headerInputClass}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-accent/20 text-xs uppercase tracking-wide text-ink/50">
-                      <th className="px-4 py-2.5 font-semibold">Time</th>
-                      <th className="px-4 py-2.5 font-semibold">Role</th>
-                      <th className="px-4 py-2.5 font-semibold">Assigned Member</th>
-                      <th className="px-4 py-2.5 font-semibold">Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {agenda.items.map((item) => (
-                      <tr key={item.roleId} className="border-b border-accent/10 last:border-0">
-                        <td className="px-4 py-2 align-top">
-                          <input
-                            type="text"
-                            value={item.time}
-                            onChange={(e) =>
-                              handleFieldChange(item.roleId, 'time', e.target.value)
-                            }
-                            className={`${inputClass} w-36`}
-                          />
-                        </td>
-                        <td className="px-4 py-2.5 align-top font-medium text-ink">
-                          {roleName(item.roleId)}
-                        </td>
-                        <td className="px-4 py-2 align-top">
-                          <input
-                            type="text"
-                            value={item.member}
-                            placeholder="Unassigned"
-                            onChange={(e) =>
-                              handleFieldChange(item.roleId, 'member', e.target.value)
-                            }
-                            className={`${inputClass} w-32`}
-                          />
-                        </td>
-                        <td className="px-4 py-2 align-top">
-                          <input
-                            type="text"
-                            value={item.notes}
-                            placeholder="—"
-                            onChange={(e) =>
-                              handleFieldChange(item.roleId, 'notes', e.target.value)
-                            }
-                            className={inputClass}
-                          />
-                        </td>
+
+              {/* Row table */}
+              <div className="overflow-hidden rounded-3xl border border-accent/30 bg-white">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-accent/20 bg-cream/60 text-xs uppercase tracking-wide text-ink/50">
+                        <th className="px-3 py-2.5 font-semibold">Start Time</th>
+                        <th className="px-3 py-2.5 font-semibold">End Time</th>
+                        <th className="px-3 py-2.5 font-semibold">Segment</th>
+                        <th className="px-3 py-2.5 font-semibold">Role Player</th>
+                        <th className="px-3 py-2.5 font-semibold">Name</th>
+                        <th className="px-3 py-2.5 font-semibold" />
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {agenda.items.map((item) => {
+                        const rows = multilineRows(item.rolePlayer, item.name)
+                        return (
+                          <tr key={item.id} className="border-b border-accent/10 last:border-0">
+                            <td className="px-3 py-2 align-top">
+                              <input
+                                type="text"
+                                value={item.startTime}
+                                onChange={(e) =>
+                                  handleFieldChange(item.id, 'startTime', e.target.value)
+                                }
+                                className={`${inputClass} w-24`}
+                              />
+                            </td>
+                            <td className="px-3 py-2 align-top">
+                              <input
+                                type="text"
+                                value={item.endTime}
+                                onChange={(e) =>
+                                  handleFieldChange(item.id, 'endTime', e.target.value)
+                                }
+                                className={`${inputClass} w-24`}
+                              />
+                            </td>
+                            <td className="px-3 py-2 align-top">
+                              <input
+                                type="text"
+                                value={item.segment}
+                                onChange={(e) =>
+                                  handleFieldChange(item.id, 'segment', e.target.value)
+                                }
+                                className={`${inputClass} w-56`}
+                              />
+                            </td>
+                            <td className="px-3 py-2 align-top">
+                              <textarea
+                                rows={rows}
+                                value={item.rolePlayer}
+                                onChange={(e) =>
+                                  handleFieldChange(item.id, 'rolePlayer', e.target.value)
+                                }
+                                className={`${inputClass} w-32 resize-none`}
+                              />
+                            </td>
+                            <td className="px-3 py-2 align-top">
+                              <textarea
+                                rows={rows}
+                                value={item.name}
+                                placeholder="Unassigned"
+                                onChange={(e) =>
+                                  handleFieldChange(item.id, 'name', e.target.value)
+                                }
+                                className={`${inputClass} w-36 resize-none`}
+                              />
+                            </td>
+                            <td className="px-2 py-2 align-top">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveRow(item.id)}
+                                aria-label="Remove row"
+                                className="rounded-lg p-1.5 text-ink/40 transition hover:bg-red-50 hover:text-red-600"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="border-t border-accent/20 p-3">
+                  <button
+                    type="button"
+                    onClick={handleAddSpeaker}
+                    className="flex items-center gap-1.5 rounded-xl border border-dashed border-accent/50 px-4 py-2.5 text-sm font-semibold text-ink/60 transition hover:border-primary hover:text-primary"
+                  >
+                    <Plus size={15} />
+                    Add Speaker
+                  </button>
+                </div>
               </div>
             </div>
 

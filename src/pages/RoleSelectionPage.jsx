@@ -44,7 +44,13 @@ export default function RoleSelectionPage() {
   function refresh() {
     getMeetings().then((fetched) => {
       setMeetings(fetched)
-      setActiveMeetingId((prev) => prev ?? fetched[0]?.id ?? null)
+      // Default to the first not-finalized meeting, not the earliest
+      // one overall — the earliest is usually long past with every
+      // role already taken, nothing left to select.
+      const notFinalized = fetched.find((m) => !m.finalized)
+      setActiveMeetingId(
+        (prev) => prev ?? notFinalized?.id ?? fetched[fetched.length - 1]?.id ?? null,
+      )
     })
   }
 
