@@ -109,7 +109,12 @@ function toRow(meetingId, agenda) {
 }
 
 export async function getAgenda(meetingId) {
-  const { data } = await supabase.from('agendas').select('*').eq('meeting_id', meetingId).maybeSingle()
+  const { data, error } = await supabase
+    .from('agendas')
+    .select('*')
+    .eq('meeting_id', meetingId)
+    .maybeSingle()
+  if (error) console.error('[mockAgendaStore] getAgenda failed:', error)
   return fromRow(data)
 }
 
@@ -117,7 +122,10 @@ export async function getAgenda(meetingId) {
 // autosave while the VPE is typing, and internally by the discrete
 // actions below (which log separately).
 export async function persistAgenda(meetingId, agenda) {
-  await supabase.from('agendas').upsert(toRow(meetingId, agenda), { onConflict: 'meeting_id' })
+  const { error } = await supabase
+    .from('agendas')
+    .upsert(toRow(meetingId, agenda), { onConflict: 'meeting_id' })
+  if (error) console.error('[mockAgendaStore] persistAgenda failed:', error)
   return agenda
 }
 
