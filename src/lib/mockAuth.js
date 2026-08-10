@@ -4,6 +4,7 @@ import { getOrCreateSignupStatus } from './mockMemberSignups.js'
 
 const STORAGE_KEY = 'toasty_mock_account'
 const APPLIED_FOR_EXCOM_KEY = 'toasty_applied_for_excom'
+const ROLE_OVERRIDE_KEY = 'toasty_active_role_override'
 
 export function getAccount() {
   try {
@@ -64,12 +65,42 @@ export async function syncAccountFromSupabaseUser(user) {
   return account
 }
 
+// Testing convenience: when one email holds multiple ExCom roles (see
+// getRolesForEmail in mockExcomRegistry.js), let the person pick which
+// single role to act as for this browser session, instead of always
+// getting every role's access/nav-links at once. Session-only (cleared
+// on sign-out or tab close) — doesn't change what roles the account
+// actually has, just narrows which one is "active" right now.
+export function setActiveRoleOverride(role) {
+  sessionStorage.setItem(ROLE_OVERRIDE_KEY, role)
+}
+
+export function getActiveRoleOverride() {
+  return sessionStorage.getItem(ROLE_OVERRIDE_KEY)
+}
+
+export function clearActiveRoleOverride() {
+  sessionStorage.removeItem(ROLE_OVERRIDE_KEY)
+}
+
+// The role shown in the header badge etc. — the active override if one's
+// set, otherwise just the first (or only) role on the account.
+export function getDisplayRole(account) {
+  const override = getActiveRoleOverride()
+  if (override && account?.excomRoles?.includes(override)) return override
+  return account?.excomRoles?.[0] ?? null
+}
+
 export function hasExcomRole(role) {
   const account = getAccount()
   if (!account) return false
-  return account.excomRoles?.includes('President') || account.excomRoles?.includes(role)
+  if (account.excomRoles?.includes('President')) return true
+  const override = getActiveRoleOverride()
+  if (override && account.excomRoles?.length > 1) return override === role
+  return account.excomRoles?.includes(role) ?? false
 }
 
 export function clearAccount() {
   localStorage.removeItem(STORAGE_KEY)
+  clearActiveRoleOverride()
 }

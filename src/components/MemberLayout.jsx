@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 import Logo from './Logo.jsx'
 import Avatar from './Avatar.jsx'
-import { getAccount, hasExcomRole } from '../lib/mockAuth.js'
+import { getAccount, hasExcomRole, getDisplayRole } from '../lib/mockAuth.js'
 import { supabase } from '../lib/supabaseClient.js'
 import { getNotifications, markAllRead } from '../lib/mockNotificationsStore.js'
 import { notificationIcons, defaultNotificationIcon } from './notificationMeta.js'
@@ -209,7 +209,7 @@ export default function MemberLayout({ children }) {
                   </span>
                   {isExcomMember && (
                     <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                      {account.excomRoles[0]}
+                      {getDisplayRole(account)}
                     </span>
                   )}
                 </span>
