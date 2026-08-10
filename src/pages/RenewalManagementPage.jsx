@@ -13,6 +13,22 @@ const filters = ['All', 'Paid', 'Pending', 'Overdue']
 const selectClass =
   'rounded-lg border border-accent/40 bg-cream px-2.5 py-1.5 text-sm text-ink focus:border-primary focus:outline-none'
 
+// Toastmasters runs on a fixed 6-month cycle (Apr-Sep, Oct-Mar) — this
+// generates that real cycle's terms across a few years each way so the
+// Treasurer can pick "Apr-Sep 2026" instead of clicking two calendar
+// dates by hand. The two date inputs stay available below for anything
+// that doesn't fit a standard term.
+function generateTerms() {
+  const terms = []
+  const startYear = new Date().getFullYear() - 1
+  for (let y = startYear; y <= startYear + 3; y++) {
+    terms.push({ label: `Apr–Sep ${y}`, start: `${y}-04-01`, end: `${y}-09-30` })
+    terms.push({ label: `Oct ${y}–Mar ${y + 1}`, start: `${y}-10-01`, end: `${y + 1}-03-31` })
+  }
+  return terms
+}
+const TERM_OPTIONS = generateTerms()
+
 function timeAgo(isoString) {
   const diffMs = Date.now() - new Date(isoString).getTime()
   const mins = Math.floor(diffMs / 60000)
@@ -44,6 +60,17 @@ export default function RenewalManagementPage() {
       membershipStart: member.membershipStart,
       membershipEnd: member.membershipEnd,
       [field]: value,
+    })
+    refresh()
+  }
+
+  async function handleTermChange(member, termLabel) {
+    const term = TERM_OPTIONS.find((t) => t.label === termLabel)
+    if (!term) return
+    await updateMemberRenewal(member.name, {
+      paymentStatus: member.paymentStatus,
+      membershipStart: term.start,
+      membershipEnd: term.end,
     })
     refresh()
   }
@@ -85,11 +112,12 @@ export default function RenewalManagementPage() {
 
         <div className="mt-4 overflow-hidden rounded-2xl border border-accent/30 bg-white">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
+            <table className="w-full min-w-[900px] text-left text-sm">
               <thead>
                 <tr className="border-b border-accent/20 bg-cream/60 text-xs uppercase tracking-wide text-ink/50">
                   <th className="px-4 py-3 font-semibold">Member</th>
                   <th className="px-4 py-3 font-semibold">Payment Status</th>
+                  <th className="px-4 py-3 font-semibold">Term</th>
                   <th className="px-4 py-3 font-semibold">Membership Start</th>
                   <th className="px-4 py-3 font-semibold">Membership End</th>
                 </tr>
@@ -122,6 +150,24 @@ export default function RenewalManagementPage() {
                       </select>
                     </td>
                     <td className="px-4 py-3">
+                      <select
+                        value={
+                          TERM_OPTIONS.find(
+                            (t) => t.start === member.membershipStart && t.end === member.membershipEnd,
+                          )?.label ?? ''
+                        }
+                        onChange={(e) => handleTermChange(member, e.target.value)}
+                        className={selectClass}
+                      >
+                        <option value="">Custom / not set</option>
+                        {TERM_OPTIONS.map((t) => (
+                          <option key={t.label} value={t.label}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-4 py-3">
                       <input
                         type="date"
                         value={member.membershipStart ?? ''}
@@ -141,7 +187,7 @@ export default function RenewalManagementPage() {
                 ))}
                 {visible.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-sm text-ink/50">
+                    <td colSpan={5} className="px-4 py-8 text-center text-sm text-ink/50">
                       No members with this status.
                     </td>
                   </tr>
