@@ -2,14 +2,20 @@ import { X } from 'lucide-react'
 
 export default function PhotoLightbox({ url, onClose }) {
   if (!url) return null
+
+  function handleClose(e) {
+    e.stopPropagation()
+    onClose()
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-ink/80 p-4"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <button
         type="button"
-        onClick={onClose}
+        onClick={handleClose}
         aria-label="Close"
         className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-cream transition hover:bg-white/20"
       >
