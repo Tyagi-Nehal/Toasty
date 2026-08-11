@@ -391,6 +391,7 @@ function MeetingPhotosTab({ log, refreshLog }) {
   }, [activeMeeting?.id])
 
   function resetCertForm() {
+    setCertCategory(CERT_CATEGORIES[0])
     setCertWinner('')
     setCertFile(null)
     setCertPreview(null)
@@ -434,6 +435,15 @@ function MeetingPhotosTab({ log, refreshLog }) {
     setCertFile(file)
     setCertPreview(URL.createObjectURL(file))
   }
+
+  function handleEditCertificate(cert) {
+    setCertCategory(cert.category)
+    setCertWinner(cert.winnerName)
+    setCertFile(null)
+    setCertPreview(cert.certificateSrc)
+  }
+
+  const editingExisting = uploaded?.certificates?.some((c) => c.category === certCategory)
 
   async function handleAddCertificate() {
     if (!certWinner.trim()) return
@@ -536,14 +546,29 @@ function MeetingPhotosTab({ log, refreshLog }) {
               Certificates
             </div>
             <p className="mt-1 text-xs text-ink/40">
-              One winner per award — adding a new photo for an award already set replaces it.
+              One winner per award — edit anytime to change the winner or swap the photo.
             </p>
 
             {uploaded?.certificates.length > 0 && (
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {uploaded.certificates.map((cert) => (
-                  <div key={cert.id} className="relative rounded-xl border border-accent/30 bg-cream p-3">
-                    <p className="text-xs font-semibold text-ink">{cert.category}</p>
+                  <div
+                    key={cert.id}
+                    className={`relative rounded-xl border bg-cream p-3 ${
+                      editingExisting && cert.category === certCategory
+                        ? 'border-primary ring-1 ring-primary/40'
+                        : 'border-accent/30'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleEditCertificate(cert)}
+                      aria-label="Edit award"
+                      className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-ink/60 text-cream transition hover:bg-ink/80"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                    <p className="pr-6 text-xs font-semibold text-ink">{cert.category}</p>
                     <p className="text-xs text-ink/60">{cert.winnerName}</p>
                     <div className="mt-2">
                       {cert.certificateSrc ? (
@@ -565,6 +590,11 @@ function MeetingPhotosTab({ log, refreshLog }) {
             )}
 
             <div className="mt-5 rounded-2xl border border-dashed border-accent/40 p-4">
+              {editingExisting && (
+                <p className="mb-3 text-xs font-medium text-primary">
+                  Editing "{certCategory}" — change the name and/or photo, then save.
+                </p>
+              )}
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className="text-xs font-medium text-ink/60">Award</label>
@@ -622,7 +652,7 @@ function MeetingPhotosTab({ log, refreshLog }) {
                 className="mt-4 flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Plus size={15} />
-                {addingCert ? 'Saving…' : 'Add Certificate'}
+                {addingCert ? 'Saving…' : editingExisting ? 'Update Certificate' : 'Add Certificate'}
               </button>
             </div>
           </div>

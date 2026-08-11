@@ -262,24 +262,26 @@ export async function removeMeetingGroupPhoto(meeting, photoId, url) {
   return next
 }
 
-// One entry per award category — adding a new winner for a category that
-// already has one (existing or being replaced) swaps it out rather than
-// creating a duplicate. Certificates can't be removed on their own, only
-// replaced by adding a new one for the same category.
+// One entry per award category — saving an award that already has an
+// entry (the VPPR editing it) swaps that entry out rather than creating a
+// duplicate. Editing without choosing a new photo keeps the existing
+// photo (e.g. just correcting the winner's name shouldn't wipe it) — a
+// new photo is only uploaded, and the old one only deleted, when the
+// VPPR actually picks a replacement file.
 export async function addMeetingCertificate(meeting, { category, winnerName, certificateFile }) {
+  const existing = await getMeetingPhotos(meeting.id)
+  const replaced = (existing?.certificates ?? []).find((c) => c.category === category)
   const certificateUrl = certificateFile
     ? await uploadClubPhoto(certificateFile, `meetings/${meeting.id}/certificates`)
-    : null
-  const existing = await getMeetingPhotos(meeting.id)
+    : (replaced?.certificateUrl ?? null)
   const withoutSameCategory = (existing?.certificates ?? []).filter((c) => c.category !== category)
-  const replaced = (existing?.certificates ?? []).find((c) => c.category === category)
   const next = await upsertMeetingPhotosRow(meeting, {
     certificates: [
       ...withoutSameCategory,
       { id: crypto.randomUUID(), category, winnerName, certificateUrl },
     ],
   })
-  if (replaced?.certificateUrl) await deleteClubPhoto(replaced.certificateUrl)
+  if (certificateFile && replaced?.certificateUrl) await deleteClubPhoto(replaced.certificateUrl)
   logAction(`VPPR set "${category}" to ${winnerName} for ${meeting.dateLabel}`)
   return next
 }
