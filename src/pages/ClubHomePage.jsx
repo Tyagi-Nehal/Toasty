@@ -25,6 +25,15 @@ import { getClubPagePhotos } from '../lib/mockPhotoStore.js'
 
 const EMPTY_SECTIONS = { hero: [], gallery: [], story: [], achievements: [] }
 
+// Alternating icon-circle tints, cycled through so info tiles/achievement
+// icons/quick links don't all look identical — stays within the existing
+// primary/accent palette rather than introducing new brand colors.
+const TINTS = [
+  'bg-primary/15 text-primary',
+  'bg-accent/30 text-primary',
+  'bg-ink/10 text-ink',
+]
+
 export default function ClubHomePage() {
   const { clubId } = useParams()
   const [isJoinOpen, setIsJoinOpen] = useState(false)
@@ -89,7 +98,16 @@ export default function ClubHomePage() {
   // count, meeting info) renders straight from the real registered `club`
   // record so it always matches what the president actually submitted.
   const details = getClubDetails(club)
-  const hasMeetingInfo = club.meetingDay || club.meetingTime || club.meetingLocation
+  const [heroPhoto, ...extraHeroPhotos] = sectionPhotos.hero
+
+  const infoTiles = [
+    { icon: MapPin, label: 'Location', value: club.location },
+    club.foundedYear && { icon: CalendarDays, label: 'Founded', value: club.foundedYear },
+    { icon: Users, label: 'Members', value: club.members },
+    club.meetingDay && { icon: Calendar, label: 'Meets', value: club.meetingDay },
+    club.meetingTime && { icon: Clock, label: 'Time', value: club.meetingTime },
+    club.meetingLocation && { icon: MapPinned, label: 'Venue', value: club.meetingLocation },
+  ].filter(Boolean)
 
   return (
     <div className="min-h-screen bg-cream">
@@ -109,96 +127,84 @@ export default function ClubHomePage() {
         </div>
       )}
 
-      {/* Hero */}
-      <section className="mx-auto max-w-6xl px-4 pt-12 pb-10 sm:px-6 sm:pt-16">
-        <span className="inline-flex items-center gap-2 rounded-full bg-accent/20 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
-          Toastmasters Club
-        </span>
-        <h1 className="mt-4 text-3xl font-extrabold leading-tight text-ink sm:text-5xl">
-          {club.name}
-        </h1>
-        <p className="mt-3 max-w-2xl text-base text-ink/70 sm:text-lg">
-          {details.tagline}
-        </p>
+      {/* Hero — full-bleed photo if the VPPR has uploaded one, otherwise a
+          branded gradient so it never looks empty. */}
+      <section className="relative overflow-hidden">
+        {heroPhoto ? (
+          <div className="absolute inset-0">
+            <img src={heroPhoto.url} alt="" className="h-full w-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/55 to-ink/25" />
+          </div>
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-primary to-primary-dark" />
+        )}
 
-        <div className="mt-6 flex flex-wrap gap-4 text-sm text-ink/60">
-          <span className="flex items-center gap-1.5">
-            <MapPin size={16} className="text-primary" />
-            {club.location}
+        <div className="relative mx-auto max-w-6xl px-4 pt-14 pb-24 sm:px-6 sm:pt-20 sm:pb-28">
+          <span className="inline-flex items-center gap-2 rounded-full bg-cream/20 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-cream backdrop-blur-sm">
+            Toastmasters Club
           </span>
-          {club.foundedYear && (
-            <span className="flex items-center gap-1.5">
-              <CalendarDays size={16} className="text-primary" />
-              Founded {club.foundedYear}
-            </span>
+          <h1 className="mt-4 max-w-3xl text-3xl font-extrabold leading-tight text-cream sm:text-5xl">
+            {club.name}
+          </h1>
+          <p className="mt-3 max-w-2xl text-base text-cream/80 sm:text-lg">
+            {details.tagline}
+          </p>
+
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link
+              to="/login"
+              className="flex items-center gap-2 rounded-full bg-cream px-6 py-3 text-sm font-semibold text-primary shadow-md shadow-ink/10 transition hover:bg-white"
+            >
+              <LogIn size={18} />
+              Login
+            </Link>
+            <button
+              type="button"
+              onClick={() => setIsJoinOpen(true)}
+              className="flex items-center gap-2 rounded-full border border-cream/60 px-6 py-3 text-sm font-semibold text-cream transition hover:bg-cream/10"
+            >
+              <HeartHandshake size={18} />
+              I'm interested in visiting
+            </button>
+          </div>
+
+          {extraHeroPhotos.length > 0 && (
+            <div className="mt-8 flex gap-3 overflow-x-auto">
+              {extraHeroPhotos.map((photo) => (
+                <div
+                  key={photo.id}
+                  className="aspect-video w-40 shrink-0 overflow-hidden rounded-2xl shadow-md shadow-ink/20"
+                >
+                  <img src={photo.url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                </div>
+              ))}
+            </div>
           )}
-          <span className="flex items-center gap-1.5">
-            <Users size={16} className="text-primary" />
-            {club.members} members
-          </span>
         </div>
-
-        {hasMeetingInfo && (
-          <div className="mt-2 flex flex-wrap gap-4 text-sm text-ink/60">
-            {club.meetingTime && (
-              <span className="flex items-center gap-1.5">
-                <Clock size={16} className="text-primary" />
-                🕒 {club.meetingTime}
-              </span>
-            )}
-            {club.meetingLocation && (
-              <span className="flex items-center gap-1.5">
-                <MapPinned size={16} className="text-primary" />
-                📍 {club.meetingLocation}
-              </span>
-            )}
-            {club.meetingDay && (
-              <span className="flex items-center gap-1.5">
-                <Calendar size={16} className="text-primary" />
-                📅 {club.meetingDay}
-              </span>
-            )}
-          </div>
-        )}
-
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link
-            to="/login"
-            className="flex items-center gap-2 rounded-full border border-primary px-6 py-3 text-sm font-semibold text-primary transition hover:bg-primary hover:text-cream"
-          >
-            <LogIn size={18} />
-            Login
-          </Link>
-          <button
-            type="button"
-            onClick={() => setIsJoinOpen(true)}
-            className="flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
-          >
-            <HeartHandshake size={18} />
-            I'm interested in visiting
-          </button>
-        </div>
-
-        {sectionPhotos.hero.length > 0 && (
-          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {sectionPhotos.hero.map((photo) => (
-              <div key={photo.id} className="aspect-video overflow-hidden rounded-2xl shadow-sm shadow-primary/10">
-                <img
-                  src={photo.url}
-                  alt={`${club.name}`}
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
-              </div>
-            ))}
-          </div>
-        )}
       </section>
+
+      {/* Floating info card, overlapping the hero's bottom edge */}
+      <div className="relative z-10 mx-auto -mt-14 max-w-5xl px-4 sm:px-6">
+        <div className="grid grid-cols-2 gap-3 rounded-3xl bg-white p-5 shadow-xl shadow-ink/10 sm:grid-cols-3 sm:p-6 lg:grid-cols-6">
+          {infoTiles.map((tile, i) => (
+            <div key={tile.label} className="flex flex-col items-center gap-2 text-center">
+              <span className={`flex h-11 w-11 items-center justify-center rounded-2xl ${TINTS[i % TINTS.length]}`}>
+                <tile.icon size={19} />
+              </span>
+              <div>
+                <p className="text-xs font-medium text-ink/40">{tile.label}</p>
+                <p className="text-sm font-semibold text-ink">{tile.value}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Photo gallery */}
       {sectionPhotos.gallery.length > 0 && (
-        <section className="mx-auto max-w-6xl px-4 pb-14 sm:px-6">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
+        <section className="mx-auto max-w-6xl px-4 pb-14 pt-16 sm:px-6">
+          <h2 className="text-2xl font-bold text-ink sm:text-3xl">Gallery</h2>
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
             {sectionPhotos.gallery.map((photo, i) => (
               <div
                 key={photo.id}
@@ -219,28 +225,44 @@ export default function ClubHomePage() {
       )}
 
       {/* History */}
-      <section className="mx-auto max-w-6xl px-4 pb-14 sm:px-6">
-        <div className="rounded-3xl border border-accent/30 bg-white p-6 sm:p-10">
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-2xl font-bold text-ink sm:text-3xl">Our Story</h2>
-            {details.isPlaceholder && (
-              <span className="rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold text-primary">
-                Sample content — replace with the real story
-              </span>
+      <section className={`mx-auto max-w-6xl px-4 pb-14 sm:px-6 ${sectionPhotos.gallery.length > 0 ? '' : 'pt-16'}`}>
+        <div className="overflow-hidden rounded-3xl border border-accent/30 bg-white shadow-sm shadow-primary/5">
+          <div className={`grid gap-0 ${sectionPhotos.story.length > 0 ? 'lg:grid-cols-2' : ''}`}>
+            <div className="p-6 sm:p-10">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-2xl font-bold text-ink sm:text-3xl">Our Story</h2>
+                {details.isPlaceholder && (
+                  <span className="rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold text-primary">
+                    Sample content — replace with the real story
+                  </span>
+                )}
+              </div>
+              <p className="mt-4 max-w-3xl text-sm leading-relaxed text-ink/70 sm:text-base">
+                {details.history}
+              </p>
+
+              {sectionPhotos.story.length > 1 && (
+                <div className="mt-6 grid grid-cols-3 gap-3">
+                  {sectionPhotos.story.slice(1).map((photo) => (
+                    <div key={photo.id} className="aspect-square overflow-hidden rounded-2xl">
+                      <img src={photo.url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {sectionPhotos.story.length > 0 && (
+              <div className="min-h-[220px]">
+                <img
+                  src={sectionPhotos.story[0].url}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                />
+              </div>
             )}
           </div>
-          <p className="mt-4 max-w-3xl text-sm leading-relaxed text-ink/70 sm:text-base">
-            {details.history}
-          </p>
-          {sectionPhotos.story.length > 0 && (
-            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {sectionPhotos.story.map((photo) => (
-                <div key={photo.id} className="aspect-square overflow-hidden rounded-2xl">
-                  <img src={photo.url} alt="" className="h-full w-full object-cover" loading="lazy" />
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </section>
 
@@ -264,12 +286,12 @@ export default function ClubHomePage() {
           </div>
         )}
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {details.achievements.map((achievement) => (
+          {details.achievements.map((achievement, i) => (
             <div
               key={achievement.title}
               className="rounded-2xl bg-white p-5 shadow-sm shadow-primary/5"
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/20 text-primary">
+              <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${TINTS[i % TINTS.length]}`}>
                 <Award size={20} />
               </div>
               <h3 className="mt-3 font-semibold text-ink">{achievement.title}</h3>
@@ -287,42 +309,25 @@ export default function ClubHomePage() {
       {/* Mentors / ExCom / Past ExCom — standalone pages, linked rather than inlined */}
       <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
         <div className="grid gap-4 sm:grid-cols-3">
-          <Link
-            to="/mentors"
-            className="flex items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-white p-5 transition hover:border-primary hover:shadow-sm"
-          >
-            <span className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/20 text-primary">
-                <UsersRound size={20} />
+          {[
+            { to: '/mentors', label: 'Meet Our Mentors', icon: UsersRound },
+            { to: '/excom', label: 'Meet Our ExCom', icon: UsersRound },
+            { to: '/past-excom', label: 'Meet Our Past ExCom', icon: History },
+          ].map(({ to, label, icon: Icon }, i) => (
+            <Link
+              key={to}
+              to={to}
+              className="flex items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-white p-5 transition hover:-translate-y-0.5 hover:border-primary hover:shadow-md"
+            >
+              <span className="flex items-center gap-3">
+                <span className={`flex h-11 w-11 items-center justify-center rounded-2xl ${TINTS[i % TINTS.length]}`}>
+                  <Icon size={20} />
+                </span>
+                <span className="font-semibold text-ink">{label}</span>
               </span>
-              <span className="font-semibold text-ink">Meet Our Mentors</span>
-            </span>
-            <ChevronRight size={18} className="text-primary" />
-          </Link>
-          <Link
-            to="/excom"
-            className="flex items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-white p-5 transition hover:border-primary hover:shadow-sm"
-          >
-            <span className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/20 text-primary">
-                <UsersRound size={20} />
-              </span>
-              <span className="font-semibold text-ink">Meet Our ExCom</span>
-            </span>
-            <ChevronRight size={18} className="text-primary" />
-          </Link>
-          <Link
-            to="/past-excom"
-            className="flex items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-white p-5 transition hover:border-primary hover:shadow-sm"
-          >
-            <span className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/20 text-primary">
-                <History size={20} />
-              </span>
-              <span className="font-semibold text-ink">Meet Our Past ExCom</span>
-            </span>
-            <ChevronRight size={18} className="text-primary" />
-          </Link>
+              <ChevronRight size={18} className="text-primary" />
+            </Link>
+          ))}
         </div>
       </section>
 
