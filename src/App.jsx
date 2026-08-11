@@ -12,6 +12,7 @@ import MOMPage from './pages/MOMPage.jsx'
 import MinutesPage from './pages/MinutesPage.jsx'
 import PhotoMemoriesPage from './pages/PhotoMemoriesPage.jsx'
 import PastExcomPage from './pages/PastExcomPage.jsx'
+import ExcomPage from './pages/ExcomPage.jsx'
 import MentorPage from './pages/MentorPage.jsx'
 import MemberProfilePage from './pages/MemberProfilePage.jsx'
 import FeedbackPage from './pages/FeedbackPage.jsx'
@@ -128,6 +129,14 @@ function App() {
         element={
           <RequireApprovedAccount>
             <PastExcomPage />
+          </RequireApprovedAccount>
+        }
+      />
+      <Route
+        path="/excom"
+        element={
+          <RequireApprovedAccount>
+            <ExcomPage />
           </RequireApprovedAccount>
         }
       />

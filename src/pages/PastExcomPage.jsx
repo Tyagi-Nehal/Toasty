@@ -1,9 +1,17 @@
+import { useEffect, useState } from 'react'
 import { Building2, GraduationCap, Mail, Phone, Sparkles } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import Avatar from '../components/Avatar.jsx'
 import { pastExcom } from '../data/excom.js'
+import { getExcomProfiles } from '../lib/mockPhotoStore.js'
 
 export default function PastExcomPage() {
+  const [profiles, setProfiles] = useState({})
+
+  useEffect(() => {
+    getExcomProfiles().then(setProfiles)
+  }, [])
+
   return (
     <MemberLayout>
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
@@ -17,6 +25,7 @@ export default function PastExcomPage() {
           {pastExcom.map((member) => {
             const hasDeptInfo = member.department || member.branch
             const hasContact = member.phone || member.email
+            const profile = profiles[member.id]
 
             return (
               <div
@@ -24,7 +33,15 @@ export default function PastExcomPage() {
                 className="rounded-3xl border border-accent/30 bg-white p-5 shadow-sm shadow-primary/5"
               >
                 <div className="flex items-center gap-3">
-                  <Avatar name={member.name} size={52} />
+                  {profile?.photoUrl ? (
+                    <img
+                      src={profile.photoUrl}
+                      alt={member.name}
+                      className="h-[52px] w-[52px] rounded-full object-cover"
+                    />
+                  ) : (
+                    <Avatar name={member.name} size={52} />
+                  )}
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-ink">{member.name}</p>
                     <p className="truncate text-sm font-medium text-primary">
@@ -32,6 +49,10 @@ export default function PastExcomPage() {
                     </p>
                   </div>
                 </div>
+
+                {profile?.bio && (
+                  <p className="mt-3 text-xs leading-relaxed text-ink/60">{profile.bio}</p>
+                )}
 
                 {(hasDeptInfo || member.yearOfStudy) && (
                   <div className="mt-4 space-y-1.5 border-t border-accent/20 pt-4 text-xs text-ink/60">

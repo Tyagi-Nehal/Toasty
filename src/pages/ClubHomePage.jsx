@@ -21,6 +21,9 @@ import JoinClubModal from '../components/JoinClubModal.jsx'
 import { getClubById } from '../lib/mockClubRegistry.js'
 import { getClubDetails } from '../data/clubDetails.js'
 import { dismissMyAcknowledgment, getMyPendingAcknowledgment } from '../lib/mockVisitRequests.js'
+import { getClubPagePhotos } from '../lib/mockPhotoStore.js'
+
+const EMPTY_SECTIONS = { hero: [], gallery: [], story: [], achievements: [] }
 
 export default function ClubHomePage() {
   const { clubId } = useParams()
@@ -28,6 +31,7 @@ export default function ClubHomePage() {
   const [ackBanner, setAckBanner] = useState(null)
   // undefined = still loading, null = confirmed not found, object = found
   const [club, setClub] = useState(undefined)
+  const [sectionPhotos, setSectionPhotos] = useState(EMPTY_SECTIONS)
 
   useEffect(() => {
     setClub(undefined)
@@ -36,6 +40,17 @@ export default function ClubHomePage() {
 
   useEffect(() => {
     setAckBanner(getMyPendingAcknowledgment())
+  }, [])
+
+  useEffect(() => {
+    getClubPagePhotos().then((photos) => {
+      setSectionPhotos({
+        hero: photos.filter((p) => p.section === 'hero'),
+        gallery: photos.filter((p) => p.section === 'gallery'),
+        story: photos.filter((p) => p.section === 'story'),
+        achievements: photos.filter((p) => p.section === 'achievements'),
+      })
+    })
   }, [])
 
   function dismissBanner() {
@@ -163,28 +178,45 @@ export default function ClubHomePage() {
             I'm interested in visiting
           </button>
         </div>
+
+        {sectionPhotos.hero.length > 0 && (
+          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {sectionPhotos.hero.map((photo) => (
+              <div key={photo.id} className="aspect-video overflow-hidden rounded-2xl shadow-sm shadow-primary/10">
+                <img
+                  src={photo.url}
+                  alt={`${club.name}`}
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Photo gallery */}
-      <section className="mx-auto max-w-6xl px-4 pb-14 sm:px-6">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
-          {details.photoSeeds.map((seed, i) => (
-            <div
-              key={seed}
-              className={`overflow-hidden rounded-2xl shadow-sm shadow-primary/10 ${
-                i === 0 ? 'col-span-2 row-span-2 sm:col-span-1' : ''
-              }`}
-            >
-              <img
-                src={`https://picsum.photos/seed/${seed}/400/400`}
-                alt={`${club.name} meeting photo`}
-                className="h-full w-full object-cover"
-                loading="lazy"
-              />
-            </div>
-          ))}
-        </div>
-      </section>
+      {sectionPhotos.gallery.length > 0 && (
+        <section className="mx-auto max-w-6xl px-4 pb-14 sm:px-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
+            {sectionPhotos.gallery.map((photo, i) => (
+              <div
+                key={photo.id}
+                className={`overflow-hidden rounded-2xl shadow-sm shadow-primary/10 ${
+                  i === 0 ? 'col-span-2 row-span-2 sm:col-span-1' : ''
+                }`}
+              >
+                <img
+                  src={photo.url}
+                  alt={`${club.name} meeting photo`}
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* History */}
       <section className="mx-auto max-w-6xl px-4 pb-14 sm:px-6">
@@ -200,6 +232,15 @@ export default function ClubHomePage() {
           <p className="mt-4 max-w-3xl text-sm leading-relaxed text-ink/70 sm:text-base">
             {details.history}
           </p>
+          {sectionPhotos.story.length > 0 && (
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {sectionPhotos.story.map((photo) => (
+                <div key={photo.id} className="aspect-square overflow-hidden rounded-2xl">
+                  <img src={photo.url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -213,6 +254,15 @@ export default function ClubHomePage() {
             </span>
           )}
         </div>
+        {sectionPhotos.achievements.length > 0 && (
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {sectionPhotos.achievements.map((photo) => (
+              <div key={photo.id} className="aspect-square overflow-hidden rounded-2xl">
+                <img src={photo.url} alt="" className="h-full w-full object-cover" loading="lazy" />
+              </div>
+            ))}
+          </div>
+        )}
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {details.achievements.map((achievement) => (
             <div
@@ -234,9 +284,9 @@ export default function ClubHomePage() {
         </div>
       </section>
 
-      {/* Mentors / Past ExCom — standalone pages, linked rather than inlined */}
+      {/* Mentors / ExCom / Past ExCom — standalone pages, linked rather than inlined */}
       <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <Link
             to="/mentors"
             className="flex items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-white p-5 transition hover:border-primary hover:shadow-sm"
@@ -246,6 +296,18 @@ export default function ClubHomePage() {
                 <UsersRound size={20} />
               </span>
               <span className="font-semibold text-ink">Meet Our Mentors</span>
+            </span>
+            <ChevronRight size={18} className="text-primary" />
+          </Link>
+          <Link
+            to="/excom"
+            className="flex items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-white p-5 transition hover:border-primary hover:shadow-sm"
+          >
+            <span className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/20 text-primary">
+                <UsersRound size={20} />
+              </span>
+              <span className="font-semibold text-ink">Meet Our ExCom</span>
             </span>
             <ChevronRight size={18} className="text-primary" />
           </Link>

@@ -22,13 +22,6 @@ const details = {
         description: 'Placeholder for a real membership milestone.',
       },
     ],
-    photoSeeds: [
-      'toasty-club-1',
-      'toasty-club-2',
-      'toasty-club-3',
-      'toasty-club-4',
-      'toasty-club-5',
-    ],
   },
 }
 
@@ -49,7 +42,6 @@ const fallback = (club) => ({
       description: 'A growing, active club community.',
     },
   ],
-  photoSeeds: ['toasty-generic-1', 'toasty-generic-2', 'toasty-generic-3'],
 })
 
 export function getClubDetails(club) {

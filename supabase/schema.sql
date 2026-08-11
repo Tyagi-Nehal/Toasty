@@ -475,3 +475,130 @@ create policy "member_renewals treasurer or president write" on member_renewals
 
 grant select, insert, update on member_renewals to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
+
+-- Real photo uploads (VPPR) — was base64-in-localStorage before (a
+-- per-browser prototype, not real hosting; also capped by localStorage's
+-- ~5-10MB quota). First real use of Supabase Storage in this app.
+insert into storage.buckets (id, name, public)
+values ('club-photos', 'club-photos', true)
+on conflict (id) do nothing;
+
+drop policy if exists "club-photos public read" on storage.objects;
+create policy "club-photos public read" on storage.objects
+  for select using (bucket_id = 'club-photos');
+
+drop policy if exists "club-photos vppr or president write" on storage.objects;
+create policy "club-photos vppr or president write" on storage.objects
+  for all to authenticated
+  using (
+    bucket_id = 'club-photos'
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPPR'
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+      )
+    )
+  )
+  with check (bucket_id = 'club-photos');
+
+-- Public club-page photos, section-targeted (hero/gallery/story/
+-- achievements) — replaces the picsum.photos placeholders on the public
+-- Club Home page once the VPPR uploads real ones.
+create table if not exists club_page_photos (
+  id bigint generated always as identity primary key,
+  section text not null check (section in ('hero','gallery','story','achievements')),
+  url text not null,
+  uploaded_at timestamptz not null default now()
+);
+
+-- Real profile photo + bio for a current or past ExCom member, keyed by
+-- the same slugified id data/excom.js already generates.
+create table if not exists excom_profiles (
+  id bigint generated always as identity primary key,
+  member_key text not null unique,
+  photo_url text,
+  bio text,
+  updated_at timestamptz not null default now()
+);
+
+-- Per-meeting photos/certificates — was a disconnected localStorage blob
+-- (mockPhotoMemoriesStore.js); moved onto the real meetings shell, same
+-- "one JSONB-bearing row per meeting" pattern as `agendas`.
+create table if not exists meeting_photos (
+  id bigint generated always as identity primary key,
+  meeting_id bigint not null unique references meetings(id) on delete cascade,
+  theme text,
+  photos jsonb not null default '[]'::jsonb,
+  certificates jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+alter table club_page_photos enable row level security;
+alter table excom_profiles enable row level security;
+alter table meeting_photos enable row level security;
+
+-- club_page_photos / excom_profiles are read by the public, logged-out
+-- Club Home page — select is open to everyone, not just authenticated
+-- (same reasoning as the public `clubs` select policy).
+drop policy if exists "club_page_photos public select" on club_page_photos;
+create policy "club_page_photos public select" on club_page_photos
+  for select using (true);
+drop policy if exists "club_page_photos vppr or president write" on club_page_photos;
+create policy "club_page_photos vppr or president write" on club_page_photos
+  for all to authenticated
+  using (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPPR'
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
+drop policy if exists "excom_profiles public select" on excom_profiles;
+create policy "excom_profiles public select" on excom_profiles
+  for select using (true);
+drop policy if exists "excom_profiles vppr or president write" on excom_profiles;
+create policy "excom_profiles vppr or president write" on excom_profiles
+  for all to authenticated
+  using (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPPR'
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
+-- meeting_photos is member-only content (like meetings/agendas), not public.
+drop policy if exists "meeting_photos authenticated select" on meeting_photos;
+create policy "meeting_photos authenticated select" on meeting_photos
+  for select to authenticated using (true);
+drop policy if exists "meeting_photos vppr or president write" on meeting_photos;
+create policy "meeting_photos vppr or president write" on meeting_photos
+  for all to authenticated
+  using (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPPR'
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
+grant select on club_page_photos to anon;
+grant select on excom_profiles to anon;
+grant select, insert, update, delete on club_page_photos to authenticated;
+grant select, insert, update, delete on excom_profiles to authenticated;
+grant select, insert, update, delete on meeting_photos to authenticated;
+grant usage, select on all sequences in schema public to authenticated;

@@ -15,7 +15,6 @@ import {
   LayoutGrid,
   Vote,
   UserCheck2,
-  ImagePlus,
 } from 'lucide-react'
 import Logo from './Logo.jsx'
 import Avatar from './Avatar.jsx'
@@ -46,7 +45,6 @@ const baseNavLinks = [
 const excomNavLinks = [
   { to: '/poll-editor', label: 'Poll Editor', icon: Vote, role: 'SAA' },
   { to: '/approvals', label: 'Approvals', icon: UserCheck2, role: 'VPM' },
-  { to: '/photo-upload', label: 'Photo Upload', icon: ImagePlus, role: 'VPPR' },
   { to: '/attendance', label: 'Attendance', icon: ClipboardCheck, role: 'Secretary' },
   { to: '/mom', label: 'MOM', icon: FileText, role: 'Secretary' },
   { to: '/feedback-inbox', label: 'Feedback Inbox', icon: Inbox, role: 'President' },

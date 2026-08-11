@@ -1,18 +1,37 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Award, CalendarDays, ImageOff } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import PhotoGalleryModal from '../components/PhotoGalleryModal.jsx'
-import { getPhotoMemories } from '../lib/mockPhotoMemoriesStore.js'
+import { getMeetings } from '../lib/mockRolesStore.js'
+import { getAllMeetingPhotos } from '../lib/mockPhotoStore.js'
 
 export default function PhotoMemoriesPage() {
   const [dateFilter, setDateFilter] = useState('all')
   const [activeMeeting, setActiveMeeting] = useState(null)
-  const photoMemories = getPhotoMemories()
+  const [photoMemories, setPhotoMemories] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    getMeetings().then(async (meetings) => {
+      setPhotoMemories(await getAllMeetingPhotos(meetings))
+      setLoading(false)
+    })
+  }, [])
 
   const filteredMemories =
     dateFilter === 'all'
       ? photoMemories
-      : photoMemories.filter((m) => m.id === dateFilter)
+      : photoMemories.filter((m) => m.meetingId === dateFilter)
+
+  if (loading) {
+    return (
+      <MemberLayout>
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <p className="text-sm text-ink/50">Loading...</p>
+        </div>
+      </MemberLayout>
+    )
+  }
 
   return (
     <MemberLayout>
@@ -36,7 +55,7 @@ export default function PhotoMemoriesPage() {
             >
               <option value="all">All meetings</option>
               {photoMemories.map((m) => (
-                <option key={m.id} value={m.id}>
+                <option key={m.meetingId} value={m.meetingId}>
                   {m.dateLabel}
                 </option>
               ))}
@@ -48,7 +67,7 @@ export default function PhotoMemoriesPage() {
           <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {filteredMemories.map((meeting) => (
               <div
-                key={meeting.id}
+                key={meeting.meetingId}
                 className="overflow-hidden rounded-3xl border border-accent/30 bg-white shadow-sm shadow-primary/5"
               >
                 <div className="aspect-video overflow-hidden bg-cream">
@@ -89,7 +108,7 @@ export default function PhotoMemoriesPage() {
         ) : (
           <div className="mt-10 flex flex-col items-center gap-3 rounded-2xl border border-dashed border-accent/40 bg-white p-10 text-center">
             <ImageOff size={28} className="text-ink/30" />
-            <p className="text-sm text-ink/50">No meetings found for this filter.</p>
+            <p className="text-sm text-ink/50">No photos uploaded yet.</p>
           </div>
         )}
       </div>
