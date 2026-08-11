@@ -32,7 +32,6 @@ import {
   getPhotoUploadLog,
   removeClubPagePhoto,
   removeContentBlock,
-  removeMeetingCertificate,
   removeMeetingGroupPhoto,
   saveMeetingTheme,
   updateContentBlock,
@@ -363,8 +362,6 @@ function MeetingPhotosTab({ log, refreshLog }) {
   const [certWinner, setCertWinner] = useState('')
   const [certFile, setCertFile] = useState(null)
   const [certPreview, setCertPreview] = useState(null)
-  const [presentationFile, setPresentationFile] = useState(null)
-  const [presentationPreview, setPresentationPreview] = useState(null)
   const [addingCert, setAddingCert] = useState(false)
   const [lightboxUrl, setLightboxUrl] = useState(null)
 
@@ -397,8 +394,6 @@ function MeetingPhotosTab({ log, refreshLog }) {
     setCertWinner('')
     setCertFile(null)
     setCertPreview(null)
-    setPresentationFile(null)
-    setPresentationPreview(null)
   }
 
   function handleDateChange(date) {
@@ -440,14 +435,6 @@ function MeetingPhotosTab({ log, refreshLog }) {
     setCertPreview(URL.createObjectURL(file))
   }
 
-  function handlePresentationFileChange(e) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    setPresentationFile(file)
-    setPresentationPreview(URL.createObjectURL(file))
-  }
-
   async function handleAddCertificate() {
     if (!certWinner.trim()) return
     setAddingCert(true)
@@ -455,17 +442,10 @@ function MeetingPhotosTab({ log, refreshLog }) {
       category: certCategory,
       winnerName: certWinner.trim(),
       certificateFile: certFile,
-      presentationFile,
     })
     setUploaded(next)
     setAddingCert(false)
     resetCertForm()
-    refreshLog()
-  }
-
-  async function handleRemoveCertificate(cert) {
-    const next = await removeMeetingCertificate(activeMeeting, cert.id)
-    setUploaded(next)
     refreshLog()
   }
 
@@ -563,17 +543,9 @@ function MeetingPhotosTab({ log, refreshLog }) {
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {uploaded.certificates.map((cert) => (
                   <div key={cert.id} className="relative rounded-xl border border-accent/30 bg-cream p-3">
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveCertificate(cert)}
-                      aria-label="Remove award"
-                      className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-ink/60 text-cream transition hover:bg-ink/80"
-                    >
-                      <X size={13} />
-                    </button>
-                    <p className="pr-6 text-xs font-semibold text-ink">{cert.category}</p>
+                    <p className="text-xs font-semibold text-ink">{cert.category}</p>
                     <p className="text-xs text-ink/60">{cert.winnerName}</p>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
+                    <div className="mt-2">
                       {cert.certificateSrc ? (
                         <img
                           src={cert.certificateSrc}
@@ -584,18 +556,6 @@ function MeetingPhotosTab({ log, refreshLog }) {
                       ) : (
                         <div className="flex h-20 items-center justify-center rounded-lg bg-accent/10 text-[10px] text-ink/40">
                           No certificate photo
-                        </div>
-                      )}
-                      {cert.presentationSrc ? (
-                        <img
-                          src={cert.presentationSrc}
-                          alt="Presentation"
-                          onClick={() => setLightboxUrl(cert.presentationSrc)}
-                          className="h-20 w-full cursor-pointer rounded-lg object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-20 items-center justify-center rounded-lg bg-accent/10 text-[10px] text-ink/40">
-                          No presentation photo
                         </div>
                       )}
                     </div>
@@ -632,51 +592,27 @@ function MeetingPhotosTab({ log, refreshLog }) {
                 </div>
               </div>
 
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label
-                    className={`flex items-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
-                      certWinner.trim()
-                        ? 'cursor-pointer border-primary text-primary hover:bg-primary hover:text-cream'
-                        : 'cursor-not-allowed border-accent/30 text-ink/30'
-                    }`}
-                  >
-                    <ImagePlus size={15} />
-                    Certificate photo
-                    <input
-                      type="file"
-                      accept="image/*"
-                      disabled={!certWinner.trim()}
-                      onChange={handleCertFileChange}
-                      className="hidden"
-                    />
-                  </label>
-                  {certPreview && (
-                    <img src={certPreview} alt="" className="mt-2 h-16 w-full rounded-lg object-cover" />
-                  )}
-                </div>
-                <div>
-                  <label
-                    className={`flex items-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
-                      certWinner.trim()
-                        ? 'cursor-pointer border-primary text-primary hover:bg-primary hover:text-cream'
-                        : 'cursor-not-allowed border-accent/30 text-ink/30'
-                    }`}
-                  >
-                    <ImagePlus size={15} />
-                    Presentation photo
-                    <input
-                      type="file"
-                      accept="image/*"
-                      disabled={!certWinner.trim()}
-                      onChange={handlePresentationFileChange}
-                      className="hidden"
-                    />
-                  </label>
-                  {presentationPreview && (
-                    <img src={presentationPreview} alt="" className="mt-2 h-16 w-full rounded-lg object-cover" />
-                  )}
-                </div>
+              <div className="mt-3">
+                <label
+                  className={`flex items-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                    certWinner.trim()
+                      ? 'cursor-pointer border-primary text-primary hover:bg-primary hover:text-cream'
+                      : 'cursor-not-allowed border-accent/30 text-ink/30'
+                  }`}
+                >
+                  <ImagePlus size={15} />
+                  Certificate photo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={!certWinner.trim()}
+                    onChange={handleCertFileChange}
+                    className="hidden"
+                  />
+                </label>
+                {certPreview && (
+                  <img src={certPreview} alt="" className="mt-2 h-16 w-full rounded-lg object-cover" />
+                )}
               </div>
 
               <button

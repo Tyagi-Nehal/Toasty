@@ -156,10 +156,11 @@ export async function upsertExcomProfile(memberKey, memberName, { photoUrl, phot
 
 // ---- Meeting photos + certificates ----
 
-// Certificates are normalized to { id, category, winnerName, certificateSrc,
-// presentationSrc } for display. Backward-compatible with the earlier
-// single-photo shape ({ id, label, url }) so certificates uploaded before
-// this change still render — just without a presentation photo.
+// Certificates are normalized to { id, category, winnerName, certificateSrc }
+// for display. Backward-compatible with both earlier shapes — the
+// certificate+presentation pair and the original single-photo
+// ({ id, label, url }) shape — so certificates uploaded before this change
+// still render.
 function normalizeCert(c) {
   if (c.certificateUrl !== undefined || c.presentationUrl !== undefined) {
     return {
@@ -167,7 +168,6 @@ function normalizeCert(c) {
       category: c.category,
       winnerName: c.winnerName,
       certificateSrc: c.certificateUrl ?? null,
-      presentationSrc: c.presentationUrl ?? null,
     }
   }
   // Old shape: { id, label: "Category — Name", url }.
@@ -177,7 +177,6 @@ function normalizeCert(c) {
     category: category ?? c.label ?? '',
     winnerName: winnerName ?? '',
     certificateSrc: c.url ?? null,
-    presentationSrc: null,
   }
 }
 
@@ -265,33 +264,23 @@ export async function removeMeetingGroupPhoto(meeting, photoId, url) {
 
 // One entry per award category — adding a new winner for a category that
 // already has one (existing or being replaced) swaps it out rather than
-// creating a duplicate.
-export async function addMeetingCertificate(meeting, { category, winnerName, certificateFile, presentationFile }) {
-  const [certificateUrl, presentationUrl] = await Promise.all([
-    certificateFile ? uploadClubPhoto(certificateFile, `meetings/${meeting.id}/certificates`) : null,
-    presentationFile ? uploadClubPhoto(presentationFile, `meetings/${meeting.id}/certificates`) : null,
-  ])
+// creating a duplicate. Certificates can't be removed on their own, only
+// replaced by adding a new one for the same category.
+export async function addMeetingCertificate(meeting, { category, winnerName, certificateFile }) {
+  const certificateUrl = certificateFile
+    ? await uploadClubPhoto(certificateFile, `meetings/${meeting.id}/certificates`)
+    : null
   const existing = await getMeetingPhotos(meeting.id)
   const withoutSameCategory = (existing?.certificates ?? []).filter((c) => c.category !== category)
+  const replaced = (existing?.certificates ?? []).find((c) => c.category === category)
   const next = await upsertMeetingPhotosRow(meeting, {
     certificates: [
       ...withoutSameCategory,
-      { id: crypto.randomUUID(), category, winnerName, certificateUrl, presentationUrl },
+      { id: crypto.randomUUID(), category, winnerName, certificateUrl },
     ],
   })
+  if (replaced?.certificateUrl) await deleteClubPhoto(replaced.certificateUrl)
   logAction(`VPPR set "${category}" to ${winnerName} for ${meeting.dateLabel}`)
-  return next
-}
-
-export async function removeMeetingCertificate(meeting, certId) {
-  const existing = await getMeetingPhotos(meeting.id)
-  const removed = (existing?.certificates ?? []).find((c) => c.id === certId)
-  const next = await upsertMeetingPhotosRow(meeting, {
-    certificates: (existing?.certificates ?? []).filter((c) => c.id !== certId),
-  })
-  if (removed?.certificateUrl) await deleteClubPhoto(removed.certificateUrl)
-  if (removed?.presentationUrl) await deleteClubPhoto(removed.presentationUrl)
-  logAction(`VPPR removed the "${removed?.category ?? ''}" award from ${meeting.dateLabel}`)
   return next
 }
 
