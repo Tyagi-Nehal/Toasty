@@ -24,8 +24,10 @@ export default function PastExcomPage() {
         <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {pastExcom.map((member) => {
             const hasDeptInfo = member.department || member.branch
-            const hasContact = member.phone || member.email
             const profile = profiles[member.id]
+            const hasContact = profile?.phone || profile?.email || member.phone || member.email
+            const phone = profile?.phone || member.phone
+            const email = profile?.email || member.email
 
             return (
               <div
@@ -38,6 +40,7 @@ export default function PastExcomPage() {
                       src={profile.photoUrl}
                       alt={member.name}
                       className="h-[52px] w-[52px] rounded-full object-cover"
+                      style={{ objectPosition: profile.photoPosition ?? '50% 50%' }}
                     />
                   ) : (
                     <Avatar name={member.name} size={52} />
@@ -80,16 +83,16 @@ export default function PastExcomPage() {
 
                 {hasContact && (
                   <div className="mt-4 space-y-1.5 border-t border-accent/20 pt-4 text-xs text-ink/60">
-                    {member.phone && (
+                    {phone && (
                       <p className="flex items-center gap-1.5">
                         <Phone size={13} className="shrink-0 text-primary" />
-                        {member.phone}
+                        {phone}
                       </p>
                     )}
-                    {member.email && (
+                    {email && (
                       <p className="flex items-center gap-1.5">
                         <Mail size={13} className="shrink-0 text-primary" />
-                        {member.email}
+                        {email}
                       </p>
                     )}
                   </div>

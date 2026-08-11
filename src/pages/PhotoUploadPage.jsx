@@ -4,8 +4,10 @@ import {
   CalendarDays,
   CheckCircle2,
   History,
+  Image as ImageIcon,
   ImagePlus,
   Images,
+  Pencil,
   Plus,
   Trash2,
   UploadCloud,
@@ -19,18 +21,21 @@ import { currentExcom, pastExcom } from '../data/excom.js'
 import { uploadClubPhoto } from '../lib/storage.js'
 import {
   addClubPagePhoto,
+  addContentBlock,
   addMeetingPhotos,
   getClubPagePhotos,
+  getContentBlocks,
   getExcomProfiles,
   getMeetingPhotos,
   getPhotoUploadLog,
   removeClubPagePhoto,
+  removeContentBlock,
+  updateContentBlock,
   upsertExcomProfile,
 } from '../lib/mockPhotoStore.js'
 
-const SECTIONS = [
-  { id: 'hero', label: 'Hero (below the login button)' },
-  { id: 'gallery', label: 'Photo Gallery' },
+const CLUB_PAGE_SECTIONS = [
+  { id: 'hero', label: 'Main Banner' },
   { id: 'story', label: 'Our Story' },
   { id: 'achievements', label: 'Achievements' },
 ]
@@ -39,6 +44,14 @@ const TABS = [
   { id: 'club', label: "Upload Photos on Club's Page", icon: Images },
   { id: 'meeting', label: 'Upload Meeting Photos & Certificates', icon: CalendarDays },
   { id: 'excom', label: 'ExCom Profiles', icon: UsersRound },
+]
+
+const CERT_CATEGORIES = [
+  'Best Main Role Taker',
+  'Best Auxiliary Role Player',
+  'Best Speaker',
+  'Best Evaluator',
+  'Best Listener',
 ]
 
 function timeAgo(isoString) {
@@ -52,18 +65,17 @@ function timeAgo(isoString) {
   return `${days} day${days > 1 ? 's' : ''} ago`
 }
 
-function ClubPagePhotosTab() {
-  const [section, setSection] = useState('hero')
+function MainBannerUploader() {
   const [photos, setPhotos] = useState([])
   const [uploading, setUploading] = useState(false)
 
-  function refresh(s) {
-    getClubPagePhotos(s).then(setPhotos)
+  function refresh() {
+    getClubPagePhotos('hero').then(setPhotos)
   }
 
   useEffect(() => {
-    refresh(section)
-  }, [section])
+    refresh()
+  }, [])
 
   async function handleFiles(e) {
     const files = Array.from(e.target.files ?? [])
@@ -71,33 +83,20 @@ function ClubPagePhotosTab() {
     if (files.length === 0) return
     setUploading(true)
     for (const file of files) {
-      await addClubPagePhoto(section, file)
+      await addClubPagePhoto('hero', file)
     }
     setUploading(false)
-    refresh(section)
+    refresh()
   }
 
   async function handleRemove(photo) {
     await removeClubPagePhoto(photo.id, photo.url)
-    refresh(section)
+    refresh()
   }
 
   return (
     <div className="rounded-3xl border border-accent/30 bg-white p-6">
-      <label className="text-xs font-medium text-ink/60">Section</label>
-      <select
-        value={section}
-        onChange={(e) => setSection(e.target.value)}
-        className="mt-1.5 block w-full max-w-xs rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:outline-none sm:w-auto"
-      >
-        {SECTIONS.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.label}
-          </option>
-        ))}
-      </select>
-
-      <label className="mt-4 flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-accent/40 p-8 text-center transition hover:border-primary">
+      <label className="mt-1 flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-accent/40 p-8 text-center transition hover:border-primary">
         <UploadCloud size={24} className="text-primary" />
         <span className="text-sm font-medium text-ink">
           {uploading ? 'Uploading…' : 'Click to choose photos'}
@@ -131,19 +130,229 @@ function ClubPagePhotosTab() {
         </div>
       ) : (
         <p className="mt-4 text-sm text-ink/50">
-          No photos uploaded yet for this section — it won't show on the club page until you add some.
+          No photos uploaded yet — the club page's banner will show a plain color background until you add some.
         </p>
       )}
     </div>
   )
 }
 
+// Shared editor for "Our Story" / "Achievements" content blocks (photo +
+// title + text, repeatable) — same shape and UI for both sections.
+function ContentBlocksEditor({ section }) {
+  const [blocks, setBlocks] = useState([])
+  const [formOpen, setFormOpen] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [title, setTitle] = useState('')
+  const [content, setContent] = useState('')
+  const [existingPhotoUrl, setExistingPhotoUrl] = useState(null)
+  const [photoFile, setPhotoFile] = useState(null)
+  const [photoPreview, setPhotoPreview] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  function refresh() {
+    getContentBlocks(section).then(setBlocks)
+  }
+
+  useEffect(() => {
+    refresh()
+    setFormOpen(false)
+  }, [section])
+
+  function startAdd() {
+    setEditingId(null)
+    setTitle('')
+    setContent('')
+    setExistingPhotoUrl(null)
+    setPhotoFile(null)
+    setPhotoPreview(null)
+    setFormOpen(true)
+  }
+
+  function startEdit(block) {
+    setEditingId(block.id)
+    setTitle(block.title)
+    setContent(block.content ?? '')
+    setExistingPhotoUrl(block.photoUrl)
+    setPhotoFile(null)
+    setPhotoPreview(null)
+    setFormOpen(true)
+  }
+
+  function handlePhotoChange(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setPhotoFile(file)
+    setPhotoPreview(URL.createObjectURL(file))
+  }
+
+  async function handleSave() {
+    if (!title.trim()) return
+    setSaving(true)
+    if (editingId) {
+      await updateContentBlock(editingId, section, {
+        title: title.trim(),
+        content: content.trim(),
+        photoUrl: existingPhotoUrl,
+        file: photoFile,
+      })
+    } else {
+      await addContentBlock(section, { title: title.trim(), content: content.trim(), file: photoFile })
+    }
+    setSaving(false)
+    setFormOpen(false)
+    refresh()
+  }
+
+  async function handleDelete(block) {
+    await removeContentBlock(block.id, block.photoUrl)
+    refresh()
+  }
+
+  return (
+    <div className="space-y-3">
+      {blocks.map((block) => (
+        <div
+          key={block.id}
+          className="flex items-center gap-3 rounded-2xl border border-accent/30 bg-white p-4"
+        >
+          {block.photoUrl ? (
+            <img src={block.photoUrl} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
+          ) : (
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-cream text-ink/30">
+              <ImageIcon size={20} />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-semibold text-ink">{block.title}</p>
+            {block.content && <p className="truncate text-xs text-ink/50">{block.content}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={() => startEdit(block)}
+            aria-label="Edit block"
+            className="rounded-lg p-1.5 text-ink/40 transition hover:bg-cream hover:text-primary"
+          >
+            <Pencil size={15} />
+          </button>
+          <button
+            type="button"
+            onClick={() => handleDelete(block)}
+            aria-label="Delete block"
+            className="rounded-lg p-1.5 text-ink/40 transition hover:bg-red-50 hover:text-red-600"
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
+      ))}
+
+      {!formOpen ? (
+        <button
+          type="button"
+          onClick={startAdd}
+          className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-accent/50 px-4 py-3 text-sm font-semibold text-ink/60 transition hover:border-primary hover:text-primary"
+        >
+          <Plus size={15} />
+          Add Block
+        </button>
+      ) : (
+        <div className="rounded-3xl border border-accent/30 bg-white p-6">
+          <label className="text-xs font-medium text-ink/60">Title</label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. How We Started"
+            className="mt-1.5 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
+          />
+
+          <label className="mt-4 block text-xs font-medium text-ink/60">Content</label>
+          <textarea
+            rows={4}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="Write a few paragraphs..."
+            className="mt-1.5 w-full resize-none rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
+          />
+
+          <label className="mt-4 block text-xs font-medium text-ink/60">
+            Photo <span className="text-ink/40">(optional)</span>
+          </label>
+          {(photoPreview || existingPhotoUrl) && (
+            <img
+              src={photoPreview ?? existingPhotoUrl}
+              alt=""
+              className="mt-2 h-32 w-full rounded-xl object-cover"
+            />
+          )}
+          <label className="mt-2 flex w-fit cursor-pointer items-center gap-1.5 rounded-xl border border-primary px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary hover:text-cream">
+            <ImagePlus size={15} />
+            Choose photo
+            <input type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+          </label>
+
+          <div className="mt-5 flex gap-3">
+            <button
+              type="button"
+              onClick={() => setFormOpen(false)}
+              className="flex-1 rounded-xl border border-accent/40 px-4 py-2.5 text-sm font-semibold text-ink/70 transition hover:bg-cream"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={!title.trim() || saving}
+              className="flex-1 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {saving ? 'Saving…' : 'Save Block'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ClubPageTab() {
+  const [activeSection, setActiveSection] = useState('hero')
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2">
+        {CLUB_PAGE_SECTIONS.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => setActiveSection(s.id)}
+            className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${
+              activeSection === s.id
+                ? 'bg-primary text-cream'
+                : 'border border-accent/30 bg-white text-ink/70 hover:border-primary/50'
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-4">
+        {activeSection === 'hero' && <MainBannerUploader />}
+        {activeSection === 'story' && <ContentBlocksEditor section="story" />}
+        {activeSection === 'achievements' && <ContentBlocksEditor section="achievements" />}
+      </div>
+    </div>
+  )
+}
+
 function MeetingPhotosTab({ log, refreshLog }) {
   const [meetings, setMeetings] = useState([])
-  const [meetingId, setMeetingId] = useState(null)
+  const [selectedDate, setSelectedDate] = useState('')
   const [theme, setTheme] = useState('')
   const [photoFiles, setPhotoFiles] = useState([])
-  const [certLabel, setCertLabel] = useState('')
+  const [certCategory, setCertCategory] = useState(CERT_CATEGORIES[0])
+  const [certWinner, setCertWinner] = useState('')
   const [certificates, setCertificates] = useState([])
   const [uploaded, setUploaded] = useState(null)
   const [justUploaded, setJustUploaded] = useState(false)
@@ -152,18 +361,19 @@ function MeetingPhotosTab({ log, refreshLog }) {
   useEffect(() => {
     getMeetings().then((fetched) => {
       setMeetings(fetched)
-      setMeetingId((prev) => prev ?? fetched[0]?.id ?? null)
+      setSelectedDate((prev) => prev || fetched[0]?.date || '')
     })
   }, [])
 
+  const activeMeeting = meetings.find((m) => m.date === selectedDate)
+
   useEffect(() => {
-    if (meetingId) getMeetingPhotos(meetingId).then(setUploaded)
-  }, [meetingId])
+    if (activeMeeting) getMeetingPhotos(activeMeeting.id).then(setUploaded)
+    else setUploaded(null)
+  }, [activeMeeting?.id])
 
-  const activeMeeting = meetings.find((m) => m.id === meetingId)
-
-  function handleMeetingChange(id) {
-    setMeetingId(id)
+  function handleDateChange(date) {
+    setSelectedDate(date)
     setPhotoFiles([])
     setCertificates([])
     setJustUploaded(false)
@@ -181,12 +391,17 @@ function MeetingPhotosTab({ log, refreshLog }) {
   function handleCertFile(e) {
     const file = e.target.files?.[0]
     e.target.value = ''
-    if (!file || !certLabel.trim()) return
+    if (!file || !certWinner.trim()) return
     setCertificates((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), label: certLabel.trim(), file, preview: URL.createObjectURL(file) },
+      {
+        id: crypto.randomUUID(),
+        label: `${certCategory} — ${certWinner.trim()}`,
+        file,
+        preview: URL.createObjectURL(file),
+      },
     ])
-    setCertLabel('')
+    setCertWinner('')
   }
 
   function removePhoto(id) {
@@ -215,155 +430,172 @@ function MeetingPhotosTab({ log, refreshLog }) {
 
   const hasNewContent = photoFiles.length > 0 || certificates.length > 0
 
-  if (!activeMeeting) {
-    return <p className="text-sm text-ink/50">Loading meetings...</p>
-  }
-
   return (
     <div className="space-y-6">
-      {/* Meeting selector */}
+      {/* Date picker */}
       <div className="flex items-center gap-2">
         <CalendarDays size={16} className="text-primary" />
-        <select
-          value={meetingId}
-          onChange={(e) => handleMeetingChange(Number(e.target.value))}
-          className="rounded-xl border border-accent/40 bg-white px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
-        >
-          {meetings.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.dateLabel}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {uploaded && (
-        <p className="flex items-center gap-1.5 text-xs text-ink/50">
-          <CheckCircle2 size={13} className="text-primary" />
-          Already has {uploaded.photos.length} photo
-          {uploaded.photos.length === 1 ? '' : 's'} and {uploaded.certificates.length}{' '}
-          certificate{uploaded.certificates.length === 1 ? '' : 's'} uploaded.
-        </p>
-      )}
-
-      {justUploaded && (
-        <div className="flex items-center gap-2 rounded-2xl bg-primary/10 p-4 text-sm font-medium text-primary">
-          <CheckCircle2 size={18} />
-          Uploaded — now visible on the Photo Memories page.
-        </div>
-      )}
-
-      {/* Theme */}
-      <div className="rounded-3xl border border-accent/30 bg-white p-6">
-        <label className="text-xs font-medium text-ink/60">
-          Meeting Theme <span className="text-ink/40">(optional)</span>
-        </label>
         <input
-          type="text"
-          value={theme}
-          onChange={(e) => setTheme(e.target.value)}
-          placeholder="e.g. Turning Points"
-          className="mt-1.5 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
+          type="date"
+          value={selectedDate}
+          onChange={(e) => handleDateChange(e.target.value)}
+          className="rounded-xl border border-accent/40 bg-white px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
         />
       </div>
 
-      {/* Group photos */}
-      <div className="rounded-3xl border border-accent/30 bg-white p-6">
-        <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-          <Images size={16} className="text-primary" />
-          Group Photos
-        </div>
+      {!activeMeeting ? (
+        <p className="text-sm text-ink/50">No meeting scheduled for this date.</p>
+      ) : (
+        <>
+          {uploaded && (
+            <p className="flex items-center gap-1.5 text-xs text-ink/50">
+              <CheckCircle2 size={13} className="text-primary" />
+              Already has {uploaded.photos.length} photo
+              {uploaded.photos.length === 1 ? '' : 's'} and {uploaded.certificates.length}{' '}
+              certificate{uploaded.certificates.length === 1 ? '' : 's'} uploaded.
+            </p>
+          )}
 
-        <label className="mt-4 flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-accent/40 p-8 text-center transition hover:border-primary">
-          <UploadCloud size={24} className="text-primary" />
-          <span className="text-sm font-medium text-ink">Click to choose photos</span>
-          <span className="text-xs text-ink/50">or drag and drop image files</span>
-          <input type="file" accept="image/*" multiple onChange={handlePhotoFiles} className="hidden" />
-        </label>
+          {justUploaded && (
+            <div className="flex items-center gap-2 rounded-2xl bg-primary/10 p-4 text-sm font-medium text-primary">
+              <CheckCircle2 size={18} />
+              Uploaded — now visible on the Photo Memories page.
+            </div>
+          )}
 
-        {photoFiles.length > 0 && (
-          <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4">
-            {photoFiles.map((photo) => (
-              <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-xl">
-                <img src={photo.preview} alt="" className="h-full w-full object-cover" />
-                <button
-                  type="button"
-                  onClick={() => removePhoto(photo.id)}
-                  aria-label="Remove photo"
-                  className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-ink/60 text-cream opacity-0 transition group-hover:opacity-100"
-                >
-                  <X size={13} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Certificates */}
-      <div className="rounded-3xl border border-accent/30 bg-white p-6">
-        <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-          <Award size={16} className="text-primary" />
-          Certificates
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <input
-            type="text"
-            value={certLabel}
-            onChange={(e) => setCertLabel(e.target.value)}
-            placeholder="e.g. Best Speaker — Vikram"
-            className="min-w-0 flex-1 rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
-          />
-          <label
-            className={`flex items-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
-              certLabel.trim()
-                ? 'cursor-pointer border-primary text-primary hover:bg-primary hover:text-cream'
-                : 'cursor-not-allowed border-accent/30 text-ink/30'
-            }`}
-          >
-            <Plus size={15} />
-            Add certificate
+          {/* Theme */}
+          <div className="rounded-3xl border border-accent/30 bg-white p-6">
+            <label className="text-xs font-medium text-ink/60">
+              Meeting Theme <span className="text-ink/40">(optional)</span>
+            </label>
             <input
-              type="file"
-              accept="image/*"
-              disabled={!certLabel.trim()}
-              onChange={handleCertFile}
-              className="hidden"
+              type="text"
+              value={theme}
+              onChange={(e) => setTheme(e.target.value)}
+              placeholder="e.g. Turning Points"
+              className="mt-1.5 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
             />
-          </label>
-        </div>
-        <p className="mt-1.5 text-xs text-ink/40">Type a label first, then choose the certificate image.</p>
-
-        {certificates.length > 0 && (
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {certificates.map((cert) => (
-              <div key={cert.id} className="group relative overflow-hidden rounded-xl border border-accent/30 bg-cream">
-                <img src={cert.preview} alt={cert.label} className="h-24 w-full object-cover" />
-                <p className="truncate px-2.5 py-1.5 text-xs font-medium text-ink/70">{cert.label}</p>
-                <button
-                  type="button"
-                  onClick={() => removeCert(cert.id)}
-                  aria-label="Remove certificate"
-                  className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-ink/60 text-cream opacity-0 transition group-hover:opacity-100"
-                >
-                  <X size={13} />
-                </button>
-              </div>
-            ))}
           </div>
-        )}
-      </div>
 
-      <button
-        type="button"
-        disabled={!hasNewContent || submitting}
-        onClick={handleSubmit}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        <UploadCloud size={16} />
-        {submitting ? 'Uploading…' : `Upload for ${activeMeeting.dateLabel}`}
-      </button>
+          {/* Group photos */}
+          <div className="rounded-3xl border border-accent/30 bg-white p-6">
+            <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+              <Images size={16} className="text-primary" />
+              Group Photos
+            </div>
+
+            <label className="mt-4 flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-accent/40 p-8 text-center transition hover:border-primary">
+              <UploadCloud size={24} className="text-primary" />
+              <span className="text-sm font-medium text-ink">Click to choose photos</span>
+              <span className="text-xs text-ink/50">or drag and drop image files</span>
+              <input type="file" accept="image/*" multiple onChange={handlePhotoFiles} className="hidden" />
+            </label>
+
+            {photoFiles.length > 0 && (
+              <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4">
+                {photoFiles.map((photo) => (
+                  <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-xl">
+                    <img src={photo.preview} alt="" className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(photo.id)}
+                      aria-label="Remove photo"
+                      className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-ink/60 text-cream opacity-0 transition group-hover:opacity-100"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Certificates */}
+          <div className="rounded-3xl border border-accent/30 bg-white p-6">
+            <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+              <Award size={16} className="text-primary" />
+              Certificates
+            </div>
+
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-medium text-ink/60">Award</label>
+                <select
+                  value={certCategory}
+                  onChange={(e) => setCertCategory(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:outline-none"
+                >
+                  {CERT_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-ink/60">Winner's name</label>
+                <input
+                  type="text"
+                  value={certWinner}
+                  onChange={(e) => setCertWinner(e.target.value)}
+                  placeholder="e.g. Vikram"
+                  className="mt-1 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <label
+              className={`mt-3 flex w-fit items-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                certWinner.trim()
+                  ? 'cursor-pointer border-primary text-primary hover:bg-primary hover:text-cream'
+                  : 'cursor-not-allowed border-accent/30 text-ink/30'
+              }`}
+            >
+              <Plus size={15} />
+              Add certificate photo
+              <input
+                type="file"
+                accept="image/*"
+                disabled={!certWinner.trim()}
+                onChange={handleCertFile}
+                className="hidden"
+              />
+            </label>
+            <p className="mt-1.5 text-xs text-ink/40">
+              Pick the award and enter the winner's name first, then choose the certificate image.
+            </p>
+
+            {certificates.length > 0 && (
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {certificates.map((cert) => (
+                  <div key={cert.id} className="group relative overflow-hidden rounded-xl border border-accent/30 bg-cream">
+                    <img src={cert.preview} alt={cert.label} className="h-24 w-full object-cover" />
+                    <p className="truncate px-2.5 py-1.5 text-xs font-medium text-ink/70">{cert.label}</p>
+                    <button
+                      type="button"
+                      onClick={() => removeCert(cert.id)}
+                      aria-label="Remove certificate"
+                      className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-ink/60 text-cream opacity-0 transition group-hover:opacity-100"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            disabled={!hasNewContent || submitting}
+            onClick={handleSubmit}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <UploadCloud size={16} />
+            {submitting ? 'Uploading…' : `Upload for ${activeMeeting.dateLabel}`}
+          </button>
+        </>
+      )}
 
       {/* Activity log */}
       <div className="rounded-3xl border border-accent/30 bg-white p-6">
@@ -396,6 +628,10 @@ function ExcomProfilesTab({ refreshLog }) {
   const [profiles, setProfiles] = useState({})
   const [selectedId, setSelectedId] = useState(allMembers[0]?.id ?? null)
   const [bioDraft, setBioDraft] = useState('')
+  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+  const [posX, setPosX] = useState(50)
+  const [posY, setPosY] = useState(50)
   const [saving, setSaving] = useState(false)
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(null)
@@ -413,9 +649,14 @@ function ExcomProfilesTab({ refreshLog }) {
 
   useEffect(() => {
     setBioDraft(selectedProfile?.bio ?? '')
+    setPhone(selectedProfile?.phone ?? '')
+    setEmail(selectedProfile?.email ?? '')
+    const [px, py] = (selectedProfile?.photoPosition ?? '50% 50%').replace(/%/g, '').split(' ').map(Number)
+    setPosX(Number.isFinite(px) ? px : 50)
+    setPosY(Number.isFinite(py) ? py : 50)
     setPhotoFile(null)
     setPhotoPreview(null)
-  }, [selectedId, selectedProfile?.bio])
+  }, [selectedId, selectedProfile?.bio, selectedProfile?.phone, selectedProfile?.email, selectedProfile?.photoPosition])
 
   function handlePhotoChange(e) {
     const file = e.target.files?.[0]
@@ -431,13 +672,21 @@ function ExcomProfilesTab({ refreshLog }) {
     if (photoFile) {
       photoUrl = await uploadClubPhoto(photoFile, 'excom-profiles')
     }
-    await upsertExcomProfile(selected.id, selected.name, { photoUrl, bio: bioDraft })
+    await upsertExcomProfile(selected.id, selected.name, {
+      photoUrl,
+      photoPosition: `${posX}% ${posY}%`,
+      bio: bioDraft,
+      phone,
+      email,
+    })
     setSaving(false)
     setPhotoFile(null)
     setPhotoPreview(null)
     refresh()
     refreshLog()
   }
+
+  const displayPhoto = photoPreview ?? selectedProfile?.photoUrl
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
@@ -473,16 +722,19 @@ function ExcomProfilesTab({ refreshLog }) {
 
       {selected && (
         <div className="rounded-3xl border border-accent/30 bg-white p-6 lg:col-span-2">
-          <div className="flex items-center gap-4">
-            {photoPreview || selectedProfile?.photoUrl ? (
-              <img
-                src={photoPreview ?? selectedProfile.photoUrl}
-                alt={selected.name}
-                className="h-16 w-16 rounded-full object-cover"
-              />
-            ) : (
-              <Avatar name={selected.name} size={64} />
-            )}
+          <div className="flex items-center gap-5">
+            <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full bg-cream">
+              {displayPhoto ? (
+                <img
+                  src={displayPhoto}
+                  alt={selected.name}
+                  className="h-full w-full object-cover"
+                  style={{ objectPosition: `${posX}% ${posY}%` }}
+                />
+              ) : (
+                <Avatar name={selected.name} size={80} />
+              )}
+            </div>
             <div>
               <p className="font-semibold text-ink">{selected.name}</p>
               <p className="text-sm text-ink/60">{selected.role}</p>
@@ -495,6 +747,36 @@ function ExcomProfilesTab({ refreshLog }) {
             <input type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
           </label>
 
+          {displayPhoto && (
+            <div className="mt-4 max-w-xs space-y-3">
+              <p className="text-xs font-medium text-ink/60">
+                Adjust the photo to fit the circle
+              </p>
+              <div>
+                <label className="text-xs text-ink/50">Horizontal position</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={posX}
+                  onChange={(e) => setPosX(Number(e.target.value))}
+                  className="mt-1 w-full"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-ink/50">Vertical position</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={posY}
+                  onChange={(e) => setPosY(Number(e.target.value))}
+                  className="mt-1 w-full"
+                />
+              </div>
+            </div>
+          )}
+
           <label className="mt-5 block text-xs font-medium text-ink/60">Bio / info</label>
           <textarea
             rows={4}
@@ -504,11 +786,34 @@ function ExcomProfilesTab({ refreshLog }) {
             className="mt-1.5 w-full resize-none rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
           />
 
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="text-xs font-medium text-ink/60">Phone</label>
+              <input
+                type="text"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="e.g. +91 98765 43210"
+                className="mt-1.5 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-ink/60">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@example.com"
+                className="mt-1.5 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="mt-4 flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
+            className="mt-5 flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
           >
             <CheckCircle2 size={16} />
             {saving ? 'Saving…' : 'Save Profile'}
@@ -557,7 +862,7 @@ export default function PhotoUploadPage() {
         </div>
 
         <div className="mt-6">
-          {tab === 'club' && <ClubPagePhotosTab />}
+          {tab === 'club' && <ClubPageTab />}
           {tab === 'meeting' && <MeetingPhotosTab log={log} refreshLog={refreshLog} />}
           {tab === 'excom' && <ExcomProfilesTab refreshLog={refreshLog} />}
         </div>

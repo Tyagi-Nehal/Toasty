@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
-  Award,
   Calendar,
   CalendarDays,
   ChevronRight,
@@ -21,12 +20,10 @@ import JoinClubModal from '../components/JoinClubModal.jsx'
 import { getClubById } from '../lib/mockClubRegistry.js'
 import { getClubDetails } from '../data/clubDetails.js'
 import { dismissMyAcknowledgment, getMyPendingAcknowledgment } from '../lib/mockVisitRequests.js'
-import { getClubPagePhotos } from '../lib/mockPhotoStore.js'
+import { getClubPagePhotos, getContentBlocks } from '../lib/mockPhotoStore.js'
 
-const EMPTY_SECTIONS = { hero: [], gallery: [], story: [], achievements: [] }
-
-// Alternating icon-circle tints, cycled through so info tiles/achievement
-// icons/quick links don't all look identical — stays within the existing
+// Alternating icon-circle tints, cycled through so info tiles/quick
+// links don't all look identical — stays within the existing
 // primary/accent palette rather than introducing new brand colors.
 const TINTS = [
   'bg-primary/15 text-primary',
@@ -34,13 +31,59 @@ const TINTS = [
   'bg-ink/10 text-ink',
 ]
 
+// "Our Story" and "Achievements" are both VPPR-authored, repeatable
+// photo + title + text blocks — same layout for both, per request.
+function ContentBlockSection({ title, blocks, emptyMessage }) {
+  return (
+    <section className="mx-auto max-w-6xl px-4 pb-14 sm:px-6">
+      <h2 className="text-2xl font-bold text-ink sm:text-3xl">{title}</h2>
+
+      {blocks.length === 0 ? (
+        <p className="mt-4 text-sm text-ink/50">{emptyMessage}</p>
+      ) : (
+        <div className="mt-6 space-y-5">
+          {blocks.map((block) => (
+            <div
+              key={block.id}
+              className="overflow-hidden rounded-3xl border border-accent/30 bg-white shadow-sm shadow-primary/5"
+            >
+              <div className={`grid gap-0 ${block.photoUrl ? 'lg:grid-cols-2' : ''}`}>
+                <div className="flex flex-col justify-center p-6 sm:p-10">
+                  <h3 className="text-xl font-bold text-ink sm:text-2xl">{block.title}</h3>
+                  {block.content && (
+                    <p className="mt-3 text-sm leading-relaxed text-ink/70 sm:text-base">
+                      {block.content}
+                    </p>
+                  )}
+                </div>
+                {block.photoUrl && (
+                  <div className="min-h-[220px]">
+                    <img
+                      src={block.photoUrl}
+                      alt={block.title}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 export default function ClubHomePage() {
   const { clubId } = useParams()
   const [isJoinOpen, setIsJoinOpen] = useState(false)
   const [ackBanner, setAckBanner] = useState(null)
   // undefined = still loading, null = confirmed not found, object = found
   const [club, setClub] = useState(undefined)
-  const [sectionPhotos, setSectionPhotos] = useState(EMPTY_SECTIONS)
+  const [heroPhotos, setHeroPhotos] = useState([])
+  const [storyBlocks, setStoryBlocks] = useState([])
+  const [achievementBlocks, setAchievementBlocks] = useState([])
 
   useEffect(() => {
     setClub(undefined)
@@ -52,14 +95,9 @@ export default function ClubHomePage() {
   }, [])
 
   useEffect(() => {
-    getClubPagePhotos().then((photos) => {
-      setSectionPhotos({
-        hero: photos.filter((p) => p.section === 'hero'),
-        gallery: photos.filter((p) => p.section === 'gallery'),
-        story: photos.filter((p) => p.section === 'story'),
-        achievements: photos.filter((p) => p.section === 'achievements'),
-      })
-    })
+    getClubPagePhotos('hero').then(setHeroPhotos)
+    getContentBlocks('story').then(setStoryBlocks)
+    getContentBlocks('achievements').then(setAchievementBlocks)
   }, [])
 
   function dismissBanner() {
@@ -93,12 +131,12 @@ export default function ClubHomePage() {
     )
   }
 
-  // Only flavor text (tagline/history/achievements/photos) comes from
-  // clubDetails.js — every factual field (location, founded year, member
-  // count, meeting info) renders straight from the real registered `club`
-  // record so it always matches what the president actually submitted.
+  // Only the tagline (flavor text) comes from clubDetails.js — every
+  // factual field (location, founded year, member count, meeting info)
+  // renders straight from the real registered `club` record so it
+  // always matches what the president actually submitted.
   const details = getClubDetails(club)
-  const [heroPhoto, ...extraHeroPhotos] = sectionPhotos.hero
+  const [heroPhoto, ...extraHeroPhotos] = heroPhotos
 
   const infoTiles = [
     { icon: MapPin, label: 'Location', value: club.location },
@@ -200,111 +238,19 @@ export default function ClubHomePage() {
         </div>
       </div>
 
-      {/* Photo gallery */}
-      {sectionPhotos.gallery.length > 0 && (
-        <section className="mx-auto max-w-6xl px-4 pb-14 pt-16 sm:px-6">
-          <h2 className="text-2xl font-bold text-ink sm:text-3xl">Gallery</h2>
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
-            {sectionPhotos.gallery.map((photo, i) => (
-              <div
-                key={photo.id}
-                className={`overflow-hidden rounded-2xl shadow-sm shadow-primary/10 ${
-                  i === 0 ? 'col-span-2 row-span-2 sm:col-span-1' : ''
-                }`}
-              >
-                <img
-                  src={photo.url}
-                  alt={`${club.name} meeting photo`}
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <div className="pt-16">
+        <ContentBlockSection
+          title="Our Story"
+          blocks={storyBlocks}
+          emptyMessage="The club's story hasn't been added yet."
+        />
 
-      {/* History */}
-      <section className={`mx-auto max-w-6xl px-4 pb-14 sm:px-6 ${sectionPhotos.gallery.length > 0 ? '' : 'pt-16'}`}>
-        <div className="overflow-hidden rounded-3xl border border-accent/30 bg-white shadow-sm shadow-primary/5">
-          <div className={`grid gap-0 ${sectionPhotos.story.length > 0 ? 'lg:grid-cols-2' : ''}`}>
-            <div className="p-6 sm:p-10">
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-2xl font-bold text-ink sm:text-3xl">Our Story</h2>
-                {details.isPlaceholder && (
-                  <span className="rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold text-primary">
-                    Sample content — replace with the real story
-                  </span>
-                )}
-              </div>
-              <p className="mt-4 max-w-3xl text-sm leading-relaxed text-ink/70 sm:text-base">
-                {details.history}
-              </p>
-
-              {sectionPhotos.story.length > 1 && (
-                <div className="mt-6 grid grid-cols-3 gap-3">
-                  {sectionPhotos.story.slice(1).map((photo) => (
-                    <div key={photo.id} className="aspect-square overflow-hidden rounded-2xl">
-                      <img src={photo.url} alt="" className="h-full w-full object-cover" loading="lazy" />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {sectionPhotos.story.length > 0 && (
-              <div className="min-h-[220px]">
-                <img
-                  src={sectionPhotos.story[0].url}
-                  alt=""
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Achievements */}
-      <section className="mx-auto max-w-6xl px-4 pb-14 sm:px-6">
-        <div className="flex flex-wrap items-center gap-3">
-          <h2 className="text-2xl font-bold text-ink sm:text-3xl">Achievements</h2>
-          {details.isPlaceholder && (
-            <span className="rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold text-primary">
-              Sample content — replace with real achievements
-            </span>
-          )}
-        </div>
-        {sectionPhotos.achievements.length > 0 && (
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {sectionPhotos.achievements.map((photo) => (
-              <div key={photo.id} className="aspect-square overflow-hidden rounded-2xl">
-                <img src={photo.url} alt="" className="h-full w-full object-cover" loading="lazy" />
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {details.achievements.map((achievement, i) => (
-            <div
-              key={achievement.title}
-              className="rounded-2xl bg-white p-5 shadow-sm shadow-primary/5"
-            >
-              <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${TINTS[i % TINTS.length]}`}>
-                <Award size={20} />
-              </div>
-              <h3 className="mt-3 font-semibold text-ink">{achievement.title}</h3>
-              <span className="text-xs font-medium text-primary">
-                {achievement.year}
-              </span>
-              <p className="mt-2 text-sm leading-relaxed text-ink/60">
-                {achievement.description}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
+        <ContentBlockSection
+          title="Achievements"
+          blocks={achievementBlocks}
+          emptyMessage="No achievements added yet."
+        />
+      </div>
 
       {/* Mentors / ExCom / Past ExCom — standalone pages, linked rather than inlined */}
       <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">

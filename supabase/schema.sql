@@ -602,3 +602,46 @@ grant select, insert, update, delete on club_page_photos to authenticated;
 grant select, insert, update, delete on excom_profiles to authenticated;
 grant select, insert, update, delete on meeting_photos to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
+
+-- VPPR-authored "Our Story" / "Achievements" content blocks (photo +
+-- title + text, repeatable) — replaces the static sample text those
+-- sections used to show. Same shape for both sections, reused rather
+-- than two near-identical tables.
+create table if not exists club_content_blocks (
+  id bigint generated always as identity primary key,
+  section text not null check (section in ('story','achievements')),
+  photo_url text,
+  title text not null,
+  content text,
+  created_at timestamptz not null default now()
+);
+
+alter table club_content_blocks enable row level security;
+
+drop policy if exists "club_content_blocks public select" on club_content_blocks;
+create policy "club_content_blocks public select" on club_content_blocks
+  for select using (true);
+drop policy if exists "club_content_blocks vppr or president write" on club_content_blocks;
+create policy "club_content_blocks vppr or president write" on club_content_blocks
+  for all to authenticated
+  using (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPPR'
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
+grant select on club_content_blocks to anon;
+grant select, insert, update, delete on club_content_blocks to authenticated;
+
+-- ExCom profile photo positioning (fixes bad default center-crop on
+-- circular avatars) + real contact info.
+alter table excom_profiles add column if not exists photo_position text default '50% 50%';
+alter table excom_profiles add column if not exists phone text;
+alter table excom_profiles add column if not exists email text;
+
+grant usage, select on all sequences in schema public to authenticated;

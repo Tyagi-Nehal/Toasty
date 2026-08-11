@@ -65,20 +65,86 @@ export async function removeClubPagePhoto(id, url) {
   logAction('VPPR removed a photo from the club page')
 }
 
-// ---- ExCom profiles (photo + bio, current and past) ----
+// ---- "Our Story" / "Achievements" content blocks (photo + title + text) ----
+
+export async function getContentBlocks(section) {
+  const { data, error } = await supabase
+    .from('club_content_blocks')
+    .select('*')
+    .eq('section', section)
+    .order('created_at', { ascending: true })
+  if (error) console.error('[mockPhotoStore] getContentBlocks failed:', error.message)
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    photoUrl: r.photo_url,
+    title: r.title,
+    content: r.content,
+  }))
+}
+
+export async function addContentBlock(section, { title, content, file }) {
+  const photoUrl = file ? await uploadClubPhoto(file, `club-page/${section}`) : null
+  const { error } = await supabase
+    .from('club_content_blocks')
+    .insert({ section, title, content: content || null, photo_url: photoUrl })
+  if (error) {
+    console.error('[mockPhotoStore] addContentBlock failed:', error.message)
+    return
+  }
+  logAction(`VPPR added a "${section}" block: "${title}"`)
+}
+
+export async function updateContentBlock(id, section, { title, content, photoUrl, file }) {
+  const finalPhotoUrl = file ? await uploadClubPhoto(file, `club-page/${section}`) : photoUrl
+  const { error } = await supabase
+    .from('club_content_blocks')
+    .update({ title, content: content || null, photo_url: finalPhotoUrl ?? null })
+    .eq('id', id)
+  if (error) {
+    console.error('[mockPhotoStore] updateContentBlock failed:', error.message)
+    return
+  }
+  logAction(`VPPR updated a "${section}" block: "${title}"`)
+}
+
+export async function removeContentBlock(id, url) {
+  const { error } = await supabase.from('club_content_blocks').delete().eq('id', id)
+  if (error) {
+    console.error('[mockPhotoStore] removeContentBlock failed:', error.message)
+    return
+  }
+  if (url) await deleteClubPhoto(url)
+  logAction('VPPR removed a content block from the club page')
+}
+
+// ---- ExCom profiles (photo + bio + contact, current and past) ----
 
 export async function getExcomProfiles() {
   const { data, error } = await supabase.from('excom_profiles').select('*')
   if (error) console.error('[mockPhotoStore] getExcomProfiles failed:', error.message)
   return (data ?? []).reduce((acc, r) => {
-    acc[r.member_key] = { photoUrl: r.photo_url, bio: r.bio }
+    acc[r.member_key] = {
+      photoUrl: r.photo_url,
+      photoPosition: r.photo_position || '50% 50%',
+      bio: r.bio,
+      phone: r.phone,
+      email: r.email,
+    }
     return acc
   }, {})
 }
 
-export async function upsertExcomProfile(memberKey, memberName, { photoUrl, bio }) {
+export async function upsertExcomProfile(memberKey, memberName, { photoUrl, photoPosition, bio, phone, email }) {
   const { error } = await supabase.from('excom_profiles').upsert(
-    { member_key: memberKey, photo_url: photoUrl ?? null, bio: bio ?? null, updated_at: new Date().toISOString() },
+    {
+      member_key: memberKey,
+      photo_url: photoUrl ?? null,
+      photo_position: photoPosition || '50% 50%',
+      bio: bio ?? null,
+      phone: phone || null,
+      email: email || null,
+      updated_at: new Date().toISOString(),
+    },
     { onConflict: 'member_key' },
   )
   if (error) {

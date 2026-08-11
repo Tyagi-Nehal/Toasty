@@ -135,6 +135,7 @@ async function fetchRawViews() {
     return {
       id: m.id,
       label: m.label,
+      date: m.meeting_date,
       dateLabel: formatDateLabel(m.meeting_date),
       time: m.time,
       finalized: m.finalized,
