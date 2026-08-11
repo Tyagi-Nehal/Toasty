@@ -3,15 +3,12 @@ import { Link, useParams } from 'react-router-dom'
 import {
   Calendar,
   CalendarDays,
-  ChevronRight,
   Clock,
   HeartHandshake,
-  History,
   LogIn,
   MapPin,
   MapPinned,
   Users,
-  UsersRound,
   X,
 } from 'lucide-react'
 import PublicNavbar from '../components/PublicNavbar.jsx'
@@ -138,6 +135,17 @@ export default function ClubHomePage() {
   const details = getClubDetails(club)
   const [heroPhoto, ...extraHeroPhotos] = heroPhotos
 
+  // Real ExCom contact info for this specific club — not shown on other
+  // clubs' pages, since a President/VPM's contact details are specific
+  // to their own club, not universal to every club Toasty might serve.
+  const clubContacts =
+    club.id === 'mahe-bengaluru-toastmasters-club'
+      ? {
+          president: { name: 'Sarvajit Srivatsa', email: 'sarvajit607@gmail.com' },
+          vpm: { name: 'Navaankur Deka', email: 'nick@gmail.com' },
+        }
+      : null
+
   const infoTiles = [
     { icon: MapPin, label: 'Location', value: club.location },
     club.foundedYear && { icon: CalendarDays, label: 'Founded', value: club.foundedYear },
@@ -149,7 +157,7 @@ export default function ClubHomePage() {
 
   return (
     <div className="min-h-screen bg-cream">
-      <PublicNavbar />
+      <PublicNavbar showMemberPageLinks />
 
       {ackBanner && (
         <div className="mx-auto mt-4 flex max-w-6xl items-center justify-between gap-3 rounded-2xl bg-primary/10 px-4 py-3 text-sm font-medium text-primary sm:px-6">
@@ -238,7 +246,7 @@ export default function ClubHomePage() {
         </div>
       </div>
 
-      <div className="pt-16">
+      <div className="pt-16 pb-6">
         <ContentBlockSection
           title="Our Story"
           blocks={storyBlocks}
@@ -252,32 +260,7 @@ export default function ClubHomePage() {
         />
       </div>
 
-      {/* Mentors / ExCom / Past ExCom — standalone pages, linked rather than inlined */}
-      <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
-        <div className="grid gap-4 sm:grid-cols-3">
-          {[
-            { to: '/mentors', label: 'Meet Our Mentors', icon: UsersRound },
-            { to: '/excom', label: 'Meet Our ExCom', icon: UsersRound },
-            { to: '/past-excom', label: 'Meet Our Past ExCom', icon: History },
-          ].map(({ to, label, icon: Icon }, i) => (
-            <Link
-              key={to}
-              to={to}
-              className="flex items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-white p-5 transition hover:-translate-y-0.5 hover:border-primary hover:shadow-md"
-            >
-              <span className="flex items-center gap-3">
-                <span className={`flex h-11 w-11 items-center justify-center rounded-2xl ${TINTS[i % TINTS.length]}`}>
-                  <Icon size={20} />
-                </span>
-                <span className="font-semibold text-ink">{label}</span>
-              </span>
-              <ChevronRight size={18} className="text-primary" />
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <Footer />
+      <Footer clubContacts={clubContacts} />
 
       {isJoinOpen && (
         <JoinClubModal club={club} onClose={() => setIsJoinOpen(false)} />
