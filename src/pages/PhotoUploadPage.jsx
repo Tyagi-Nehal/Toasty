@@ -16,20 +16,25 @@ import {
 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import Avatar from '../components/Avatar.jsx'
+import PhotoLightbox from '../components/PhotoLightbox.jsx'
 import { getMeetings } from '../lib/mockRolesStore.js'
 import { currentExcom, pastExcom } from '../data/excom.js'
 import { uploadClubPhoto } from '../lib/storage.js'
 import {
   addClubPagePhoto,
   addContentBlock,
-  addMeetingPhotos,
+  addMeetingCertificate,
+  addMeetingGroupPhotos,
   getClubPagePhotos,
   getContentBlocks,
   getExcomProfiles,
-  getMeetingPhotos,
+  getMeetingPhotosView,
   getPhotoUploadLog,
   removeClubPagePhoto,
   removeContentBlock,
+  removeMeetingCertificate,
+  removeMeetingGroupPhoto,
+  saveMeetingTheme,
   updateContentBlock,
   upsertExcomProfile,
 } from '../lib/mockPhotoStore.js'
@@ -52,6 +57,7 @@ const CERT_CATEGORIES = [
   'Best Speaker',
   'Best Evaluator',
   'Best Listener',
+  'Best Table Topic Speaker',
 ]
 
 function timeAgo(isoString) {
@@ -349,14 +355,18 @@ function ClubPageTab() {
 function MeetingPhotosTab({ log, refreshLog }) {
   const [meetings, setMeetings] = useState([])
   const [selectedDate, setSelectedDate] = useState('')
+  const [uploaded, setUploaded] = useState(null)
   const [theme, setTheme] = useState('')
-  const [photoFiles, setPhotoFiles] = useState([])
+  const [savingTheme, setSavingTheme] = useState(false)
+  const [addingPhotos, setAddingPhotos] = useState(false)
   const [certCategory, setCertCategory] = useState(CERT_CATEGORIES[0])
   const [certWinner, setCertWinner] = useState('')
-  const [certificates, setCertificates] = useState([])
-  const [uploaded, setUploaded] = useState(null)
-  const [justUploaded, setJustUploaded] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
+  const [certFile, setCertFile] = useState(null)
+  const [certPreview, setCertPreview] = useState(null)
+  const [presentationFile, setPresentationFile] = useState(null)
+  const [presentationPreview, setPresentationPreview] = useState(null)
+  const [addingCert, setAddingCert] = useState(false)
+  const [lightboxUrl, setLightboxUrl] = useState(null)
 
   useEffect(() => {
     getMeetings().then((fetched) => {
@@ -367,68 +377,97 @@ function MeetingPhotosTab({ log, refreshLog }) {
 
   const activeMeeting = meetings.find((m) => m.date === selectedDate)
 
+  function refresh() {
+    if (!activeMeeting) return
+    getMeetingPhotosView(activeMeeting).then((view) => {
+      setUploaded(view)
+      setTheme(view?.theme ?? '')
+    })
+  }
+
   useEffect(() => {
-    if (activeMeeting) getMeetingPhotos(activeMeeting.id).then(setUploaded)
-    else setUploaded(null)
+    if (activeMeeting) refresh()
+    else {
+      setUploaded(null)
+      setTheme('')
+    }
   }, [activeMeeting?.id])
+
+  function resetCertForm() {
+    setCertWinner('')
+    setCertFile(null)
+    setCertPreview(null)
+    setPresentationFile(null)
+    setPresentationPreview(null)
+  }
 
   function handleDateChange(date) {
     setSelectedDate(date)
-    setPhotoFiles([])
-    setCertificates([])
-    setJustUploaded(false)
+    resetCertForm()
   }
 
-  function handlePhotoFiles(e) {
-    const files = Array.from(e.target.files ?? [])
-    e.target.value = ''
-    setPhotoFiles((prev) => [
-      ...prev,
-      ...files.map((file) => ({ id: crypto.randomUUID(), file, preview: URL.createObjectURL(file) })),
-    ])
-  }
-
-  function handleCertFile(e) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file || !certWinner.trim()) return
-    setCertificates((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        label: `${certCategory} — ${certWinner.trim()}`,
-        file,
-        preview: URL.createObjectURL(file),
-      },
-    ])
-    setCertWinner('')
-  }
-
-  function removePhoto(id) {
-    setPhotoFiles((prev) => prev.filter((p) => p.id !== id))
-  }
-
-  function removeCert(id) {
-    setCertificates((prev) => prev.filter((c) => c.id !== id))
-  }
-
-  async function handleSubmit() {
-    setSubmitting(true)
-    const next = await addMeetingPhotos(activeMeeting, {
-      theme,
-      newPhotoFiles: photoFiles.map((p) => p.file),
-      newCertificates: certificates.map((c) => ({ label: c.label, file: c.file })),
-    })
-    setSubmitting(false)
-    if (next) setUploaded(next)
-    setPhotoFiles([])
-    setCertificates([])
-    setTheme('')
-    setJustUploaded(true)
+  async function handleThemeBlur() {
+    if (!activeMeeting || theme === (uploaded?.theme ?? '')) return
+    setSavingTheme(true)
+    const next = await saveMeetingTheme(activeMeeting, theme)
+    setUploaded(next)
+    setSavingTheme(false)
     refreshLog()
   }
 
-  const hasNewContent = photoFiles.length > 0 || certificates.length > 0
+  async function handlePhotoFiles(e) {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    if (files.length === 0) return
+    setAddingPhotos(true)
+    const next = await addMeetingGroupPhotos(activeMeeting, files)
+    setUploaded(next)
+    setAddingPhotos(false)
+    refreshLog()
+  }
+
+  async function handleRemovePhoto(photo) {
+    const next = await removeMeetingGroupPhoto(activeMeeting, photo.id, photo.src)
+    setUploaded(next)
+    refreshLog()
+  }
+
+  function handleCertFileChange(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setCertFile(file)
+    setCertPreview(URL.createObjectURL(file))
+  }
+
+  function handlePresentationFileChange(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setPresentationFile(file)
+    setPresentationPreview(URL.createObjectURL(file))
+  }
+
+  async function handleAddCertificate() {
+    if (!certWinner.trim()) return
+    setAddingCert(true)
+    const next = await addMeetingCertificate(activeMeeting, {
+      category: certCategory,
+      winnerName: certWinner.trim(),
+      certificateFile: certFile,
+      presentationFile,
+    })
+    setUploaded(next)
+    setAddingCert(false)
+    resetCertForm()
+    refreshLog()
+  }
+
+  async function handleRemoveCertificate(cert) {
+    const next = await removeMeetingCertificate(activeMeeting, cert.id)
+    setUploaded(next)
+    refreshLog()
+  }
 
   return (
     <div className="space-y-6">
@@ -441,28 +480,13 @@ function MeetingPhotosTab({ log, refreshLog }) {
           onChange={(e) => handleDateChange(e.target.value)}
           className="rounded-xl border border-accent/40 bg-white px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
         />
+        {savingTheme && <span className="text-xs font-medium text-primary">Saving…</span>}
       </div>
 
       {!activeMeeting ? (
         <p className="text-sm text-ink/50">No meeting scheduled for this date.</p>
       ) : (
         <>
-          {uploaded && (
-            <p className="flex items-center gap-1.5 text-xs text-ink/50">
-              <CheckCircle2 size={13} className="text-primary" />
-              Already has {uploaded.photos.length} photo
-              {uploaded.photos.length === 1 ? '' : 's'} and {uploaded.certificates.length}{' '}
-              certificate{uploaded.certificates.length === 1 ? '' : 's'} uploaded.
-            </p>
-          )}
-
-          {justUploaded && (
-            <div className="flex items-center gap-2 rounded-2xl bg-primary/10 p-4 text-sm font-medium text-primary">
-              <CheckCircle2 size={18} />
-              Uploaded — now visible on the Photo Memories page.
-            </div>
-          )}
-
           {/* Theme */}
           <div className="rounded-3xl border border-accent/30 bg-white p-6">
             <label className="text-xs font-medium text-ink/60">
@@ -472,6 +496,7 @@ function MeetingPhotosTab({ log, refreshLog }) {
               type="text"
               value={theme}
               onChange={(e) => setTheme(e.target.value)}
+              onBlur={handleThemeBlur}
               placeholder="e.g. Turning Points"
               className="mt-1.5 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
             />
@@ -486,19 +511,33 @@ function MeetingPhotosTab({ log, refreshLog }) {
 
             <label className="mt-4 flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-accent/40 p-8 text-center transition hover:border-primary">
               <UploadCloud size={24} className="text-primary" />
-              <span className="text-sm font-medium text-ink">Click to choose photos</span>
-              <span className="text-xs text-ink/50">or drag and drop image files</span>
-              <input type="file" accept="image/*" multiple onChange={handlePhotoFiles} className="hidden" />
+              <span className="text-sm font-medium text-ink">
+                {addingPhotos ? 'Uploading…' : 'Click to choose photos'}
+              </span>
+              <span className="text-xs text-ink/50">or drag and drop image files — add as many as you like</span>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                disabled={addingPhotos}
+                onChange={handlePhotoFiles}
+                className="hidden"
+              />
             </label>
 
-            {photoFiles.length > 0 && (
+            {uploaded?.photos.length > 0 && (
               <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4">
-                {photoFiles.map((photo) => (
+                {uploaded.photos.map((photo) => (
                   <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-xl">
-                    <img src={photo.preview} alt="" className="h-full w-full object-cover" />
+                    <img
+                      src={photo.src}
+                      alt=""
+                      onClick={() => setLightboxUrl(photo.src)}
+                      className="h-full w-full cursor-pointer object-cover"
+                    />
                     <button
                       type="button"
-                      onClick={() => removePhoto(photo.id)}
+                      onClick={() => handleRemovePhoto(photo)}
                       aria-label="Remove photo"
                       className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-ink/60 text-cream opacity-0 transition group-hover:opacity-100"
                     >
@@ -516,84 +555,141 @@ function MeetingPhotosTab({ log, refreshLog }) {
               <Award size={16} className="text-primary" />
               Certificates
             </div>
-
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <div>
-                <label className="text-xs font-medium text-ink/60">Award</label>
-                <select
-                  value={certCategory}
-                  onChange={(e) => setCertCategory(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:outline-none"
-                >
-                  {CERT_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-ink/60">Winner's name</label>
-                <input
-                  type="text"
-                  value={certWinner}
-                  onChange={(e) => setCertWinner(e.target.value)}
-                  placeholder="e.g. Vikram"
-                  className="mt-1 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <label
-              className={`mt-3 flex w-fit items-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
-                certWinner.trim()
-                  ? 'cursor-pointer border-primary text-primary hover:bg-primary hover:text-cream'
-                  : 'cursor-not-allowed border-accent/30 text-ink/30'
-              }`}
-            >
-              <Plus size={15} />
-              Add certificate photo
-              <input
-                type="file"
-                accept="image/*"
-                disabled={!certWinner.trim()}
-                onChange={handleCertFile}
-                className="hidden"
-              />
-            </label>
-            <p className="mt-1.5 text-xs text-ink/40">
-              Pick the award and enter the winner's name first, then choose the certificate image.
+            <p className="mt-1 text-xs text-ink/40">
+              One winner per award — adding a new photo for an award already set replaces it.
             </p>
 
-            {certificates.length > 0 && (
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {certificates.map((cert) => (
-                  <div key={cert.id} className="group relative overflow-hidden rounded-xl border border-accent/30 bg-cream">
-                    <img src={cert.preview} alt={cert.label} className="h-24 w-full object-cover" />
-                    <p className="truncate px-2.5 py-1.5 text-xs font-medium text-ink/70">{cert.label}</p>
+            {uploaded?.certificates.length > 0 && (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {uploaded.certificates.map((cert) => (
+                  <div key={cert.id} className="relative rounded-xl border border-accent/30 bg-cream p-3">
                     <button
                       type="button"
-                      onClick={() => removeCert(cert.id)}
-                      aria-label="Remove certificate"
-                      className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-ink/60 text-cream opacity-0 transition group-hover:opacity-100"
+                      onClick={() => handleRemoveCertificate(cert)}
+                      aria-label="Remove award"
+                      className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-ink/60 text-cream transition hover:bg-ink/80"
                     >
                       <X size={13} />
                     </button>
+                    <p className="pr-6 text-xs font-semibold text-ink">{cert.category}</p>
+                    <p className="text-xs text-ink/60">{cert.winnerName}</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      {cert.certificateSrc ? (
+                        <img
+                          src={cert.certificateSrc}
+                          alt="Certificate"
+                          onClick={() => setLightboxUrl(cert.certificateSrc)}
+                          className="h-20 w-full cursor-pointer rounded-lg object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-20 items-center justify-center rounded-lg bg-accent/10 text-[10px] text-ink/40">
+                          No certificate photo
+                        </div>
+                      )}
+                      {cert.presentationSrc ? (
+                        <img
+                          src={cert.presentationSrc}
+                          alt="Presentation"
+                          onClick={() => setLightboxUrl(cert.presentationSrc)}
+                          className="h-20 w-full cursor-pointer rounded-lg object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-20 items-center justify-center rounded-lg bg-accent/10 text-[10px] text-ink/40">
+                          No presentation photo
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
             )}
-          </div>
 
-          <button
-            type="button"
-            disabled={!hasNewContent || submitting}
-            onClick={handleSubmit}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <UploadCloud size={16} />
-            {submitting ? 'Uploading…' : `Upload for ${activeMeeting.dateLabel}`}
-          </button>
+            <div className="mt-5 rounded-2xl border border-dashed border-accent/40 p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="text-xs font-medium text-ink/60">Award</label>
+                  <select
+                    value={certCategory}
+                    onChange={(e) => setCertCategory(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:outline-none"
+                  >
+                    {CERT_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-ink/60">Winner's name</label>
+                  <input
+                    type="text"
+                    value={certWinner}
+                    onChange={(e) => setCertWinner(e.target.value)}
+                    placeholder="e.g. Vikram"
+                    className="mt-1 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label
+                    className={`flex items-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                      certWinner.trim()
+                        ? 'cursor-pointer border-primary text-primary hover:bg-primary hover:text-cream'
+                        : 'cursor-not-allowed border-accent/30 text-ink/30'
+                    }`}
+                  >
+                    <ImagePlus size={15} />
+                    Certificate photo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={!certWinner.trim()}
+                      onChange={handleCertFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                  {certPreview && (
+                    <img src={certPreview} alt="" className="mt-2 h-16 w-full rounded-lg object-cover" />
+                  )}
+                </div>
+                <div>
+                  <label
+                    className={`flex items-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                      certWinner.trim()
+                        ? 'cursor-pointer border-primary text-primary hover:bg-primary hover:text-cream'
+                        : 'cursor-not-allowed border-accent/30 text-ink/30'
+                    }`}
+                  >
+                    <ImagePlus size={15} />
+                    Presentation photo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={!certWinner.trim()}
+                      onChange={handlePresentationFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                  {presentationPreview && (
+                    <img src={presentationPreview} alt="" className="mt-2 h-16 w-full rounded-lg object-cover" />
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAddCertificate}
+                disabled={!certWinner.trim() || addingCert}
+                className="mt-4 flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Plus size={15} />
+                {addingCert ? 'Saving…' : 'Add Certificate'}
+              </button>
+            </div>
+          </div>
         </>
       )}
 
@@ -616,6 +712,8 @@ function MeetingPhotosTab({ log, refreshLog }) {
           <p className="mt-4 text-sm text-ink/50">No uploads yet.</p>
         )}
       </div>
+
+      <PhotoLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
     </div>
   )
 }

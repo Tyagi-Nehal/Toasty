@@ -49,20 +49,32 @@ export default function PhotoGalleryModal({ meeting, onClose }) {
             Certificates
           </h3>
           {meeting.certificates.length > 0 ? (
-            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
               {meeting.certificates.map((cert) => (
                 <div
                   key={cert.id}
                   className="overflow-hidden rounded-2xl border border-accent/30 bg-cream"
                 >
-                  <img
-                    src={cert.src}
-                    alt={cert.label}
-                    className="h-28 w-full object-cover"
-                    loading="lazy"
-                  />
+                  <div className="grid grid-cols-2 gap-0.5 bg-accent/10">
+                    {cert.certificateSrc && (
+                      <img
+                        src={cert.certificateSrc}
+                        alt="Certificate"
+                        className="h-28 w-full object-cover"
+                        loading="lazy"
+                      />
+                    )}
+                    {cert.presentationSrc && (
+                      <img
+                        src={cert.presentationSrc}
+                        alt="Presentation"
+                        className="h-28 w-full object-cover"
+                        loading="lazy"
+                      />
+                    )}
+                  </div>
                   <p className="px-3 py-2 text-xs font-medium text-ink/70">
-                    {cert.label}
+                    {cert.category} — {cert.winnerName}
                   </p>
                 </div>
               ))}

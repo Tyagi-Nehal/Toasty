@@ -156,13 +156,38 @@ export async function upsertExcomProfile(memberKey, memberName, { photoUrl, phot
 
 // ---- Meeting photos + certificates ----
 
+// Certificates are normalized to { id, category, winnerName, certificateSrc,
+// presentationSrc } for display. Backward-compatible with the earlier
+// single-photo shape ({ id, label, url }) so certificates uploaded before
+// this change still render — just without a presentation photo.
+function normalizeCert(c) {
+  if (c.certificateUrl !== undefined || c.presentationUrl !== undefined) {
+    return {
+      id: c.id,
+      category: c.category,
+      winnerName: c.winnerName,
+      certificateSrc: c.certificateUrl ?? null,
+      presentationSrc: c.presentationUrl ?? null,
+    }
+  }
+  // Old shape: { id, label: "Category — Name", url }.
+  const [category, winnerName] = (c.label ?? '').split(' — ')
+  return {
+    id: c.id,
+    category: category ?? c.label ?? '',
+    winnerName: winnerName ?? '',
+    certificateSrc: c.url ?? null,
+    presentationSrc: null,
+  }
+}
+
 function fromMeetingPhotosRow(row, meeting) {
   return {
     meetingId: meeting.id,
     dateLabel: meeting.dateLabel,
     theme: row?.theme ?? meeting.theme ?? '',
     photos: (row?.photos ?? []).map((p) => ({ id: p.id, src: p.url })),
-    certificates: (row?.certificates ?? []).map((c) => ({ id: c.id, label: c.label, src: c.url })),
+    certificates: (row?.certificates ?? []).map(normalizeCert),
     updatedAt: row?.updated_at ?? null,
   }
 }
@@ -177,43 +202,97 @@ export async function getMeetingPhotos(meetingId) {
   return data
 }
 
-// Merges new photos/certificates onto whatever's already uploaded for
-// this meeting, mirroring the old store's "append, don't overwrite" behavior.
-export async function addMeetingPhotos(meeting, { theme, newPhotoFiles, newCertificates }) {
+// Display-shape version of getMeetingPhotos — what the VPPR editor and
+// the member-facing Photo Memories page both actually render.
+export async function getMeetingPhotosView(meeting) {
+  const row = await getMeetingPhotos(meeting.id)
+  return row ? fromMeetingPhotosRow(row, meeting) : null
+}
+
+async function upsertMeetingPhotosRow(meeting, patch) {
   const existing = await getMeetingPhotos(meeting.id)
-
-  const uploadedPhotos = await Promise.all(
-    newPhotoFiles.map(async (file) => ({
-      id: crypto.randomUUID(),
-      url: await uploadClubPhoto(file, `meetings/${meeting.id}`),
-    })),
-  )
-  const uploadedCertificates = await Promise.all(
-    newCertificates.map(async ({ label, file }) => ({
-      id: crypto.randomUUID(),
-      label,
-      url: await uploadClubPhoto(file, `meetings/${meeting.id}/certificates`),
-    })),
-  )
-
   const row = {
     meeting_id: meeting.id,
-    theme: theme || existing?.theme || meeting.theme || '',
-    photos: [...(existing?.photos ?? []), ...uploadedPhotos],
-    certificates: [...(existing?.certificates ?? []), ...uploadedCertificates],
+    theme: existing?.theme ?? meeting.theme ?? '',
+    photos: existing?.photos ?? [],
+    certificates: existing?.certificates ?? [],
+    ...patch,
     updated_at: new Date().toISOString(),
   }
   const { error } = await supabase.from('meeting_photos').upsert(row, { onConflict: 'meeting_id' })
   if (error) {
-    console.error('[mockPhotoStore] addMeetingPhotos failed:', error.message)
+    console.error('[mockPhotoStore] upsertMeetingPhotosRow failed:', error.message)
     return null
   }
-  logAction(
-    `VPPR uploaded ${uploadedPhotos.length} photo${uploadedPhotos.length === 1 ? '' : 's'} and ${
-      uploadedCertificates.length
-    } certificate${uploadedCertificates.length === 1 ? '' : 's'} for ${meeting.dateLabel}`,
-  )
   return fromMeetingPhotosRow(row, meeting)
+}
+
+// Every meeting-photos action below saves immediately (no separate
+// "submit" step) — so whatever the VPPR uploaded is always the real,
+// editable state, visible and changeable any time they come back to
+// this meeting's date, matching every other photo section in this app.
+
+export async function saveMeetingTheme(meeting, theme) {
+  const next = await upsertMeetingPhotosRow(meeting, { theme })
+  logAction(`VPPR set the theme for ${meeting.dateLabel}`)
+  return next
+}
+
+export async function addMeetingGroupPhotos(meeting, files) {
+  const uploaded = await Promise.all(
+    files.map(async (file) => ({
+      id: crypto.randomUUID(),
+      url: await uploadClubPhoto(file, `meetings/${meeting.id}`),
+    })),
+  )
+  const existing = await getMeetingPhotos(meeting.id)
+  const next = await upsertMeetingPhotosRow(meeting, {
+    photos: [...(existing?.photos ?? []), ...uploaded],
+  })
+  logAction(`VPPR added ${uploaded.length} photo${uploaded.length === 1 ? '' : 's'} for ${meeting.dateLabel}`)
+  return next
+}
+
+export async function removeMeetingGroupPhoto(meeting, photoId, url) {
+  const existing = await getMeetingPhotos(meeting.id)
+  const next = await upsertMeetingPhotosRow(meeting, {
+    photos: (existing?.photos ?? []).filter((p) => p.id !== photoId),
+  })
+  await deleteClubPhoto(url)
+  logAction(`VPPR removed a photo from ${meeting.dateLabel}`)
+  return next
+}
+
+// One entry per award category — adding a new winner for a category that
+// already has one (existing or being replaced) swaps it out rather than
+// creating a duplicate.
+export async function addMeetingCertificate(meeting, { category, winnerName, certificateFile, presentationFile }) {
+  const [certificateUrl, presentationUrl] = await Promise.all([
+    certificateFile ? uploadClubPhoto(certificateFile, `meetings/${meeting.id}/certificates`) : null,
+    presentationFile ? uploadClubPhoto(presentationFile, `meetings/${meeting.id}/certificates`) : null,
+  ])
+  const existing = await getMeetingPhotos(meeting.id)
+  const withoutSameCategory = (existing?.certificates ?? []).filter((c) => c.category !== category)
+  const next = await upsertMeetingPhotosRow(meeting, {
+    certificates: [
+      ...withoutSameCategory,
+      { id: crypto.randomUUID(), category, winnerName, certificateUrl, presentationUrl },
+    ],
+  })
+  logAction(`VPPR set "${category}" to ${winnerName} for ${meeting.dateLabel}`)
+  return next
+}
+
+export async function removeMeetingCertificate(meeting, certId) {
+  const existing = await getMeetingPhotos(meeting.id)
+  const removed = (existing?.certificates ?? []).find((c) => c.id === certId)
+  const next = await upsertMeetingPhotosRow(meeting, {
+    certificates: (existing?.certificates ?? []).filter((c) => c.id !== certId),
+  })
+  if (removed?.certificateUrl) await deleteClubPhoto(removed.certificateUrl)
+  if (removed?.presentationUrl) await deleteClubPhoto(removed.presentationUrl)
+  logAction(`VPPR removed the "${removed?.category ?? ''}" award from ${meeting.dateLabel}`)
+  return next
 }
 
 // For the member-facing Photo Memories page — every meeting that has at

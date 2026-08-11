@@ -18,10 +18,13 @@ export default function PhotoMemoriesPage() {
     })
   }, [])
 
+  // dateFilter comes from a <select>, whose values are always strings —
+  // meetingId is a number, so this needs a string comparison or every
+  // specific-date filter (everything except "all") would match nothing.
   const filteredMemories =
     dateFilter === 'all'
       ? photoMemories
-      : photoMemories.filter((m) => m.meetingId === dateFilter)
+      : photoMemories.filter((m) => String(m.meetingId) === dateFilter)
 
   if (loading) {
     return (
