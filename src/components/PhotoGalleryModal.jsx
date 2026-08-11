@@ -1,6 +1,10 @@
+import { useState } from 'react'
 import { X, Award } from 'lucide-react'
+import PhotoLightbox from './PhotoLightbox.jsx'
 
 export default function PhotoGalleryModal({ meeting, onClose }) {
+  const [lightboxUrl, setLightboxUrl] = useState(null)
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-ink/50 p-0 sm:items-center sm:p-4"
@@ -36,7 +40,8 @@ export default function PhotoGalleryModal({ meeting, onClose }) {
               <img
                 src={photo.src}
                 alt={`${meeting.dateLabel} meeting photo ${i + 1}`}
-                className="h-full w-full object-cover"
+                onClick={() => setLightboxUrl(photo.src)}
+                className="h-full w-full cursor-pointer object-cover"
                 loading="lazy"
               />
             </div>
@@ -59,7 +64,8 @@ export default function PhotoGalleryModal({ meeting, onClose }) {
                     <img
                       src={cert.certificateSrc}
                       alt="Certificate"
-                      className="h-28 w-full object-cover"
+                      onClick={() => setLightboxUrl(cert.certificateSrc)}
+                      className="h-28 w-full cursor-pointer object-cover"
                       loading="lazy"
                     />
                   )}
@@ -76,6 +82,8 @@ export default function PhotoGalleryModal({ meeting, onClose }) {
           )}
         </div>
       </div>
+
+      <PhotoLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
     </div>
   )
 }
