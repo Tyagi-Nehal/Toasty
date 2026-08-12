@@ -1,23 +1,18 @@
 import { useEffect, useState } from 'react'
-import { Bell, CheckCircle2, Lock, PencilLine, SlidersHorizontal, Zap } from 'lucide-react'
+import { Bell, CheckCircle2, Lock, LockOpen, PencilLine, SlidersHorizontal, Zap } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import RoleOverrideModal from '../components/RoleOverrideModal.jsx'
 import { roleCatalog } from '../data/roleCatalog.js'
 import {
   autoAssignMeeting,
+  canFinalizeMeeting,
   finalizeMeeting,
   getMeetings,
   getNotifications,
   overrideRole,
+  unfinalizeMeeting,
 } from '../lib/mockRolesStore.js'
 import { scoringWeights } from '../lib/mockRosterStore.js'
-
-const algorithmParams = [
-  { label: 'Attendance weight', value: Math.round(scoringWeights.attendance * 100) },
-  { label: 'Role recency weight', value: Math.round(scoringWeights.roleRecency * 100) },
-  { label: 'Frequency weight', value: Math.round(scoringWeights.frequency * 100) },
-  { label: 'Projects completed weight', value: null },
-]
 
 const statusLabels = {
   open: { text: 'Open', className: 'bg-accent/15 text-primary' },
@@ -47,12 +42,13 @@ export default function RoleManagementPage() {
   function refresh() {
     getMeetings().then((fetched) => {
       setMeetings(fetched)
-      // Default to the first not-finalized meeting, not the earliest
-      // one overall — the earliest is usually long past and fully
-      // resolved, nothing left to manage there.
-      const notFinalized = fetched.find((m) => !m.finalized)
+      // Default to the first chronologically-upcoming meeting, not the
+      // first not-yet-finalized one — finalized status can lag behind
+      // real dates (e.g. a meeting finalized early), which would pick
+      // a much-later meeting instead of the real next one.
+      const upcoming = fetched.find((m) => (m.hoursUntilMeeting ?? -1) >= 0)
       setActiveMeetingId(
-        (prev) => prev ?? notFinalized?.id ?? fetched[fetched.length - 1]?.id ?? null,
+        (prev) => prev ?? upcoming?.id ?? fetched[fetched.length - 1]?.id ?? null,
       )
     })
     setNotifications(getNotifications())
@@ -72,6 +68,12 @@ export default function RoleManagementPage() {
     refresh()
   }
 
+  async function handleUnfinalize() {
+    if (!window.confirm('Members already saw these roles as final — unlock anyway?')) return
+    await unfinalizeMeeting(activeMeetingId)
+    refresh()
+  }
+
   async function handleOverrideConfirm({ takenBy }) {
     await overrideRole(activeMeetingId, overrideTarget.id, { takenBy })
     setOverrideTarget(null)
@@ -88,6 +90,27 @@ export default function RoleManagementPage() {
     )
   }
 
+  // Only the next 3 upcoming meetings are manageable here — further-out
+  // meetings are hidden entirely, since the sequential-finalize rule
+  // below makes them un-actionable anyway until closer. Past meetings
+  // stay visible for reference.
+  const upcomingMeetings = meetings.filter((m) => (m.hoursUntilMeeting ?? -1) >= 0)
+  const visibleMeetings = [
+    ...meetings.filter((m) => (m.hoursUntilMeeting ?? -1) < 0),
+    ...upcomingMeetings.slice(0, 3),
+  ]
+
+  // Uses the full meetings list, not visibleMeetings — "previous meeting"
+  // must be the real chronological previous one, even if it's scrolled
+  // out of this page's visible window.
+  const canFinalize = canFinalizeMeeting(meetings, activeMeetingId)
+
+  const statusMessage = activeMeeting.finalized
+    ? null
+    : activeMeeting.pastCutoff
+      ? 'Past cutoff — ready to auto-assign.'
+      : `Members can self-select until ${activeMeeting.autoAssignCutoffLabel}.`
+
   return (
     <MemberLayout>
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
@@ -101,37 +124,37 @@ export default function RoleManagementPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex flex-col items-end gap-1">
-              <button
-                type="button"
-                onClick={handleAutoAssign}
-                disabled={activeMeeting.finalized || !activeMeeting.pastCutoff}
-                title={
-                  !activeMeeting.pastCutoff
-                    ? `Members can still self-select until ${activeMeeting.autoAssignCutoffLabel}`
-                    : undefined
-                }
-                className="flex items-center gap-2 rounded-xl border border-primary px-4 py-2.5 text-sm font-semibold text-primary transition enabled:hover:bg-primary enabled:hover:text-cream disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Zap size={16} />
-                Trigger Auto-Assign Now
-              </button>
-              {!activeMeeting.finalized && !activeMeeting.pastCutoff && (
-                <p className="text-xs text-ink/40">
-                  Available from {activeMeeting.autoAssignCutoffLabel}
-                </p>
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={handleAutoAssign}
+              disabled={activeMeeting.finalized || !activeMeeting.pastCutoff}
+              className="flex items-center gap-2 rounded-xl border border-primary px-4 py-2.5 text-sm font-semibold text-primary transition enabled:hover:bg-primary enabled:hover:text-cream disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Zap size={16} />
+              Trigger Auto-Assign Now
+            </button>
             {activeMeeting.finalized ? (
-              <span className="flex items-center gap-1.5 rounded-xl bg-primary/10 px-4 py-2.5 text-sm font-semibold text-primary">
-                <Lock size={15} />
-                Finalized
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1.5 rounded-xl bg-primary/10 px-4 py-2.5 text-sm font-semibold text-primary">
+                  <Lock size={15} />
+                  Finalized
+                </span>
+                <button
+                  type="button"
+                  onClick={handleUnfinalize}
+                  className="flex items-center gap-2 rounded-xl border border-accent/40 px-4 py-2.5 text-sm font-semibold text-ink/70 transition hover:bg-cream"
+                >
+                  <LockOpen size={15} />
+                  Unlock to Edit
+                </button>
+              </div>
             ) : (
               <button
                 type="button"
                 onClick={handleFinalize}
-                className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
+                disabled={!canFinalize}
+                title={!canFinalize ? "The previous meeting hasn't happened yet" : undefined}
+                className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <CheckCircle2 size={16} />
                 Finalize Roles
@@ -140,9 +163,13 @@ export default function RoleManagementPage() {
           </div>
         </div>
 
+        {statusMessage && (
+          <p className="mt-3 text-sm font-medium text-ink/60">{statusMessage}</p>
+        )}
+
         {/* Meeting tabs */}
         <div className="mt-6 flex gap-2 overflow-x-auto">
-          {meetings.map((m) => {
+          {visibleMeetings.map((m) => {
             const active = m.id === activeMeetingId
             return (
               <button
@@ -167,34 +194,21 @@ export default function RoleManagementPage() {
 
         <div className="mt-6 grid gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
-            {/* Algorithm parameters */}
+            {/* Auto-assign scoring */}
             <div className="rounded-3xl border border-accent/30 bg-white p-6">
               <div className="flex items-center gap-2 text-sm font-semibold text-ink">
                 <SlidersHorizontal size={16} className="text-primary" />
-                Auto-Assign Algorithm Parameters
+                Auto-Assign Scoring
               </div>
               <p className="mt-1 text-xs text-ink/50">
                 Used by "Trigger Auto-Assign Now" to pick real members based on
                 attendance and role history.
               </p>
-              <div className="mt-4 space-y-3">
-                {algorithmParams.map((param) => (
-                  <div key={param.label}>
-                    <div className="flex items-center justify-between text-xs text-ink/60">
-                      <span>{param.label}</span>
-                      <span className="font-medium text-ink">
-                        {param.value === null ? 'No data source yet' : `${param.value}%`}
-                      </span>
-                    </div>
-                    <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-cream">
-                      <div
-                        className={`h-full rounded-full ${param.value === null ? 'bg-ink/15' : 'bg-primary'}`}
-                        style={{ width: `${param.value ?? 0}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <p className="mt-3 text-sm font-medium text-ink">
+                Attendance {Math.round(scoringWeights.attendance * 100)}% · Role
+                recency {Math.round(scoringWeights.roleRecency * 100)}% · Frequency{' '}
+                {Math.round(scoringWeights.frequency * 100)}%
+              </p>
             </div>
 
             {/* Role board */}

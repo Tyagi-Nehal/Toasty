@@ -46,12 +46,13 @@ export default function RoleSelectionPage() {
   function refresh() {
     getMeetings().then((fetched) => {
       setMeetings(fetched)
-      // Default to the first not-finalized meeting, not the earliest
-      // one overall — the earliest is usually long past with every
-      // role already taken, nothing left to select.
-      const notFinalized = fetched.find((m) => !m.finalized)
+      // Default to the first chronologically-upcoming meeting, not the
+      // first not-yet-finalized one — finalized status can lag behind
+      // real dates (e.g. a meeting finalized early), which would pick
+      // a much-later meeting instead of the real next one.
+      const upcoming = fetched.find((m) => (m.hoursUntilMeeting ?? -1) >= 0)
       setActiveMeetingId(
-        (prev) => prev ?? notFinalized?.id ?? fetched[fetched.length - 1]?.id ?? null,
+        (prev) => prev ?? upcoming?.id ?? fetched[fetched.length - 1]?.id ?? null,
       )
     })
   }
@@ -64,6 +65,16 @@ export default function RoleSelectionPage() {
   const isActiveMember = membership?.isActive === true
 
   const activeMeeting = meetings.find((m) => m.id === activeMeetingId)
+
+  // Only the next 3 upcoming meetings are selectable — further-out
+  // meetings are hidden entirely rather than shown-but-locked, to keep
+  // this page focused on what members can actually act on right now.
+  // Past meetings stay visible for reference.
+  const upcomingMeetings = meetings.filter((m) => (m.hoursUntilMeeting ?? -1) >= 0)
+  const visibleMeetings = [
+    ...meetings.filter((m) => (m.hoursUntilMeeting ?? -1) < 0),
+    ...upcomingMeetings.slice(0, 3),
+  ]
 
   if (!activeMeeting) {
     return (
@@ -105,7 +116,7 @@ export default function RoleSelectionPage() {
 
         {/* Meeting tabs */}
         <div className="mt-6 flex gap-2 overflow-x-auto">
-          {meetings.map((m) => {
+          {visibleMeetings.map((m) => {
             const active = m.id === activeMeetingId
             return (
               <button

@@ -18,6 +18,7 @@ import {
   recordRoleAssignment,
   scoreMemberForRole,
 } from './mockRosterStore.js'
+import { getAttendanceStatsByMember } from './mockAttendanceStore.js'
 
 const LOG_KEY = 'toasty_role_notifications'
 const MAX_LOG_ENTRIES = 25
@@ -267,7 +268,11 @@ async function runAutoAssign(meetingId, trigger) {
       .filter(Boolean),
   )
 
-  const [members, roleHistory] = await Promise.all([getMembers(), getRoleHistory()])
+  const [members, roleHistory, attendanceStats] = await Promise.all([
+    getMembers(),
+    getRoleHistory(),
+    getAttendanceStatsByMember(),
+  ])
 
   let filledCount = 0
   const newAssignments = []
@@ -276,7 +281,10 @@ async function runAutoAssign(meetingId, trigger) {
     const available = members.filter((m) => !usedNames.has(m.name))
     if (available.length === 0) break
     const [best] = available
-      .map((member) => ({ member, score: scoreMemberForRole(member, roleId, roleHistory) }))
+      .map((member) => ({
+        member,
+        score: scoreMemberForRole(member, roleId, roleHistory, attendanceStats),
+      }))
       .sort((a, b) => b.score - a.score)
     newAssignments.push({ name: best.member.name, roleId })
     usedNames.add(best.member.name)
@@ -316,4 +324,29 @@ export async function finalizeMeeting(meetingId) {
     message: `Roles for ${meeting.dateLabel} are finalized — check your assignment.`,
     link: '/roles',
   })
+}
+
+// Reverses finalizeMeeting — re-opens the meeting for VPE edits (override,
+// re-run auto-assign) without touching any assignment rows. No
+// pushNotification here (unlike finalize) — unlocking isn't something
+// members need pushed at them, it just re-enables VPE editing until the
+// VPE re-finalizes.
+export async function unfinalizeMeeting(meetingId) {
+  const meeting = await getMeeting(meetingId)
+  await supabase.from('meetings').update({ finalized: false }).eq('id', meetingId)
+  logAction(`VPE unlocked roles for ${meeting.dateLabel} for editing`)
+}
+
+// Sequential-finalize rule: to finalize meeting N, the meeting immediately
+// before it by date must already be finished (its date has passed) — not
+// necessarily itself finalized, just finished. The first meeting in the
+// table has no predecessor, so it's always finalizable. Takes the full,
+// unwindowed meetings array — "previous meeting" means the actual
+// chronological previous meeting, which may not be in a page's visible
+// meeting window.
+export function canFinalizeMeeting(meetings, meetingId) {
+  const idx = meetings.findIndex((m) => m.id === meetingId)
+  if (idx <= 0) return true
+  const prev = meetings[idx - 1]
+  return (prev.hoursUntilMeeting ?? -1) < 0
 }

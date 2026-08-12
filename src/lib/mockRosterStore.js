@@ -59,8 +59,19 @@ export const scoringWeights = {
 // attendance % (reliability), how recently/whether they've done this
 // exact role before (rotation — never-done-it scores highest), and how
 // recently they've had any role at all (fairness/turn-taking).
-export function scoreMemberForRole(member, roleId, roleHistory) {
-  const attendanceScore = (member.attendancePercentage ?? 0) / 100
+//
+// attendanceStats (optional): { [memberName]: { present, total } } from
+// mockAttendanceStore.getAttendanceStatsByMember() — real per-meeting
+// attendance recorded by the Secretary. A member with at least one real
+// recorded meeting uses their real present/total ratio; a member with no
+// real rows yet falls back to the static seeded members.attendance_percentage
+// column, so historical seed data isn't discarded on day one.
+export function scoreMemberForRole(member, roleId, roleHistory, attendanceStats = {}) {
+  const stats = attendanceStats[member.name]
+  const attendanceScore =
+    stats && stats.total > 0
+      ? stats.present / stats.total
+      : (member.attendancePercentage ?? 0) / 100
 
   const thisRoleHistory = roleHistory.filter(
     (r) => r.memberName === member.name && r.roleId === roleId,
