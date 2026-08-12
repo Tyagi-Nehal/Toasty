@@ -586,14 +586,24 @@ function MeetingPhotosTab({ log, refreshLog }) {
             <label className="text-xs font-medium text-ink/60">
               Meeting Theme <span className="text-ink/40">(optional)</span>
             </label>
-            <input
-              type="text"
-              value={theme}
-              onChange={(e) => setTheme(e.target.value)}
-              onBlur={handleThemeBlur}
-              placeholder="e.g. Turning Points"
-              className="mt-1.5 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
-            />
+            <div className="mt-1.5 flex gap-2">
+              <input
+                type="text"
+                value={theme}
+                onChange={(e) => setTheme(e.target.value)}
+                onBlur={handleThemeBlur}
+                placeholder="e.g. Turning Points"
+                className="w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleThemeBlur}
+                disabled={savingTheme || theme === (uploaded?.theme ?? '')}
+                className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-cream shadow-sm shadow-primary/20 transition enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Save
+              </button>
+            </div>
           </div>
 
           {/* Poster */}
