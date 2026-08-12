@@ -75,13 +75,22 @@ export default function PhotoMemoriesPage() {
                 className="overflow-hidden rounded-3xl border border-accent/30 bg-white shadow-sm shadow-primary/5"
               >
                 <div className="aspect-video overflow-hidden bg-cream">
-                  {meeting.photos[0] && (
+                  {meeting.photos[0] ? (
                     <img
                       src={meeting.photos[0].src}
                       alt={`${meeting.dateLabel} group photo`}
                       className="h-full w-full object-cover"
                       loading="lazy"
                     />
+                  ) : (
+                    meeting.posterUrl && (
+                      <img
+                        src={meeting.posterUrl}
+                        alt={`${meeting.dateLabel} poster`}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    )
                   )}
                 </div>
 

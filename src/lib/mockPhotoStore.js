@@ -312,7 +312,7 @@ export async function addMeetingCertificate(meeting, { category, winnerName, cer
 }
 
 // For the member-facing Photo Memories page — every meeting that has at
-// least one uploaded photo or certificate, newest upload first.
+// least a poster, a photo, or a certificate uploaded, newest upload first.
 export async function getAllMeetingPhotos(meetings) {
   const { data, error } = await supabase.from('meeting_photos').select('*')
   if (error) console.error('[mockPhotoStore] getAllMeetingPhotos failed:', error.message)
@@ -322,6 +322,6 @@ export async function getAllMeetingPhotos(meetings) {
       const meeting = meetings.find((m) => m.id === row.meeting_id && !m.cancelled)
       return meeting ? fromMeetingPhotosRow(row, meeting) : null
     })
-    .filter((m) => m && (m.photos.length > 0 || m.certificates.length > 0))
+    .filter((m) => m && (m.posterUrl || m.photos.length > 0 || m.certificates.length > 0))
     .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
 }
