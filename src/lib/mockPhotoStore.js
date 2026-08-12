@@ -226,7 +226,7 @@ async function upsertMeetingPhotosRow(meeting, patch) {
   const { error } = await supabase.from('meeting_photos').upsert(row, { onConflict: 'meeting_id' })
   if (error) {
     console.error('[mockPhotoStore] upsertMeetingPhotosRow failed:', error.message)
-    return null
+    throw new Error('Could not save — try again in a moment.')
   }
   return fromMeetingPhotosRow(row, meeting)
 }

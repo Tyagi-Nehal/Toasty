@@ -445,10 +445,13 @@ function MeetingPhotosTab({ log, refreshLog }) {
   async function handleThemeBlur() {
     if (!activeMeeting || theme === (uploaded?.theme ?? '')) return
     setSavingTheme(true)
-    const next = await saveMeetingTheme(activeMeeting, theme)
-    setUploaded(next)
+    try {
+      setUploaded(await saveMeetingTheme(activeMeeting, theme))
+      refreshLog()
+    } catch (err) {
+      window.alert(err.message)
+    }
     setSavingTheme(false)
-    refreshLog()
   }
 
   async function handlePhotoFiles(e) {
@@ -456,16 +459,22 @@ function MeetingPhotosTab({ log, refreshLog }) {
     e.target.value = ''
     if (files.length === 0) return
     setAddingPhotos(true)
-    const next = await addMeetingGroupPhotos(activeMeeting, files)
-    setUploaded(next)
+    try {
+      setUploaded(await addMeetingGroupPhotos(activeMeeting, files))
+      refreshLog()
+    } catch (err) {
+      window.alert(err.message)
+    }
     setAddingPhotos(false)
-    refreshLog()
   }
 
   async function handleRemovePhoto(photo) {
-    const next = await removeMeetingGroupPhoto(activeMeeting, photo.id, photo.src)
-    setUploaded(next)
-    refreshLog()
+    try {
+      setUploaded(await removeMeetingGroupPhoto(activeMeeting, photo.id, photo.src))
+      refreshLog()
+    } catch (err) {
+      window.alert(err.message)
+    }
   }
 
   async function handlePosterFile(e) {
@@ -473,16 +482,22 @@ function MeetingPhotosTab({ log, refreshLog }) {
     e.target.value = ''
     if (!file) return
     setAddingPoster(true)
-    const next = await setMeetingPoster(activeMeeting, file)
-    setUploaded(next)
+    try {
+      setUploaded(await setMeetingPoster(activeMeeting, file))
+      refreshLog()
+    } catch (err) {
+      window.alert(err.message)
+    }
     setAddingPoster(false)
-    refreshLog()
   }
 
   async function handleRemovePoster() {
-    const next = await removeMeetingPoster(activeMeeting)
-    setUploaded(next)
-    refreshLog()
+    try {
+      setUploaded(await removeMeetingPoster(activeMeeting))
+      refreshLog()
+    } catch (err) {
+      window.alert(err.message)
+    }
   }
 
   function handleCertFileChange(e) {
@@ -505,15 +520,20 @@ function MeetingPhotosTab({ log, refreshLog }) {
   async function handleAddCertificate() {
     if (!certWinner.trim()) return
     setAddingCert(true)
-    const next = await addMeetingCertificate(activeMeeting, {
-      category: certCategory,
-      winnerName: certWinner.trim(),
-      certificateFile: certFile,
-    })
-    setUploaded(next)
+    try {
+      setUploaded(
+        await addMeetingCertificate(activeMeeting, {
+          category: certCategory,
+          winnerName: certWinner.trim(),
+          certificateFile: certFile,
+        }),
+      )
+      resetCertForm()
+      refreshLog()
+    } catch (err) {
+      window.alert(err.message)
+    }
     setAddingCert(false)
-    resetCertForm()
-    refreshLog()
   }
 
   return (
