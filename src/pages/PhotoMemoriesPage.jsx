@@ -83,9 +83,9 @@ export default function PhotoMemoriesPage() {
                       loading="lazy"
                     />
                   ) : (
-                    meeting.posterUrl && (
+                    meeting.posters[0] && (
                       <img
-                        src={meeting.posterUrl}
+                        src={meeting.posters[0].src}
                         alt={`${meeting.dateLabel} poster`}
                         className="h-full w-full object-cover"
                         loading="lazy"

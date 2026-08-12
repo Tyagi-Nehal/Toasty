@@ -26,6 +26,7 @@ import {
   addContentBlock,
   addMeetingCertificate,
   addMeetingGroupPhotos,
+  addMeetingPosters,
   getClubPagePhotos,
   getContentBlocks,
   getExcomProfiles,
@@ -36,7 +37,6 @@ import {
   removeMeetingGroupPhoto,
   removeMeetingPoster,
   saveMeetingTheme,
-  setMeetingPoster,
   updateContentBlock,
   upsertExcomProfile,
 } from '../lib/mockPhotoStore.js'
@@ -477,13 +477,13 @@ function MeetingPhotosTab({ log, refreshLog }) {
     }
   }
 
-  async function handlePosterFile(e) {
-    const file = e.target.files?.[0]
+  async function handlePosterFiles(e) {
+    const files = Array.from(e.target.files ?? [])
     e.target.value = ''
-    if (!file) return
+    if (files.length === 0) return
     setAddingPoster(true)
     try {
-      setUploaded(await setMeetingPoster(activeMeeting, file))
+      setUploaded(await addMeetingPosters(activeMeeting, files))
       refreshLog()
     } catch (err) {
       window.alert(err.message)
@@ -491,9 +491,9 @@ function MeetingPhotosTab({ log, refreshLog }) {
     setAddingPoster(false)
   }
 
-  async function handleRemovePoster() {
+  async function handleRemovePoster(poster) {
     try {
-      setUploaded(await removeMeetingPoster(activeMeeting))
+      setUploaded(await removeMeetingPoster(activeMeeting, poster.id, poster.src))
       refreshLog()
     } catch (err) {
       window.alert(err.message)
@@ -606,47 +606,50 @@ function MeetingPhotosTab({ log, refreshLog }) {
             </div>
           </div>
 
-          {/* Poster */}
+          {/* Posters */}
           <div className="rounded-3xl border border-accent/30 bg-white p-6">
             <div className="flex items-center gap-2 text-sm font-semibold text-ink">
               <ImageIcon size={16} className="text-primary" />
-              Meeting Poster
+              Meeting Posters
             </div>
-            <p className="mt-1 text-xs text-ink/40">
-              One poster per meeting — uploading a new one replaces it.
-            </p>
 
-            {uploaded?.posterUrl ? (
-              <div className="relative mt-4 w-full max-w-xs">
-                <img
-                  src={uploaded.posterUrl}
-                  alt="Meeting poster"
-                  onClick={() => setLightboxUrl(uploaded.posterUrl)}
-                  className="w-full cursor-pointer rounded-2xl object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={handleRemovePoster}
-                  aria-label="Remove poster"
-                  className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-ink/60 text-cream transition hover:bg-ink/80"
-                >
-                  <X size={14} />
-                </button>
+            <label className="mt-4 flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-accent/40 p-8 text-center transition hover:border-primary">
+              <UploadCloud size={24} className="text-primary" />
+              <span className="text-sm font-medium text-ink">
+                {addingPoster ? 'Uploading…' : 'Click to choose posters'}
+              </span>
+              <span className="text-xs text-ink/50">or drag and drop image files — add as many as you like</span>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                disabled={addingPoster}
+                onChange={handlePosterFiles}
+                className="hidden"
+              />
+            </label>
+
+            {uploaded?.posters.length > 0 && (
+              <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4">
+                {uploaded.posters.map((poster) => (
+                  <div key={poster.id} className="group relative aspect-square overflow-hidden rounded-xl">
+                    <img
+                      src={poster.src}
+                      alt=""
+                      onClick={() => setLightboxUrl(poster.src)}
+                      className="h-full w-full cursor-pointer object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePoster(poster)}
+                      aria-label="Remove poster"
+                      className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-ink/60 text-cream opacity-0 transition group-hover:opacity-100"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
               </div>
-            ) : (
-              <label className="mt-4 flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-accent/40 p-8 text-center transition hover:border-primary">
-                <UploadCloud size={24} className="text-primary" />
-                <span className="text-sm font-medium text-ink">
-                  {addingPoster ? 'Uploading…' : 'Click to choose a poster'}
-                </span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  disabled={addingPoster}
-                  onChange={handlePosterFile}
-                  className="hidden"
-                />
-              </label>
             )}
           </div>
 

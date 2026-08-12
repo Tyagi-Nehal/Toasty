@@ -188,7 +188,7 @@ function fromMeetingPhotosRow(row, meeting) {
     dateLabel: meeting.dateLabel,
     fullDateLabel: formatFullDate(meeting.date),
     theme: row?.theme ?? meeting.theme ?? '',
-    posterUrl: row?.poster_url ?? null,
+    posters: (row?.posters ?? []).map((p) => ({ id: p.id, src: p.url })),
     photos: (row?.photos ?? []).map((p) => ({ id: p.id, src: p.url })),
     certificates: (row?.certificates ?? []).map(normalizeCert),
     updatedAt: row?.updated_at ?? null,
@@ -217,7 +217,7 @@ async function upsertMeetingPhotosRow(meeting, patch) {
   const row = {
     meeting_id: meeting.id,
     theme: existing?.theme ?? meeting.theme ?? '',
-    poster_url: existing?.poster_url ?? null,
+    posters: existing?.posters ?? [],
     photos: existing?.photos ?? [],
     certificates: existing?.certificates ?? [],
     ...patch,
@@ -242,23 +242,30 @@ export async function saveMeetingTheme(meeting, theme) {
   return next
 }
 
-// One poster per meeting — uploading a new one replaces (and deletes)
-// whichever was there before, same "replace, don't accumulate" pattern
-// as the meeting theme.
-export async function setMeetingPoster(meeting, file) {
-  const posterUrl = await uploadClubPhoto(file, `meetings/${meeting.id}/poster`)
+// Multiple posters per meeting — same "accumulate, remove individually"
+// pattern as group photos, not a single replaceable image.
+export async function addMeetingPosters(meeting, files) {
+  const uploaded = await Promise.all(
+    files.map(async (file) => ({
+      id: crypto.randomUUID(),
+      url: await uploadClubPhoto(file, `meetings/${meeting.id}/posters`),
+    })),
+  )
   const existing = await getMeetingPhotos(meeting.id)
-  const next = await upsertMeetingPhotosRow(meeting, { poster_url: posterUrl })
-  if (existing?.poster_url) await deleteClubPhoto(existing.poster_url)
-  logAction(`VPPR uploaded a poster for ${meeting.dateLabel}`)
+  const next = await upsertMeetingPhotosRow(meeting, {
+    posters: [...(existing?.posters ?? []), ...uploaded],
+  })
+  logAction(`VPPR added ${uploaded.length} poster${uploaded.length === 1 ? '' : 's'} for ${meeting.dateLabel}`)
   return next
 }
 
-export async function removeMeetingPoster(meeting) {
+export async function removeMeetingPoster(meeting, posterId, url) {
   const existing = await getMeetingPhotos(meeting.id)
-  const next = await upsertMeetingPhotosRow(meeting, { poster_url: null })
-  if (existing?.poster_url) await deleteClubPhoto(existing.poster_url)
-  logAction(`VPPR removed the poster for ${meeting.dateLabel}`)
+  const next = await upsertMeetingPhotosRow(meeting, {
+    posters: (existing?.posters ?? []).filter((p) => p.id !== posterId),
+  })
+  await deleteClubPhoto(url)
+  logAction(`VPPR removed a poster from ${meeting.dateLabel}`)
   return next
 }
 
@@ -322,6 +329,6 @@ export async function getAllMeetingPhotos(meetings) {
       const meeting = meetings.find((m) => m.id === row.meeting_id && !m.cancelled)
       return meeting ? fromMeetingPhotosRow(row, meeting) : null
     })
-    .filter((m) => m && (m.posterUrl || m.photos.length > 0 || m.certificates.length > 0))
+    .filter((m) => m && (m.posters.length > 0 || m.photos.length > 0 || m.certificates.length > 0))
     .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
 }

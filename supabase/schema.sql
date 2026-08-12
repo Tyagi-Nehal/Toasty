@@ -533,14 +533,22 @@ create table if not exists meeting_photos (
   meeting_id bigint not null unique references meetings(id) on delete cascade,
   theme text,
   poster_url text,
+  posters jsonb not null default '[]'::jsonb,
   photos jsonb not null default '[]'::jsonb,
   certificates jsonb not null default '[]'::jsonb,
   updated_at timestamptz not null default now()
 );
 
 -- Additive, for installs where meeting_photos already existed before
--- the poster feature.
+-- the poster feature. posters (plural, jsonb array — same [{id,url}]
+-- shape as `photos`) replaces the original single poster_url column;
+-- this migrates any already-uploaded single poster into the new array
+-- rather than losing it.
 alter table meeting_photos add column if not exists poster_url text;
+alter table meeting_photos add column if not exists posters jsonb not null default '[]'::jsonb;
+update meeting_photos
+set posters = jsonb_build_array(jsonb_build_object('id', gen_random_uuid()::text, 'url', poster_url))
+where poster_url is not null and posters = '[]'::jsonb;
 
 alter table club_page_photos enable row level security;
 alter table excom_profiles enable row level security;
