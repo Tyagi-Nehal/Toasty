@@ -477,3 +477,17 @@ export async function createMeetingForDate(date, time) {
   logAction(`Added ${label} for ${formatDateLabel(date)}`)
   return label
 }
+
+// Lets the VPPR correct a meeting's auto-assigned number by hand (e.g.
+// the chronological-position guess was off once more real history got
+// backfilled).
+export async function renameMeeting(meetingId, newLabel) {
+  const trimmed = newLabel.trim()
+  if (!trimmed) return
+  const { error } = await supabase.from('meetings').update({ label: trimmed }).eq('id', meetingId)
+  if (error) {
+    console.error('[mockRolesStore] renameMeeting failed:', error.message)
+    throw new Error('Could not update the meeting number.')
+  }
+  logAction(`Renamed a meeting to ${trimmed}`)
+}

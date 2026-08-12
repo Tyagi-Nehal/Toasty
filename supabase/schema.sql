@@ -761,6 +761,24 @@ create policy "meetings vppr insert" on meetings
     )
   );
 
+-- Lets VPPR fix a meeting's auto-assigned number by hand on the Meeting
+-- Photos tab. Same additive shape as the insert policy above.
+drop policy if exists "meetings vppr update" on meetings;
+create policy "meetings vppr update" on meetings
+  for update to authenticated
+  using (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPPR'
+    )
+  )
+  with check (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPPR'
+    )
+  );
+
 -- Real SAA-built voting polls (was localStorage-only, mockPollStore.js,
 -- and targeted a hardcoded fake meeting id that could never match a
 -- real one). categories/answers are jsonb blobs, same pattern as

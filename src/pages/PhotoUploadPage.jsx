@@ -18,7 +18,7 @@ import MemberLayout from '../components/MemberLayout.jsx'
 import Avatar from '../components/Avatar.jsx'
 import PhotoLightbox from '../components/PhotoLightbox.jsx'
 import CancelledMeetingNotice from '../components/CancelledMeetingNotice.jsx'
-import { createMeetingForDate, getMeetings } from '../lib/mockRolesStore.js'
+import { createMeetingForDate, getMeetings, renameMeeting } from '../lib/mockRolesStore.js'
 import { currentExcom, pastExcom } from '../data/excom.js'
 import { uploadClubPhoto } from '../lib/storage.js'
 import {
@@ -358,6 +358,8 @@ function MeetingPhotosTab({ log, refreshLog }) {
   const [uploaded, setUploaded] = useState(null)
   const [theme, setTheme] = useState('')
   const [savingTheme, setSavingTheme] = useState(false)
+  const [labelDraft, setLabelDraft] = useState('')
+  const [savingLabel, setSavingLabel] = useState(false)
   const [addingPhotos, setAddingPhotos] = useState(false)
   const [certCategory, setCertCategory] = useState(CERT_CATEGORIES[0])
   const [certWinner, setCertWinner] = useState('')
@@ -405,7 +407,25 @@ function MeetingPhotosTab({ log, refreshLog }) {
       setUploaded(null)
       setTheme('')
     }
+    setLabelDraft(activeMeeting?.label ?? '')
   }, [activeMeeting?.id])
+
+  async function handleLabelBlur() {
+    const trimmed = labelDraft.trim()
+    if (!activeMeeting || !trimmed || trimmed === activeMeeting.label) {
+      setLabelDraft(activeMeeting?.label ?? '')
+      return
+    }
+    setSavingLabel(true)
+    try {
+      await renameMeeting(activeMeeting.id, trimmed)
+      await refreshMeetings()
+    } catch (err) {
+      window.alert(err.message)
+      setLabelDraft(activeMeeting.label)
+    }
+    setSavingLabel(false)
+  }
 
   function resetCertForm() {
     setCertCategory(CERT_CATEGORIES[0])
@@ -488,9 +508,17 @@ function MeetingPhotosTab({ log, refreshLog }) {
           className="rounded-xl border border-accent/40 bg-white px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
         />
         {activeMeeting && (
-          <span className="text-sm font-semibold text-ink">{activeMeeting.label}</span>
+          <input
+            type="text"
+            value={labelDraft}
+            onChange={(e) => setLabelDraft(e.target.value)}
+            onBlur={handleLabelBlur}
+            className="w-28 rounded-xl border border-accent/40 bg-white px-3 py-2 text-sm font-semibold text-ink focus:border-primary focus:outline-none"
+          />
         )}
-        {savingTheme && <span className="text-xs font-medium text-primary">Saving…</span>}
+        {(savingTheme || savingLabel) && (
+          <span className="text-xs font-medium text-primary">Saving…</span>
+        )}
       </div>
 
       {!activeMeeting ? (
