@@ -644,4 +644,52 @@ alter table excom_profiles add column if not exists photo_position text default 
 alter table excom_profiles add column if not exists phone text;
 alter table excom_profiles add column if not exists email text;
 
+-- Real per-meeting attendance, taken by the Secretary. Replaces the
+-- fully local/fake AttendancePage.jsx prototype. Feeds the VPE
+-- auto-assign scoring algorithm (mockRosterStore.js) once a member has
+-- rows here, blended with — not replacing — the static seeded
+-- members.attendance_percentage baseline.
+create table if not exists attendance (
+  id bigint generated always as identity primary key,
+  meeting_id bigint not null references meetings(id) on delete cascade,
+  member_name text not null,
+  present boolean not null default true,
+  submitted_by_email text,
+  updated_at timestamptz not null default now(),
+  unique (meeting_id, member_name)
+);
+
+alter table attendance enable row level security;
+
+drop policy if exists "attendance authenticated select" on attendance;
+create policy "attendance authenticated select" on attendance
+  for select to authenticated using (true);
+
+drop policy if exists "attendance secretary or president write" on attendance;
+create policy "attendance secretary or president write" on attendance
+  for all to authenticated
+  using (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'Secretary'
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  )
+  with check (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'Secretary'
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
+grant select, insert, update on attendance to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+
 grant usage, select on all sequences in schema public to authenticated;
