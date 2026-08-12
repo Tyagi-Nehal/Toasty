@@ -34,7 +34,9 @@ import {
   removeClubPagePhoto,
   removeContentBlock,
   removeMeetingGroupPhoto,
+  removeMeetingPoster,
   saveMeetingTheme,
+  setMeetingPoster,
   updateContentBlock,
   upsertExcomProfile,
 } from '../lib/mockPhotoStore.js'
@@ -368,6 +370,7 @@ function MeetingPhotosTab({ log, refreshLog }) {
   const [addingCert, setAddingCert] = useState(false)
   const [lightboxUrl, setLightboxUrl] = useState(null)
   const [addingMeeting, setAddingMeeting] = useState(false)
+  const [addingPoster, setAddingPoster] = useState(false)
 
   function refreshMeetings() {
     return getMeetings().then((fetched) => {
@@ -465,6 +468,23 @@ function MeetingPhotosTab({ log, refreshLog }) {
     refreshLog()
   }
 
+  async function handlePosterFile(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setAddingPoster(true)
+    const next = await setMeetingPoster(activeMeeting, file)
+    setUploaded(next)
+    setAddingPoster(false)
+    refreshLog()
+  }
+
+  async function handleRemovePoster() {
+    const next = await removeMeetingPoster(activeMeeting)
+    setUploaded(next)
+    refreshLog()
+  }
+
   function handleCertFileChange(e) {
     const file = e.target.files?.[0]
     e.target.value = ''
@@ -554,6 +574,50 @@ function MeetingPhotosTab({ log, refreshLog }) {
               placeholder="e.g. Turning Points"
               className="mt-1.5 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
             />
+          </div>
+
+          {/* Poster */}
+          <div className="rounded-3xl border border-accent/30 bg-white p-6">
+            <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+              <ImageIcon size={16} className="text-primary" />
+              Meeting Poster
+            </div>
+            <p className="mt-1 text-xs text-ink/40">
+              One poster per meeting — uploading a new one replaces it.
+            </p>
+
+            {uploaded?.posterUrl ? (
+              <div className="relative mt-4 w-full max-w-xs">
+                <img
+                  src={uploaded.posterUrl}
+                  alt="Meeting poster"
+                  onClick={() => setLightboxUrl(uploaded.posterUrl)}
+                  className="w-full cursor-pointer rounded-2xl object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={handleRemovePoster}
+                  aria-label="Remove poster"
+                  className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-ink/60 text-cream transition hover:bg-ink/80"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <label className="mt-4 flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-accent/40 p-8 text-center transition hover:border-primary">
+                <UploadCloud size={24} className="text-primary" />
+                <span className="text-sm font-medium text-ink">
+                  {addingPoster ? 'Uploading…' : 'Click to choose a poster'}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={addingPoster}
+                  onChange={handlePosterFile}
+                  className="hidden"
+                />
+              </label>
+            )}
           </div>
 
           {/* Group photos */}

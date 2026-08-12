@@ -32,6 +32,16 @@ export default function PhotoGalleryModal({ meeting, onClose }) {
           </button>
         </div>
 
+        {meeting.posterUrl && (
+          <img
+            src={meeting.posterUrl}
+            alt="Meeting poster"
+            onClick={() => setLightboxUrl(meeting.posterUrl)}
+            className="mt-5 max-h-80 w-full cursor-pointer rounded-2xl object-cover shadow-sm shadow-primary/10"
+            loading="lazy"
+          />
+        )}
+
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
           {meeting.photos.map((photo, i) => (
             <div

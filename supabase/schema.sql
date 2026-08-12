@@ -532,10 +532,15 @@ create table if not exists meeting_photos (
   id bigint generated always as identity primary key,
   meeting_id bigint not null unique references meetings(id) on delete cascade,
   theme text,
+  poster_url text,
   photos jsonb not null default '[]'::jsonb,
   certificates jsonb not null default '[]'::jsonb,
   updated_at timestamptz not null default now()
 );
+
+-- Additive, for installs where meeting_photos already existed before
+-- the poster feature.
+alter table meeting_photos add column if not exists poster_url text;
 
 alter table club_page_photos enable row level security;
 alter table excom_profiles enable row level security;

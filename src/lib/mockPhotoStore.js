@@ -188,6 +188,7 @@ function fromMeetingPhotosRow(row, meeting) {
     dateLabel: meeting.dateLabel,
     fullDateLabel: formatFullDate(meeting.date),
     theme: row?.theme ?? meeting.theme ?? '',
+    posterUrl: row?.poster_url ?? null,
     photos: (row?.photos ?? []).map((p) => ({ id: p.id, src: p.url })),
     certificates: (row?.certificates ?? []).map(normalizeCert),
     updatedAt: row?.updated_at ?? null,
@@ -216,6 +217,7 @@ async function upsertMeetingPhotosRow(meeting, patch) {
   const row = {
     meeting_id: meeting.id,
     theme: existing?.theme ?? meeting.theme ?? '',
+    poster_url: existing?.poster_url ?? null,
     photos: existing?.photos ?? [],
     certificates: existing?.certificates ?? [],
     ...patch,
@@ -237,6 +239,26 @@ async function upsertMeetingPhotosRow(meeting, patch) {
 export async function saveMeetingTheme(meeting, theme) {
   const next = await upsertMeetingPhotosRow(meeting, { theme })
   logAction(`VPPR set the theme for ${meeting.dateLabel}`)
+  return next
+}
+
+// One poster per meeting — uploading a new one replaces (and deletes)
+// whichever was there before, same "replace, don't accumulate" pattern
+// as the meeting theme.
+export async function setMeetingPoster(meeting, file) {
+  const posterUrl = await uploadClubPhoto(file, `meetings/${meeting.id}/poster`)
+  const existing = await getMeetingPhotos(meeting.id)
+  const next = await upsertMeetingPhotosRow(meeting, { poster_url: posterUrl })
+  if (existing?.poster_url) await deleteClubPhoto(existing.poster_url)
+  logAction(`VPPR uploaded a poster for ${meeting.dateLabel}`)
+  return next
+}
+
+export async function removeMeetingPoster(meeting) {
+  const existing = await getMeetingPhotos(meeting.id)
+  const next = await upsertMeetingPhotosRow(meeting, { poster_url: null })
+  if (existing?.poster_url) await deleteClubPhoto(existing.poster_url)
+  logAction(`VPPR removed the poster for ${meeting.dateLabel}`)
   return next
 }
 
