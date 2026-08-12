@@ -183,6 +183,7 @@ function normalizeCert(c) {
 function fromMeetingPhotosRow(row, meeting) {
   return {
     meetingId: meeting.id,
+    label: meeting.label,
     dateLabel: meeting.dateLabel,
     theme: row?.theme ?? meeting.theme ?? '',
     photos: (row?.photos ?? []).map((p) => ({ id: p.id, src: p.url })),

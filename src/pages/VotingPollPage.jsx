@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, PartyPopper, Vote, Clock, CheckCircle2 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
@@ -10,8 +10,27 @@ export default function VotingPollPage() {
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState({})
   const [justSubmitted, setJustSubmitted] = useState(false)
-  const poll = getPoll()
-  const alreadyVoted = hasVoted()
+  const [poll, setPoll] = useState(null)
+  const [alreadyVoted, setAlreadyVoted] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    getPoll().then(async (fetched) => {
+      setPoll(fetched)
+      setAlreadyVoted(fetched ? await hasVoted(fetched.id) : false)
+      setLoading(false)
+    })
+  }, [])
+
+  if (loading) {
+    return (
+      <MemberLayout>
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <p className="text-sm text-ink/50">Loading...</p>
+        </div>
+      </MemberLayout>
+    )
+  }
 
   if (!poll || !poll.isOpen) {
     return (
@@ -85,9 +104,9 @@ export default function VotingPollPage() {
     setAnswers((prev) => ({ ...prev, [category.id]: name }))
   }
 
-  function handleNext() {
+  async function handleNext() {
     if (isLastStep) {
-      submitVote(answers)
+      await submitVote(poll.id, answers)
       setJustSubmitted(true)
     } else {
       setStep((s) => s + 1)

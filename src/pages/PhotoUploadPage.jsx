@@ -18,7 +18,7 @@ import MemberLayout from '../components/MemberLayout.jsx'
 import Avatar from '../components/Avatar.jsx'
 import PhotoLightbox from '../components/PhotoLightbox.jsx'
 import CancelledMeetingNotice from '../components/CancelledMeetingNotice.jsx'
-import { getMeetings } from '../lib/mockRolesStore.js'
+import { createMeetingForDate, getMeetings } from '../lib/mockRolesStore.js'
 import { currentExcom, pastExcom } from '../data/excom.js'
 import { uploadClubPhoto } from '../lib/storage.js'
 import {
@@ -365,13 +365,29 @@ function MeetingPhotosTab({ log, refreshLog }) {
   const [certPreview, setCertPreview] = useState(null)
   const [addingCert, setAddingCert] = useState(false)
   const [lightboxUrl, setLightboxUrl] = useState(null)
+  const [addingMeeting, setAddingMeeting] = useState(false)
 
-  useEffect(() => {
-    getMeetings().then((fetched) => {
+  function refreshMeetings() {
+    return getMeetings().then((fetched) => {
       setMeetings(fetched)
       setSelectedDate((prev) => prev || fetched[0]?.date || '')
     })
+  }
+
+  useEffect(() => {
+    refreshMeetings()
   }, [])
+
+  async function handleAddMeeting() {
+    setAddingMeeting(true)
+    try {
+      await createMeetingForDate(selectedDate)
+      await refreshMeetings()
+    } catch (err) {
+      window.alert(err.message)
+    }
+    setAddingMeeting(false)
+  }
 
   const activeMeeting = meetings.find((m) => m.date === selectedDate)
 
@@ -471,11 +487,25 @@ function MeetingPhotosTab({ log, refreshLog }) {
           onChange={(e) => handleDateChange(e.target.value)}
           className="rounded-xl border border-accent/40 bg-white px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
         />
+        {activeMeeting && (
+          <span className="text-sm font-semibold text-ink">{activeMeeting.label}</span>
+        )}
         {savingTheme && <span className="text-xs font-medium text-primary">Saving…</span>}
       </div>
 
       {!activeMeeting ? (
-        <p className="text-sm text-ink/50">No meeting scheduled for this date.</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm text-ink/50">No meeting scheduled for this date.</p>
+          <button
+            type="button"
+            onClick={handleAddMeeting}
+            disabled={addingMeeting}
+            className="flex items-center gap-1.5 rounded-xl border border-primary px-3 py-1.5 text-xs font-semibold text-primary transition enabled:hover:bg-primary enabled:hover:text-cream disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Plus size={13} />
+            {addingMeeting ? 'Adding…' : 'Add this meeting'}
+          </button>
+        </div>
       ) : activeMeeting.cancelled ? (
         <CancelledMeetingNotice
           dateLabel={activeMeeting.dateLabel}

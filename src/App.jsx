@@ -10,6 +10,7 @@ import VotingPollPage from './pages/VotingPollPage.jsx'
 import AttendancePage from './pages/AttendancePage.jsx'
 import MOMPage from './pages/MOMPage.jsx'
 import MinutesPage from './pages/MinutesPage.jsx'
+import AttendanceLogPage from './pages/AttendanceLogPage.jsx'
 import PhotoMemoriesPage from './pages/PhotoMemoriesPage.jsx'
 import PastExcomPage from './pages/PastExcomPage.jsx'
 import ExcomPage from './pages/ExcomPage.jsx'
@@ -105,6 +106,14 @@ function App() {
         element={
           <RequireApprovedAccount>
             <MinutesPage />
+          </RequireApprovedAccount>
+        }
+      />
+      <Route
+        path="/attendance-log"
+        element={
+          <RequireApprovedAccount>
+            <AttendanceLogPage />
           </RequireApprovedAccount>
         }
       />

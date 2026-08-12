@@ -444,3 +444,24 @@ export async function rescheduleMeeting(meetingId, newDate) {
     link: '/roles',
   })
 }
+
+// Lets the VPPR backfill a real historical meeting that predates the
+// seeded meeting history (e.g. the club's actual first meeting on
+// 2026-03-04, well before the earliest seeded row). Chronological
+// position among existing meetings decides the label — assigned once
+// at creation and never recomputed, so it stays stable even as more
+// early meetings get backfilled later, possibly out of order.
+export async function createMeetingForDate(date, time) {
+  const meetings = await getMeetings()
+  const position = meetings.filter((m) => m.date && m.date < date).length + 1
+  const label = `Meeting ${position}`
+  const { error } = await supabase
+    .from('meetings')
+    .insert({ label, meeting_date: date, time: time || '5:15 PM', finalized: false })
+  if (error) {
+    console.error('[mockRolesStore] createMeetingForDate failed:', error.message)
+    throw new Error('Could not add this meeting.')
+  }
+  logAction(`Added ${label} for ${formatDateLabel(date)}`)
+  return label
+}

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { ClipboardCheck, CheckSquare, Square, Send, CheckCircle2 } from 'lucide-react'
+import { ClipboardCheck, CalendarClock, CheckSquare, Square, Send, CheckCircle2 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import {
   getRecentMeetingsForAttendance,
   getAttendanceForMeeting,
   submitAttendance,
 } from '../lib/mockAttendanceStore.js'
+import { findNextActiveMeeting, getMeetings } from '../lib/mockRolesStore.js'
 
 export default function AttendancePage() {
   const [recentMeetings, setRecentMeetings] = useState([])
@@ -15,12 +16,16 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [nextMeeting, setNextMeeting] = useState(null)
 
   useEffect(() => {
     getRecentMeetingsForAttendance().then((meetings) => {
       setRecentMeetings(meetings)
       setActiveMeetingId((prev) => prev ?? meetings[0]?.id ?? null)
     })
+    // Informational only — attendance still can't be taken for a meeting
+    // that hasn't happened yet, this just shows what's coming up.
+    getMeetings().then((meetings) => setNextMeeting(findNextActiveMeeting(meetings)))
   }, [])
 
   useEffect(() => {
@@ -61,6 +66,12 @@ export default function AttendancePage() {
             <ClipboardCheck size={16} />
             Attendance
           </div>
+          {nextMeeting && (
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-ink/50">
+              <CalendarClock size={13} />
+              Next meeting: {nextMeeting.dateLabel}
+            </p>
+          )}
           <p className="mt-4 text-sm text-ink/50">
             No past meetings yet to take attendance for.
           </p>
@@ -82,6 +93,12 @@ export default function AttendancePage() {
         <p className="mt-1 text-sm text-ink/60">
           Pick a meeting, mark who was present, then submit.
         </p>
+        {nextMeeting && (
+          <p className="mt-1 flex items-center gap-1.5 text-xs text-ink/50">
+            <CalendarClock size={13} />
+            Next meeting: {nextMeeting.dateLabel}
+          </p>
+        )}
 
         {/* Meeting picker */}
         <div className="mt-6 flex gap-2 overflow-x-auto">

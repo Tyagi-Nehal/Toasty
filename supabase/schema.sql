@@ -746,3 +746,84 @@ create policy "moms secretary or president write" on moms
 
 grant select, insert, update on moms to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
+
+-- VPPR can add a meeting on the fly (e.g. backfilling real early-2026
+-- meetings that predate the seeded July 1 start) without needing VPE.
+-- Additive — coexists with "meetings vpe or president write" above,
+-- which still owns update/delete (finalize/cancel/reschedule).
+drop policy if exists "meetings vppr insert" on meetings;
+create policy "meetings vppr insert" on meetings
+  for insert to authenticated
+  with check (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPPR'
+    )
+  );
+
+-- Real SAA-built voting polls (was localStorage-only, mockPollStore.js,
+-- and targeted a hardcoded fake meeting id that could never match a
+-- real one). categories/answers are jsonb blobs, same pattern as
+-- agendas.items and moms.content.
+create table if not exists polls (
+  id bigint generated always as identity primary key,
+  meeting_id bigint not null unique references meetings(id) on delete cascade,
+  categories jsonb not null default '[]'::jsonb,
+  is_open boolean not null default false,
+  released_at timestamptz,
+  closed_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists poll_votes (
+  id bigint generated always as identity primary key,
+  poll_id bigint not null references polls(id) on delete cascade,
+  voter_email text not null,
+  answers jsonb not null default '{}'::jsonb,
+  voted_at timestamptz not null default now(),
+  unique (poll_id, voter_email)
+);
+
+alter table polls enable row level security;
+alter table poll_votes enable row level security;
+
+drop policy if exists "polls authenticated select" on polls;
+create policy "polls authenticated select" on polls
+  for select to authenticated using (true);
+drop policy if exists "polls saa or president write" on polls;
+create policy "polls saa or president write" on polls
+  for all to authenticated
+  using (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'SAA'
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  )
+  with check (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'SAA'
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
+drop policy if exists "poll_votes authenticated select" on poll_votes;
+create policy "poll_votes authenticated select" on poll_votes
+  for select to authenticated using (true);
+drop policy if exists "poll_votes self insert" on poll_votes;
+create policy "poll_votes self insert" on poll_votes
+  for insert to authenticated
+  with check (lower(voter_email) = lower(auth.jwt() ->> 'email'));
+-- No update/delete policy on poll_votes -- a cast vote is immutable,
+-- matching the existing "each member gets one vote per meeting" copy.
+
+grant select, insert, update on polls to authenticated;
+grant select, insert on poll_votes to authenticated;
+grant usage, select on all sequences in schema public to authenticated;

@@ -17,6 +17,7 @@ export default function PhotoGalleryModal({ meeting, onClose }) {
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-lg font-bold text-ink sm:text-xl">
+              {meeting.label ? `${meeting.label} — ` : ''}
               {meeting.dateLabel}
             </h2>
             <p className="text-sm text-ink/60">Theme: {meeting.theme}</p>

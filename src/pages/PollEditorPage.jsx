@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Vote,
   Sparkles,
@@ -64,42 +64,67 @@ function AddCandidateForm({ onAdd }) {
 }
 
 export default function PollEditorPage() {
-  const [poll, setPoll] = useState(() => getPoll())
+  const [poll, setPoll] = useState(null)
   const [history, setHistory] = useState(() => getPollHistory())
+  const [voteCounts, setVoteCounts] = useState(null)
+  const [results, setResults] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  function refresh() {
-    setPoll(getPoll())
+  async function refresh() {
+    const next = await getPoll()
+    setPoll(next)
     setHistory(getPollHistory())
+    setLoading(false)
+
+    const isClosed = next && !next.isOpen && next.closedAt
+    if (next?.isOpen || isClosed) {
+      setVoteCounts(await getVoteCounts(next.id))
+    } else {
+      setVoteCounts(null)
+    }
+    setResults(isClosed ? await getResultsSummary(next) : null)
   }
 
-  function handleBuild() {
-    buildPollFromAgenda()
+  useEffect(() => {
+    refresh()
+  }, [])
+
+  async function handleBuild() {
+    await buildPollFromAgenda()
     refresh()
   }
 
-  function handleAdd(categoryId, name) {
-    addCandidate(categoryId, name)
+  async function handleAdd(categoryId, name) {
+    await addCandidate(categoryId, name)
     refresh()
   }
 
-  function handleRemove(categoryId, name) {
-    removeCandidate(categoryId, name)
+  async function handleRemove(categoryId, name) {
+    await removeCandidate(categoryId, name)
     refresh()
   }
 
-  function handleRelease() {
-    releasePoll()
+  async function handleRelease() {
+    await releasePoll()
     refresh()
   }
 
-  function handleClose() {
-    closePoll()
+  async function handleClose() {
+    await closePoll()
     refresh()
   }
 
   const isClosed = poll && !poll.isOpen && poll.closedAt
-  const voteCounts = poll?.isOpen || isClosed ? getVoteCounts() : null
-  const results = isClosed ? getResultsSummary() : null
+
+  if (loading) {
+    return (
+      <MemberLayout>
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <p className="text-sm text-ink/50">Loading...</p>
+        </div>
+      </MemberLayout>
+    )
+  }
 
   return (
     <MemberLayout>

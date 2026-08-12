@@ -1,21 +1,20 @@
-// Shared source of truth for the current meeting's voting poll — built by
-// the SAA-facing Poll Editor and read by the member-facing Voting Poll
-// page, so releasing/closing the poll and casting votes are reflected on
-// both sides. Persisted to localStorage like the other shared mock stores
-// (mockAgendaStore.js, mockRolesStore.js).
+// Real SAA-built voting poll (supabase/schema.sql: polls, poll_votes).
+// Replaces the earlier localStorage-only prototype, which also targeted
+// a hardcoded fake meeting id ('meeting-1') that could never match a
+// real meeting and called getMeeting()/getAgenda() as if they were
+// synchronous — both are real async Supabase calls now, so that version
+// would throw as soon as "Build Poll from Agenda" was clicked. This
+// version always targets the real next active meeting, same pattern as
+// MOM/agenda.
 
-import { getMeeting } from './mockRolesStore.js'
+import { supabase } from './supabaseClient.js'
+import { getAccount } from './mockAuth.js'
+import { findNextActiveMeeting, getMeetings } from './mockRolesStore.js'
 import { getAgenda } from './mockAgendaStore.js'
 import { pushNotification } from './mockNotificationsStore.js'
 
-const STATE_KEY = 'toasty_poll'
-const VOTES_KEY = 'toasty_poll_votes'
-const VOTED_PREFIX = 'toasty_poll_voted_'
 const LOG_KEY = 'toasty_poll_history'
 const MAX_LOG_ENTRIES = 25
-
-const MEETING_ID = 'meeting-1'
-const POLL_ID = `poll-${MEETING_ID}`
 
 // Which agenda/role slots feed each category's starting candidate list.
 // Best Table Topics Speaker has none — it's built live by the SAA during
@@ -53,37 +52,6 @@ const CATEGORY_TEMPLATE = [
   },
 ]
 
-function displayName(takenBy) {
-  if (!takenBy) return null
-  return takenBy === '__me__' ? 'You' : takenBy
-}
-
-function readState() {
-  try {
-    const raw = localStorage.getItem(STATE_KEY)
-    return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
-  }
-}
-
-function writeState(state) {
-  localStorage.setItem(STATE_KEY, JSON.stringify(state))
-}
-
-function readVotes() {
-  try {
-    const raw = localStorage.getItem(VOTES_KEY)
-    return raw ? JSON.parse(raw) : {}
-  } catch {
-    return {}
-  }
-}
-
-function writeVotes(votes) {
-  localStorage.setItem(VOTES_KEY, JSON.stringify(votes))
-}
-
 function logAction(message) {
   const entry = { id: crypto.randomUUID(), message, time: new Date().toISOString() }
   try {
@@ -107,11 +75,48 @@ export function getPollHistory() {
   }
 }
 
+function displayName(takenBy) {
+  if (!takenBy) return null
+  return takenBy === '__me__' ? 'You' : takenBy
+}
+
+function toPollView(row, meeting) {
+  if (!row) return null
+  return {
+    id: row.id,
+    meetingLabel: meeting.dateLabel,
+    isOpen: row.is_open,
+    releasedAt: row.released_at,
+    closedAt: row.closed_at,
+    categories: row.categories,
+  }
+}
+
+async function targetMeeting() {
+  const meetings = await getMeetings()
+  return findNextActiveMeeting(meetings) ?? meetings[meetings.length - 1] ?? null
+}
+
+export async function getPoll() {
+  const meeting = await targetMeeting()
+  if (!meeting) return null
+  const { data, error } = await supabase
+    .from('polls')
+    .select('*')
+    .eq('meeting_id', meeting.id)
+    .maybeSingle()
+  if (error) console.error('[mockPollStore] getPoll failed:', error.message)
+  return toPollView(data, meeting)
+}
+
 // Builds (or rebuilds) the poll's candidate lists from the agenda if it's
 // been generated, otherwise straight from the meeting's confirmed roles.
-export function buildPollFromAgenda() {
-  const meeting = getMeeting(MEETING_ID)
-  const agenda = getAgenda()
+// Rebuilding always resets isOpen/releasedAt/closedAt to a fresh draft —
+// same behavior the original store had, not a new change.
+export async function buildPollFromAgenda() {
+  const meeting = await targetMeeting()
+  if (!meeting) return null
+  const agenda = await getAgenda(meeting.id)
 
   const categories = CATEGORY_TEMPLATE.map((cat) => {
     const candidates = cat.roleIds
@@ -126,118 +131,171 @@ export function buildPollFromAgenda() {
     return { id: cat.id, title: cat.title, description: cat.description, candidates }
   })
 
-  const existing = readState()
-  const state = {
-    id: POLL_ID,
-    meetingLabel: meeting.dateLabel,
-    isOpen: false,
-    releasedAt: null,
-    closedAt: null,
-    categories,
+  const { data: existing } = await supabase
+    .from('polls')
+    .select('id')
+    .eq('meeting_id', meeting.id)
+    .maybeSingle()
+
+  const { error } = await supabase.from('polls').upsert(
+    {
+      meeting_id: meeting.id,
+      categories,
+      is_open: false,
+      released_at: null,
+      closed_at: null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'meeting_id' },
+  )
+  if (error) {
+    console.error('[mockPollStore] buildPollFromAgenda failed:', error.message)
+    return null
   }
-  writeState(state)
   logAction(
     existing
       ? `SAA rebuilt the poll from ${agenda ? 'the agenda' : 'confirmed roles'}`
       : `SAA built the poll from ${agenda ? 'the agenda' : 'confirmed roles'} for ${meeting.dateLabel}`,
   )
-  return state
+  return getPoll()
 }
 
-export function getPoll() {
-  return readState()
-}
-
-export function addCandidate(categoryId, name) {
-  const state = readState()
-  if (!state || !name.trim()) return state
+export async function addCandidate(categoryId, name) {
   const trimmed = name.trim()
-  const next = {
-    ...state,
-    categories: state.categories.map((cat) =>
-      cat.id === categoryId && !cat.candidates.includes(trimmed)
-        ? { ...cat, candidates: [...cat.candidates, trimmed] }
-        : cat,
-    ),
+  if (!trimmed) return getPoll()
+  const meeting = await targetMeeting()
+  if (!meeting) return null
+  const { data: row } = await supabase
+    .from('polls')
+    .select('*')
+    .eq('meeting_id', meeting.id)
+    .maybeSingle()
+  if (!row) return null
+  const categories = row.categories.map((cat) =>
+    cat.id === categoryId && !cat.candidates.includes(trimmed)
+      ? { ...cat, candidates: [...cat.candidates, trimmed] }
+      : cat,
+  )
+  const { error } = await supabase.from('polls').update({ categories }).eq('id', row.id)
+  if (error) {
+    console.error('[mockPollStore] addCandidate failed:', error.message)
+    return getPoll()
   }
-  writeState(next)
-  const cat = state.categories.find((c) => c.id === categoryId)
+  const cat = row.categories.find((c) => c.id === categoryId)
   logAction(`SAA added ${trimmed} to ${cat?.title ?? categoryId}`)
-  return next
+  return getPoll()
 }
 
-export function removeCandidate(categoryId, name) {
-  const state = readState()
-  if (!state) return state
-  const next = {
-    ...state,
-    categories: state.categories.map((cat) =>
-      cat.id === categoryId
-        ? { ...cat, candidates: cat.candidates.filter((c) => c !== name) }
-        : cat,
-    ),
+export async function removeCandidate(categoryId, name) {
+  const meeting = await targetMeeting()
+  if (!meeting) return null
+  const { data: row } = await supabase
+    .from('polls')
+    .select('*')
+    .eq('meeting_id', meeting.id)
+    .maybeSingle()
+  if (!row) return null
+  const categories = row.categories.map((cat) =>
+    cat.id === categoryId
+      ? { ...cat, candidates: cat.candidates.filter((c) => c !== name) }
+      : cat,
+  )
+  const { error } = await supabase.from('polls').update({ categories }).eq('id', row.id)
+  if (error) {
+    console.error('[mockPollStore] removeCandidate failed:', error.message)
+    return getPoll()
   }
-  writeState(next)
-  const cat = state.categories.find((c) => c.id === categoryId)
+  const cat = row.categories.find((c) => c.id === categoryId)
   logAction(`SAA removed ${name} from ${cat?.title ?? categoryId}`)
-  return next
+  return getPoll()
 }
 
-export function releasePoll() {
-  const state = readState()
-  if (!state) return state
-  const next = { ...state, isOpen: true, releasedAt: new Date().toISOString() }
-  writeState(next)
-  logAction(`Poll released to members for ${state.meetingLabel}`)
+export async function releasePoll() {
+  const poll = await getPoll()
+  if (!poll) return null
+  const { error } = await supabase
+    .from('polls')
+    .update({ is_open: true, released_at: new Date().toISOString() })
+    .eq('id', poll.id)
+  if (error) {
+    console.error('[mockPollStore] releasePoll failed:', error.message)
+    return poll
+  }
+  logAction(`Poll released to members for ${poll.meetingLabel}`)
   pushNotification({
     type: 'poll_released',
     message: 'Voting poll is now open — cast your vote before the meeting ends.',
     link: '/poll',
   })
-  return next
+  return getPoll()
 }
 
-export function closePoll() {
-  const state = readState()
-  if (!state) return state
-  const next = { ...state, isOpen: false, closedAt: new Date().toISOString() }
-  writeState(next)
-  logAction(`Poll closed for ${state.meetingLabel}`)
-  return next
-}
-
-export function getVoteCounts() {
-  const votes = readVotes()[POLL_ID] ?? {}
-  return votes
-}
-
-export function hasVoted() {
-  return localStorage.getItem(VOTED_PREFIX + POLL_ID) === 'true'
-}
-
-export function submitVote(answers) {
-  const state = readState()
-  if (!state) return
-  const allVotes = readVotes()
-  const pollVotes = { ...(allVotes[POLL_ID] ?? {}) }
-  for (const [categoryId, candidate] of Object.entries(answers)) {
-    if (!candidate) continue
-    const tally = { ...(pollVotes[categoryId] ?? {}) }
-    tally[candidate] = (tally[candidate] ?? 0) + 1
-    pollVotes[categoryId] = tally
+export async function closePoll() {
+  const poll = await getPoll()
+  if (!poll) return null
+  const { error } = await supabase
+    .from('polls')
+    .update({ is_open: false, closed_at: new Date().toISOString() })
+    .eq('id', poll.id)
+  if (error) {
+    console.error('[mockPollStore] closePoll failed:', error.message)
+    return poll
   }
-  allVotes[POLL_ID] = pollVotes
-  writeVotes(allVotes)
-  localStorage.setItem(VOTED_PREFIX + POLL_ID, 'true')
+  logAction(`Poll closed for ${poll.meetingLabel}`)
+  return getPoll()
+}
+
+export async function getVoteCounts(pollId) {
+  if (!pollId) return {}
+  const { data, error } = await supabase
+    .from('poll_votes')
+    .select('answers')
+    .eq('poll_id', pollId)
+  if (error) {
+    console.error('[mockPollStore] getVoteCounts failed:', error.message)
+    return {}
+  }
+  const counts = {}
+  for (const row of data ?? []) {
+    for (const [categoryId, candidate] of Object.entries(row.answers ?? {})) {
+      if (!candidate) continue
+      const tally = (counts[categoryId] ??= {})
+      tally[candidate] = (tally[candidate] ?? 0) + 1
+    }
+  }
+  return counts
+}
+
+export async function hasVoted(pollId) {
+  if (!pollId) return false
+  const account = getAccount()
+  if (!account?.email) return false
+  const { data, error } = await supabase
+    .from('poll_votes')
+    .select('id')
+    .eq('poll_id', pollId)
+    .eq('voter_email', account.email)
+    .maybeSingle()
+  if (error) console.error('[mockPollStore] hasVoted failed:', error.message)
+  return !!data
+}
+
+export async function submitVote(pollId, answers) {
+  const account = getAccount()
+  const { error } = await supabase.from('poll_votes').insert({
+    poll_id: pollId,
+    voter_email: account?.email ?? null,
+    answers,
+  })
+  if (error) console.error('[mockPollStore] submitVote failed:', error.message)
 }
 
 // For each category, the candidate(s) with the most votes — used for the
 // results summary shown after the poll closes.
-export function getResultsSummary() {
-  const state = readState()
-  if (!state) return []
-  const counts = getVoteCounts()
-  return state.categories.map((cat) => {
+export async function getResultsSummary(poll) {
+  if (!poll) return []
+  const counts = await getVoteCounts(poll.id)
+  return poll.categories.map((cat) => {
     const tally = counts[cat.id] ?? {}
     const entries = Object.entries(tally)
     if (entries.length === 0) {

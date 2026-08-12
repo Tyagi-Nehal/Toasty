@@ -59,6 +59,7 @@ export default function PhotoMemoriesPage() {
               <option value="all">All meetings</option>
               {photoMemories.map((m) => (
                 <option key={m.meetingId} value={m.meetingId}>
+                  {m.label ? `${m.label} — ` : ''}
                   {m.dateLabel}
                 </option>
               ))}
@@ -85,7 +86,10 @@ export default function PhotoMemoriesPage() {
                 </div>
 
                 <div className="p-5">
-                  <p className="font-semibold text-ink">{meeting.dateLabel}</p>
+                  <p className="font-semibold text-ink">
+                    {meeting.label ? `${meeting.label} — ` : ''}
+                    {meeting.dateLabel}
+                  </p>
                   <p className="text-sm text-ink/60">Theme: {meeting.theme}</p>
 
                   <button

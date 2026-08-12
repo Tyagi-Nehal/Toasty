@@ -123,6 +123,15 @@ export default function MOMPage() {
 
   const activeMeeting = meetings.find((m) => m.id === activeMeetingId)
 
+  // Only past meetings plus the single next upcoming one are shown —
+  // nothing further out, since there's nothing to record for a meeting
+  // that's still weeks away. As each meeting happens it drops into the
+  // "past" half of this filter and the new next meeting appears.
+  const nextActive = findNextActiveMeeting(meetings)
+  const visibleMeetings = meetings.filter(
+    (m) => (m.hoursUntilMeeting ?? -1) < 0 || m.id === nextActive?.id,
+  )
+
   function setField(key, value) {
     setMom((prev) => ({ ...prev, [key]: value }))
   }
@@ -193,7 +202,7 @@ export default function MOMPage() {
 
         {/* Meeting tabs */}
         <div className="mt-4 flex gap-2 overflow-x-auto">
-          {meetings.map((m) => {
+          {visibleMeetings.map((m) => {
             const active = m.id === activeMeetingId
             return (
               <button

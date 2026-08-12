@@ -9,11 +9,9 @@ import {
   CalendarDays,
   Images,
   ClipboardCheck,
-  FileText,
   BookOpen,
   Inbox,
   LayoutGrid,
-  Vote,
   UserCheck2,
 } from 'lucide-react'
 import Logo from './Logo.jsx'
@@ -39,14 +37,15 @@ const baseNavLinks = [
   { to: '/roles', label: 'Roles', icon: ClipboardList },
   { to: '/agenda', label: 'Agenda', icon: CalendarDays },
   { to: '/minutes', label: 'Minutes', icon: BookOpen },
+  { to: '/attendance-log', label: 'Attendance', icon: ClipboardCheck },
   { to: '/photos', label: 'Photos', icon: Images },
 ]
 
+// Secretary's Attendance/MOM submit forms and SAA's Poll Editor are
+// reachable via the ExCom tab's quick actions (see ExComDashboard.jsx) —
+// not duplicated here as their own top-level tabs.
 const excomNavLinks = [
-  { to: '/poll-editor', label: 'Poll Editor', icon: Vote, role: 'SAA' },
   { to: '/approvals', label: 'Approvals', icon: UserCheck2, role: 'VPM' },
-  { to: '/attendance', label: 'Attendance', icon: ClipboardCheck, role: 'Secretary' },
-  { to: '/mom', label: 'MOM', icon: FileText, role: 'Secretary' },
   { to: '/feedback-inbox', label: 'Feedback Inbox', icon: Inbox, role: 'President' },
 ]
 
