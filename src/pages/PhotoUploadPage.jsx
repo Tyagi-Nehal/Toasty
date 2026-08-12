@@ -443,7 +443,7 @@ function MeetingPhotosTab({ log, refreshLog }) {
   }
 
   async function handleThemeBlur() {
-    if (!activeMeeting || theme === (uploaded?.theme ?? '')) return
+    if (!activeMeeting) return
     setSavingTheme(true)
     try {
       setUploaded(await saveMeetingTheme(activeMeeting, theme))
@@ -598,7 +598,7 @@ function MeetingPhotosTab({ log, refreshLog }) {
               <button
                 type="button"
                 onClick={handleThemeBlur}
-                disabled={savingTheme || theme === (uploaded?.theme ?? '')}
+                disabled={savingTheme}
                 className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-cream shadow-sm shadow-primary/20 transition enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Save
