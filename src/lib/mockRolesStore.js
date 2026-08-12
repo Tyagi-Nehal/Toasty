@@ -350,3 +350,23 @@ export function canFinalizeMeeting(meetings, meetingId) {
   const prev = meetings[idx - 1]
   return (prev.hoursUntilMeeting ?? -1) < 0
 }
+
+// Derived fill/phase summary for a meeting — used by the Role Management
+// page's status card, each meeting tab's chip, and the finalize-confirm
+// gate. Pure — everything it needs is already on the meeting object
+// returned by getMeetings(), no extra fetch.
+export function getRoleFillSummary(meeting) {
+  const entries = Object.values(meeting.roles)
+  const filled = entries.filter((r) => r.status !== 'open').length
+  const open = entries.length - filled
+  const phase = meeting.finalized
+    ? open > 0
+      ? 'finalized-incomplete'
+      : 'finalized'
+    : open === 0
+      ? 'ready-to-finalize'
+      : meeting.pastCutoff
+        ? 'past-cutoff'
+        : 'self-select'
+  return { total: entries.length, filled, open, phase }
+}
