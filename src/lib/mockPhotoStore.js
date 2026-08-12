@@ -184,6 +184,7 @@ function normalizeCert(c) {
 function fromMeetingPhotosRow(row, meeting) {
   return {
     meetingId: meeting.id,
+    date: meeting.date,
     label: meeting.label,
     dateLabel: meeting.dateLabel,
     fullDateLabel: formatFullDate(meeting.date),
@@ -329,7 +330,9 @@ export async function addMeetingCertificate(meeting, { category, winnerName, cer
 }
 
 // For the member-facing Photo Memories page — every meeting that has at
-// least a poster, a photo, or a certificate uploaded, newest upload first.
+// least a poster, a photo, or a certificate uploaded, latest meeting
+// date first (not upload/edit time — a meeting edited more recently
+// shouldn't jump ahead of a chronologically later one).
 export async function getAllMeetingPhotos(meetings) {
   const { data, error } = await supabase.from('meeting_photos').select('*')
   if (error) console.error('[mockPhotoStore] getAllMeetingPhotos failed:', error.message)
@@ -340,5 +343,5 @@ export async function getAllMeetingPhotos(meetings) {
       return meeting ? fromMeetingPhotosRow(row, meeting) : null
     })
     .filter((m) => m && (m.posters.length > 0 || m.photos.length > 0 || m.certificates.length > 0))
-    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+    .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
 }
