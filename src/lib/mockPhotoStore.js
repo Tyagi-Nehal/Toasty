@@ -8,6 +8,7 @@
 
 import { supabase } from './supabaseClient.js'
 import { uploadClubPhoto, deleteClubPhoto } from './storage.js'
+import { formatFullDate } from './mockRolesStore.js'
 
 const LOG_KEY = 'toasty_photo_upload_log'
 const MAX_LOG_ENTRIES = 25
@@ -185,6 +186,7 @@ function fromMeetingPhotosRow(row, meeting) {
     meetingId: meeting.id,
     label: meeting.label,
     dateLabel: meeting.dateLabel,
+    fullDateLabel: formatFullDate(meeting.date),
     theme: row?.theme ?? meeting.theme ?? '',
     photos: (row?.photos ?? []).map((p) => ({ id: p.id, src: p.url })),
     certificates: (row?.certificates ?? []).map(normalizeCert),

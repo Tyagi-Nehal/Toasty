@@ -18,7 +18,7 @@ export default function PhotoGalleryModal({ meeting, onClose }) {
           <div>
             <h2 className="text-lg font-bold text-ink sm:text-xl">
               {meeting.label ? `${meeting.label} — ` : ''}
-              {meeting.dateLabel}
+              {meeting.fullDateLabel}
             </h2>
             <p className="text-sm text-ink/60">Theme: {meeting.theme}</p>
           </div>

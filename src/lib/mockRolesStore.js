@@ -59,6 +59,18 @@ function formatDateLabel(meetingDate) {
   })
 }
 
+// No weekday, full month name, full year — used where the meeting number
+// already gives context (e.g. "Meeting 1 — 4 March 2026" in Photo
+// Memories) so the weekday would just be redundant clutter.
+export function formatFullDate(meetingDate) {
+  if (!meetingDate) return ''
+  return new Date(`${meetingDate}T00:00:00`).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
 // Members self-select freely up to the Saturday before the meeting,
 // 9:00 AM; whatever's still open after that is fair game for
 // auto-assign. Computed as the most recent Saturday strictly before the
