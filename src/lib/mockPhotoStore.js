@@ -294,6 +294,16 @@ export async function removeMeetingGroupPhoto(meeting, photoId, url) {
   return next
 }
 
+// photos is the display-shape array ({id, src}) already reordered by the
+// caller — just persists that order as-is (mapped back to {id, url}).
+export async function reorderMeetingGroupPhotos(meeting, photos) {
+  const next = await upsertMeetingPhotosRow(meeting, {
+    photos: photos.map((p) => ({ id: p.id, url: p.src })),
+  })
+  logAction(`VPPR reordered photos for ${meeting.dateLabel}`)
+  return next
+}
+
 // One entry per award category — saving an award that already has an
 // entry (the VPPR editing it) swaps that entry out rather than creating a
 // duplicate. Editing without choosing a new photo keeps the existing

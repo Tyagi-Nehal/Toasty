@@ -36,6 +36,7 @@ import {
   removeContentBlock,
   removeMeetingGroupPhoto,
   removeMeetingPoster,
+  reorderMeetingGroupPhotos,
   saveMeetingTheme,
   updateContentBlock,
   upsertExcomProfile,
@@ -371,6 +372,7 @@ function MeetingPhotosTab({ log, refreshLog }) {
   const [lightboxUrl, setLightboxUrl] = useState(null)
   const [addingMeeting, setAddingMeeting] = useState(false)
   const [addingPoster, setAddingPoster] = useState(false)
+  const [draggedPhotoId, setDraggedPhotoId] = useState(null)
 
   function refreshMeetings() {
     return getMeetings().then((fetched) => {
@@ -474,6 +476,30 @@ function MeetingPhotosTab({ log, refreshLog }) {
       refreshLog()
     } catch (err) {
       window.alert(err.message)
+    }
+  }
+
+  // Optimistically reorders locally first (instant feedback while
+  // dragging), then persists — same list either drives the display or
+  // gets overwritten by the real saved order on success/failure.
+  async function handlePhotoDrop(targetPhoto) {
+    const draggedId = draggedPhotoId
+    setDraggedPhotoId(null)
+    if (!draggedId || draggedId === targetPhoto.id || !uploaded) return
+    const photos = uploaded.photos
+    const fromIndex = photos.findIndex((p) => p.id === draggedId)
+    const toIndex = photos.findIndex((p) => p.id === targetPhoto.id)
+    if (fromIndex === -1 || toIndex === -1) return
+    const reordered = [...photos]
+    const [moved] = reordered.splice(fromIndex, 1)
+    reordered.splice(toIndex, 0, moved)
+    setUploaded((prev) => ({ ...prev, photos: reordered }))
+    try {
+      setUploaded(await reorderMeetingGroupPhotos(activeMeeting, reordered))
+      refreshLog()
+    } catch (err) {
+      window.alert(err.message)
+      setUploaded((prev) => ({ ...prev, photos }))
     }
   }
 
@@ -679,7 +705,17 @@ function MeetingPhotosTab({ log, refreshLog }) {
             {uploaded?.photos.length > 0 && (
               <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4">
                 {uploaded.photos.map((photo) => (
-                  <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-xl">
+                  <div
+                    key={photo.id}
+                    draggable
+                    onDragStart={() => setDraggedPhotoId(photo.id)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => handlePhotoDrop(photo)}
+                    onDragEnd={() => setDraggedPhotoId(null)}
+                    className={`group relative aspect-square cursor-move overflow-hidden rounded-xl transition ${
+                      draggedPhotoId === photo.id ? 'opacity-40' : ''
+                    }`}
+                  >
                     <img
                       src={photo.src}
                       alt=""
