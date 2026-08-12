@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import {
   AlertTriangle,
   Bell,
+  CalendarClock,
+  CalendarX2,
   CheckCircle2,
   LockOpen,
   PencilLine,
@@ -11,15 +13,22 @@ import {
 import MemberLayout from '../components/MemberLayout.jsx'
 import RoleOverrideModal from '../components/RoleOverrideModal.jsx'
 import FinalizeConfirmModal from '../components/FinalizeConfirmModal.jsx'
+import CancelMeetingModal from '../components/CancelMeetingModal.jsx'
+import RescheduleMeetingModal from '../components/RescheduleMeetingModal.jsx'
+import CancelledMeetingNotice from '../components/CancelledMeetingNotice.jsx'
 import { roleCatalog } from '../data/roleCatalog.js'
 import {
   autoAssignMeeting,
+  cancelMeeting,
   canFinalizeMeeting,
   finalizeMeeting,
+  findNextActiveMeeting,
   getMeetings,
   getNotifications,
   getRoleFillSummary,
   overrideRole,
+  rescheduleMeeting,
+  uncancelMeeting,
   unfinalizeMeeting,
 } from '../lib/mockRolesStore.js'
 import { scoringWeights } from '../lib/mockRosterStore.js'
@@ -33,7 +42,8 @@ const statusLabels = {
 // One tab-chip label/color per getRoleFillSummary phase — colors reuse
 // tokens already meaningful elsewhere on this page (e.g. accent/15 +
 // text-primary is the same pair as the role board's "Open" badge).
-function tabChip({ phase, open }) {
+function tabChip({ phase, open }, cancelled) {
+  if (cancelled) return { text: 'Cancelled', className: 'bg-ink/10 text-ink/50' }
   switch (phase) {
     case 'finalized':
       return { text: 'Finalized', className: 'bg-primary/10 text-primary' }
@@ -64,17 +74,19 @@ export default function RoleManagementPage() {
   const [overrideTarget, setOverrideTarget] = useState(null)
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false)
   const [showAllNotifications, setShowAllNotifications] = useState(false)
+  const [showCancelMeeting, setShowCancelMeeting] = useState(false)
+  const [showReschedule, setShowReschedule] = useState(false)
 
   const activeMeeting = meetings.find((m) => m.id === activeMeetingId)
 
   function refresh() {
     getMeetings().then((fetched) => {
       setMeetings(fetched)
-      // Default to the first chronologically-upcoming meeting, not the
-      // first not-yet-finalized one — finalized status can lag behind
-      // real dates (e.g. a meeting finalized early), which would pick
-      // a much-later meeting instead of the real next one.
-      const upcoming = fetched.find((m) => (m.hoursUntilMeeting ?? -1) >= 0)
+      // Default to the next active (not cancelled, not yet happened)
+      // meeting — not the first not-yet-finalized one, which can lag
+      // behind real dates, and not a cancelled meeting even if it's
+      // technically the chronologically-next row.
+      const upcoming = findNextActiveMeeting(fetched)
       setActiveMeetingId(
         (prev) => prev ?? upcoming?.id ?? fetched[fetched.length - 1]?.id ?? null,
       )
@@ -117,9 +129,42 @@ export default function RoleManagementPage() {
   }
 
   async function handleOverrideConfirm({ takenBy }) {
-    await overrideRole(activeMeetingId, overrideTarget.id, { takenBy })
-    setOverrideTarget(null)
-    refresh()
+    try {
+      await overrideRole(activeMeetingId, overrideTarget.id, { takenBy })
+      setOverrideTarget(null)
+      refresh()
+    } catch (err) {
+      window.alert(err.message)
+    }
+  }
+
+  async function handleCancelConfirm(reason) {
+    try {
+      await cancelMeeting(activeMeetingId, reason)
+      setShowCancelMeeting(false)
+      refresh()
+    } catch (err) {
+      window.alert(err.message)
+    }
+  }
+
+  async function handleUncancel() {
+    try {
+      await uncancelMeeting(activeMeetingId)
+      refresh()
+    } catch (err) {
+      window.alert(err.message)
+    }
+  }
+
+  async function handleRescheduleConfirm(newDate) {
+    try {
+      await rescheduleMeeting(activeMeetingId, newDate)
+      setShowReschedule(false)
+      refresh()
+    } catch (err) {
+      window.alert(err.message)
+    }
   }
 
   if (!activeMeeting) {
@@ -164,7 +209,7 @@ export default function RoleManagementPage() {
         <div className="mt-6 flex gap-2 overflow-x-auto">
           {visibleMeetings.map((m) => {
             const active = m.id === activeMeetingId
-            const chip = tabChip(getRoleFillSummary(m))
+            const chip = tabChip(getRoleFillSummary(m), m.cancelled)
             return (
               <button
                 key={m.id}
@@ -192,6 +237,16 @@ export default function RoleManagementPage() {
           })}
         </div>
 
+        {activeMeeting.cancelled ? (
+          <div className="mt-6">
+            <CancelledMeetingNotice
+              dateLabel={activeMeeting.dateLabel}
+              reason={activeMeeting.cancelReason}
+              onUncancel={handleUncancel}
+            />
+          </div>
+        ) : (
+          <>
         {/* Status card — the one place that should tell the VPE
             everything: how full the board is, what phase it's in, and
             what to do next. */}
@@ -267,6 +322,27 @@ export default function RoleManagementPage() {
                 </button>
               )}
             </div>
+          </div>
+
+          {/* Secondary, rarer actions — available regardless of phase,
+              since a meeting can need cancelling or moving at any point. */}
+          <div className="mt-4 flex items-center gap-4 border-t border-accent/15 pt-4">
+            <button
+              type="button"
+              onClick={() => setShowReschedule(true)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-ink/60 hover:text-ink"
+            >
+              <CalendarClock size={13} />
+              Reschedule
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCancelMeeting(true)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-red-600 hover:text-red-700"
+            >
+              <CalendarX2 size={13} />
+              Cancel Meeting
+            </button>
           </div>
         </div>
 
@@ -409,6 +485,8 @@ export default function RoleManagementPage() {
             )}
           </div>
         </div>
+          </>
+        )}
       </div>
 
       {overrideTarget && (
@@ -426,6 +504,24 @@ export default function RoleManagementPage() {
           meetingLabel={`${activeMeeting.label}, ${activeMeeting.dateLabel}`}
           onClose={() => setShowFinalizeConfirm(false)}
           onConfirm={doFinalize}
+        />
+      )}
+
+      {showCancelMeeting && (
+        <CancelMeetingModal
+          meetingLabel={`${activeMeeting.label}, ${activeMeeting.dateLabel}`}
+          onClose={() => setShowCancelMeeting(false)}
+          onConfirm={handleCancelConfirm}
+        />
+      )}
+
+      {showReschedule && (
+        <RescheduleMeetingModal
+          meetingLabel={`${activeMeeting.label}, ${activeMeeting.dateLabel}`}
+          currentDate={activeMeeting.date}
+          otherDates={meetings.filter((m) => m.id !== activeMeetingId).map((m) => m.date)}
+          onClose={() => setShowReschedule(false)}
+          onConfirm={handleRescheduleConfirm}
         />
       )}
     </MemberLayout>

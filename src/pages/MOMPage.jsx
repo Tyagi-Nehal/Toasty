@@ -13,9 +13,10 @@ import {
   Trash2,
 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
+import CancelledMeetingNotice from '../components/CancelledMeetingNotice.jsx'
 import { blankMOM } from '../data/mockMOM.js'
 import { getSubmittedMOM, saveSubmittedMOM } from '../lib/mockMOMStore.js'
-import { getMeetings } from '../lib/mockRolesStore.js'
+import { findNextActiveMeeting, getMeetings } from '../lib/mockRolesStore.js'
 
 const inputClass =
   'w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60'
@@ -82,7 +83,7 @@ export default function MOMPage() {
   useEffect(() => {
     getMeetings().then((fetched) => {
       setMeetings(fetched)
-      const upcoming = fetched.find((m) => (m.hoursUntilMeeting ?? -1) >= 0)
+      const upcoming = findNextActiveMeeting(fetched)
       setActiveMeetingId((prev) => prev ?? upcoming?.id ?? fetched[fetched.length - 1]?.id ?? null)
     })
   }, [])
@@ -90,33 +91,34 @@ export default function MOMPage() {
   useEffect(() => {
     if (!activeMeetingId) return
     const meeting = meetings.find((m) => m.id === activeMeetingId)
-    const existing = getSubmittedMOM(activeMeetingId)
-    if (existing) {
-      setMom(existing)
-      setSubmitted(true)
-      return
-    }
-    // Prefill singular-role names from the meeting's real assignments —
-    // still fully editable either way.
-    const blank = blankMOM()
-    if (meeting) {
-      for (const [key, roleId] of [
-        ['saa', 'saa'],
-        ['presidingOfficer', 'po'],
-        ['tmod', 'tmod'],
-        ['ge', 'ge'],
-        ['ttMaster', 'ttm'],
-        ['timer', 'timer'],
-        ['ahCounter', 'ah-counter'],
-        ['grammarian', 'grammarian'],
-        ['listener', 'listener'],
-      ]) {
-        const takenBy = meeting.roles[roleId]?.takenBy
-        if (takenBy) blank[key] = { ...blank[key], name: takenBy }
+    getSubmittedMOM(activeMeetingId).then((existing) => {
+      if (existing) {
+        setMom(existing)
+        setSubmitted(true)
+        return
       }
-    }
-    setMom(blank)
-    setSubmitted(false)
+      // Prefill singular-role names from the meeting's real assignments —
+      // still fully editable either way.
+      const blank = blankMOM()
+      if (meeting) {
+        for (const [key, roleId] of [
+          ['saa', 'saa'],
+          ['presidingOfficer', 'po'],
+          ['tmod', 'tmod'],
+          ['ge', 'ge'],
+          ['ttMaster', 'ttm'],
+          ['timer', 'timer'],
+          ['ahCounter', 'ah-counter'],
+          ['grammarian', 'grammarian'],
+          ['listener', 'listener'],
+        ]) {
+          const takenBy = meeting.roles[roleId]?.takenBy
+          if (takenBy) blank[key] = { ...blank[key], name: takenBy }
+        }
+      }
+      setMom(blank)
+      setSubmitted(false)
+    })
   }, [activeMeetingId, meetings])
 
   const activeMeeting = meetings.find((m) => m.id === activeMeetingId)
@@ -149,8 +151,8 @@ export default function MOMPage() {
     }))
   }
 
-  function handleSubmit() {
-    saveSubmittedMOM(activeMeetingId, mom, {
+  async function handleSubmit() {
+    await saveSubmittedMOM(activeMeetingId, mom, {
       dateLabel: activeMeeting.dateLabel,
       theme: activeMeeting.theme ?? '',
     })
@@ -207,12 +209,22 @@ export default function MOMPage() {
                 <p className="text-sm font-semibold">{m.label}</p>
                 <p className={`text-xs ${active ? 'text-cream/80' : 'text-ink/50'}`}>
                   {m.dateLabel}
+                  {m.cancelled ? ' · Cancelled' : ''}
                 </p>
               </button>
             )
           })}
         </div>
 
+        {activeMeeting.cancelled ? (
+          <div className="mt-6">
+            <CancelledMeetingNotice
+              dateLabel={activeMeeting.dateLabel}
+              reason={activeMeeting.cancelReason}
+            />
+          </div>
+        ) : (
+        <>
         {/* Meeting details */}
         <Section icon={MapPin} title="Meeting Details">
           <div>
@@ -549,6 +561,8 @@ export default function MOMPage() {
             <Send size={16} />
             Submit MOM
           </button>
+        )}
+        </>
         )}
       </div>
     </MemberLayout>

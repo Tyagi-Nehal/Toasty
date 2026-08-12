@@ -17,6 +17,7 @@ import {
 import MemberLayout from '../components/MemberLayout.jsx'
 import Avatar from '../components/Avatar.jsx'
 import PhotoLightbox from '../components/PhotoLightbox.jsx'
+import CancelledMeetingNotice from '../components/CancelledMeetingNotice.jsx'
 import { getMeetings } from '../lib/mockRolesStore.js'
 import { currentExcom, pastExcom } from '../data/excom.js'
 import { uploadClubPhoto } from '../lib/storage.js'
@@ -475,6 +476,11 @@ function MeetingPhotosTab({ log, refreshLog }) {
 
       {!activeMeeting ? (
         <p className="text-sm text-ink/50">No meeting scheduled for this date.</p>
+      ) : activeMeeting.cancelled ? (
+        <CancelledMeetingNotice
+          dateLabel={activeMeeting.dateLabel}
+          reason={activeMeeting.cancelReason}
+        />
       ) : (
         <>
           {/* Theme */}

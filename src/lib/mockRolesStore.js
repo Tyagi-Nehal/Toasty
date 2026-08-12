@@ -61,12 +61,17 @@ function formatDateLabel(meetingDate) {
 
 // Members self-select freely up to the Saturday before the meeting,
 // 9:00 AM; whatever's still open after that is fair game for
-// auto-assign. Meetings are weekly on Thursday, so there's exactly one
-// Saturday in between — 5 days before the meeting date.
+// auto-assign. Computed as the most recent Saturday strictly before the
+// meeting date — not a fixed "-5 days" offset — so a rescheduled meeting
+// on any day of the week still gets a real preceding-Saturday cutoff
+// instead of landing on some arbitrary weekday.
 function getAutoAssignCutoff(meetingDate) {
   if (!meetingDate) return null
-  const cutoff = new Date(`${meetingDate}T00:00:00`)
-  cutoff.setDate(cutoff.getDate() - 5)
+  const meeting = new Date(`${meetingDate}T00:00:00`)
+  const day = meeting.getDay() // Sun=0 .. Sat=6
+  const daysBack = day === 6 ? 7 : (day + 1) % 7
+  const cutoff = new Date(meeting)
+  cutoff.setDate(cutoff.getDate() - daysBack)
   cutoff.setHours(9, 0, 0, 0)
   return cutoff
 }
@@ -140,6 +145,8 @@ async function fetchRawViews() {
       dateLabel: formatDateLabel(m.meeting_date),
       time: m.time,
       finalized: m.finalized,
+      cancelled: m.cancelled,
+      cancelReason: m.cancel_reason,
       hoursUntilMeeting,
       autoAssignCutoff,
       autoAssignCutoffLabel: formatCutoffLabel(autoAssignCutoff),
@@ -165,6 +172,7 @@ async function runDueAutoAssignments(views) {
   const due = views.filter(
     (v) =>
       !v.finalized &&
+      !v.cancelled &&
       v.pastCutoff &&
       Object.values(v.roles).some((r) => r.status === 'open'),
   )
@@ -236,7 +244,7 @@ export async function acceptAutoAssignedRole(meetingId) {
 // (selectRole, above) ever produces 'taken'.
 export async function overrideRole(meetingId, roleId, { takenBy }) {
   const meeting = await getMeeting(meetingId)
-  await supabase
+  const { error } = await supabase
     .from('meeting_role_assignments')
     .update({
       status: takenBy ? 'auto' : 'open',
@@ -246,6 +254,10 @@ export async function overrideRole(meetingId, roleId, { takenBy }) {
     })
     .eq('meeting_id', meetingId)
     .eq('role_id', roleId)
+  if (error) {
+    console.error('[mockRolesStore] overrideRole failed:', error.message)
+    throw new Error('Could not save this override — check your VPE permissions and try again.')
+  }
   logAction(
     takenBy
       ? `VPE manually assigned ${roleName(roleId)} to ${takenBy} for ${meeting.dateLabel}`
@@ -337,18 +349,23 @@ export async function unfinalizeMeeting(meetingId) {
   logAction(`VPE unlocked roles for ${meeting.dateLabel} for editing`)
 }
 
-// Sequential-finalize rule: to finalize meeting N, the meeting immediately
-// before it by date must already be finished (its date has passed) — not
-// necessarily itself finalized, just finished. The first meeting in the
-// table has no predecessor, so it's always finalizable. Takes the full,
-// unwindowed meetings array — "previous meeting" means the actual
-// chronological previous meeting, which may not be in a page's visible
-// meeting window.
+// The single meeting that's next up: not cancelled, not yet happened.
+// Used to restrict Finalize to only ever this one meeting, and to pick
+// sane defaults for "next meeting" tabs/widgets across the app.
+export function findNextActiveMeeting(meetings) {
+  return meetings.find((m) => !m.cancelled && (m.hoursUntilMeeting ?? -1) >= 0) ?? null
+}
+
+// Only the literal next upcoming meeting can be finalized — not "any
+// meeting whose predecessor has passed," which could let a VPE jump
+// ahead and finalize a meeting weeks out. A meeting that's already
+// happened stays finalizable (or re-finalizable, after Unlock to Edit)
+// regardless, so fixing a past meeting's roles always still works.
 export function canFinalizeMeeting(meetings, meetingId) {
-  const idx = meetings.findIndex((m) => m.id === meetingId)
-  if (idx <= 0) return true
-  const prev = meetings[idx - 1]
-  return (prev.hoursUntilMeeting ?? -1) < 0
+  const meeting = meetings.find((m) => m.id === meetingId)
+  if (!meeting || meeting.cancelled) return false
+  if ((meeting.hoursUntilMeeting ?? -1) < 0) return true
+  return findNextActiveMeeting(meetings)?.id === meetingId
 }
 
 // Derived fill/phase summary for a meeting — used by the Role Management
@@ -369,4 +386,61 @@ export function getRoleFillSummary(meeting) {
         ? 'past-cutoff'
         : 'self-select'
   return { total: entries.length, filled, open, phase }
+}
+
+// Cancelling doesn't touch the meeting's agenda/MOM/attendance/roles/
+// photos rows at all — every consuming page checks the `cancelled` flag
+// and shows a cancelled notice instead of its normal content, so the
+// underlying data stays intact and un-cancelling brings it right back.
+export async function cancelMeeting(meetingId, reason) {
+  const meeting = await getMeeting(meetingId)
+  const { error } = await supabase
+    .from('meetings')
+    .update({ cancelled: true, cancel_reason: reason || null })
+    .eq('id', meetingId)
+  if (error) {
+    console.error('[mockRolesStore] cancelMeeting failed:', error.message)
+    throw new Error('Could not cancel this meeting.')
+  }
+  logAction(`VPE cancelled ${meeting.dateLabel}${reason ? ` — ${reason}` : ''}`)
+  pushNotification({
+    type: 'meeting_cancelled',
+    message: `${meeting.dateLabel} has been cancelled${reason ? `: ${reason}` : '.'}`,
+    link: '/roles',
+  })
+}
+
+export async function uncancelMeeting(meetingId) {
+  const meeting = await getMeeting(meetingId)
+  const { error } = await supabase
+    .from('meetings')
+    .update({ cancelled: false, cancel_reason: null })
+    .eq('id', meetingId)
+  if (error) {
+    console.error('[mockRolesStore] uncancelMeeting failed:', error.message)
+    throw new Error('Could not un-cancel this meeting.')
+  }
+  logAction(`VPE un-cancelled ${meeting.dateLabel}`)
+}
+
+// Every other meeting-scoped table (agendas, attendance,
+// meeting_role_assignments, meeting_photos, moms) is keyed by meeting_id,
+// not by date — so changing meeting_date here is all that's needed for
+// everything tied to this meeting to follow it to the new day.
+export async function rescheduleMeeting(meetingId, newDate) {
+  const meeting = await getMeeting(meetingId)
+  const { error } = await supabase
+    .from('meetings')
+    .update({ meeting_date: newDate })
+    .eq('id', meetingId)
+  if (error) {
+    console.error('[mockRolesStore] rescheduleMeeting failed:', error.message)
+    throw new Error('Could not reschedule this meeting.')
+  }
+  logAction(`VPE rescheduled ${meeting.dateLabel} to a new date`)
+  pushNotification({
+    type: 'meeting_rescheduled',
+    message: `A meeting has moved — check the new date for ${meeting.label}.`,
+    link: '/roles',
+  })
 }

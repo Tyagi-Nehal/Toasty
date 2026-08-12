@@ -51,10 +51,10 @@ export default function MinutesPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    getMeetings().then((meetings) => {
-      const submittedByMeetingId = getAllSubmittedMOMs()
+    getMeetings().then(async (meetings) => {
+      const submittedByMeetingId = await getAllSubmittedMOMs()
       const withMom = meetings
-        .filter((m) => submittedByMeetingId[m.id])
+        .filter((m) => !m.cancelled && submittedByMeetingId[m.id])
         .map((m) => ({ meeting: m, mom: submittedByMeetingId[m.id] }))
         .sort((a, b) => (a.meeting.dateLabel < b.meeting.dateLabel ? 1 : -1))
       setPublished(withMom)

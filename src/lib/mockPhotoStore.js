@@ -294,7 +294,7 @@ export async function getAllMeetingPhotos(meetings) {
   const rows = data ?? []
   return rows
     .map((row) => {
-      const meeting = meetings.find((m) => m.id === row.meeting_id)
+      const meeting = meetings.find((m) => m.id === row.meeting_id && !m.cancelled)
       return meeting ? fromMeetingPhotosRow(row, meeting) : null
     })
     .filter((m) => m && (m.photos.length > 0 || m.certificates.length > 0))

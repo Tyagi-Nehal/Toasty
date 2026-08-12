@@ -2,8 +2,14 @@ import { useEffect, useState } from 'react'
 import { CheckCircle2, X, Lock, CircleDot } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import DeclineRoleModal from '../components/DeclineRoleModal.jsx'
+import CancelledMeetingNotice from '../components/CancelledMeetingNotice.jsx'
 import { roleCatalog } from '../data/roleCatalog.js'
-import { getMeetings, selectRole, declineMyRole } from '../lib/mockRolesStore.js'
+import {
+  declineMyRole,
+  findNextActiveMeeting,
+  getMeetings,
+  selectRole,
+} from '../lib/mockRolesStore.js'
 import { getMyMembershipStatus } from '../lib/mockMembershipStore.js'
 
 function StatusBadge({ role, isMine }) {
@@ -46,11 +52,11 @@ export default function RoleSelectionPage() {
   function refresh() {
     getMeetings().then((fetched) => {
       setMeetings(fetched)
-      // Default to the first chronologically-upcoming meeting, not the
-      // first not-yet-finalized one — finalized status can lag behind
-      // real dates (e.g. a meeting finalized early), which would pick
-      // a much-later meeting instead of the real next one.
-      const upcoming = fetched.find((m) => (m.hoursUntilMeeting ?? -1) >= 0)
+      // Default to the next active (not cancelled, not yet happened)
+      // meeting — not the first not-yet-finalized one, which can lag
+      // behind real dates, and not a cancelled meeting even if it's
+      // technically the chronologically-next row.
+      const upcoming = findNextActiveMeeting(fetched)
       setActiveMeetingId(
         (prev) => prev ?? upcoming?.id ?? fetched[fetched.length - 1]?.id ?? null,
       )
@@ -132,19 +138,31 @@ export default function RoleSelectionPage() {
                 <p className="text-sm font-semibold">{m.label}</p>
                 <p className={`text-xs ${active ? 'text-cream/80' : 'text-ink/50'}`}>
                   {m.dateLabel}
+                  {m.cancelled ? ' · Cancelled' : ''}
                 </p>
               </button>
             )
           })}
         </div>
 
-        {membership && !membership.isActive && (
+        {activeMeeting.cancelled && (
+          <div className="mt-6">
+            <CancelledMeetingNotice
+              dateLabel={activeMeeting.dateLabel}
+              reason={activeMeeting.cancelReason}
+            />
+          </div>
+        )}
+
+        {!activeMeeting.cancelled && membership && !membership.isActive && (
           <div className="mt-6 rounded-2xl bg-cream p-4 text-sm text-ink/60">
             Your membership is inactive — contact the Treasurer to renew. You can
             still view roles, but selecting or declining is turned off until then.
           </div>
         )}
 
+        {!activeMeeting.cancelled && (
+        <>
         {/* My role card */}
         {myRole && (
           <div className="mt-6 rounded-3xl border border-primary/30 bg-white p-5">
@@ -222,6 +240,8 @@ export default function RoleSelectionPage() {
             )
           })}
         </div>
+        </>
+        )}
       </div>
 
       {isDeclineOpen && myRole && (

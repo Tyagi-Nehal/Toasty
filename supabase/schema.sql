@@ -692,4 +692,57 @@ create policy "attendance secretary or president write" on attendance
 grant select, insert, update on attendance to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
 
+-- Cancel/reschedule support. cancel_reason is optional context shown to
+-- members alongside the cancelled notice; meeting_date itself doubles as
+-- the reschedule target (no separate column needed — every other
+-- meeting-scoped table is keyed by meeting_id, not date, so changing
+-- this column moves everything tied to the meeting for free).
+alter table meetings add column if not exists cancelled boolean not null default false;
+alter table meetings add column if not exists cancel_reason text;
+
+-- Real MOM (Minutes of Meeting) submissions — replaces mockMOMStore.js's
+-- localStorage-only prototype (per-browser, invisible cross-device, and
+-- unable to participate in the cancelled-meeting notice pattern the way
+-- agendas/attendance/roles/photos already can). content stores the whole
+-- MOM form object as-is, same jsonb-blob approach already used by
+-- agendas.items.
+create table if not exists moms (
+  id bigint generated always as identity primary key,
+  meeting_id bigint not null unique references meetings(id) on delete cascade,
+  content jsonb not null default '{}'::jsonb,
+  submitted_at timestamptz,
+  submitted_by_email text
+);
+
+alter table moms enable row level security;
+
+drop policy if exists "moms authenticated select" on moms;
+create policy "moms authenticated select" on moms
+  for select to authenticated using (true);
+
+drop policy if exists "moms secretary or president write" on moms;
+create policy "moms secretary or president write" on moms
+  for all to authenticated
+  using (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'Secretary'
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  )
+  with check (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'Secretary'
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
+grant select, insert, update on moms to authenticated;
 grant usage, select on all sequences in schema public to authenticated;

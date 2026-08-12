@@ -19,7 +19,7 @@ export async function getRecentMeetingsForAttendance(limit = 5) {
   const meetings = await getMeetings()
   const today = new Date().toISOString().slice(0, 10)
   return meetings
-    .filter((m) => m.date && m.date <= today)
+    .filter((m) => m.date && m.date <= today && !m.cancelled)
     .slice(-limit)
     .reverse()
 }

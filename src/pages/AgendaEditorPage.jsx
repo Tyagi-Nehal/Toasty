@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Clock, History, Lock, Megaphone, Plus, Send, Sparkles, Trash2 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
+import CancelledMeetingNotice from '../components/CancelledMeetingNotice.jsx'
 import {
   addAgendaRow,
   generateAgenda,
@@ -12,7 +13,7 @@ import {
   sendAgendaToMembers,
   syncAgendaWithRoleBoard,
 } from '../lib/mockAgendaStore.js'
-import { getMeetings } from '../lib/mockRolesStore.js'
+import { findNextActiveMeeting, getMeetings } from '../lib/mockRolesStore.js'
 
 const inputClass =
   'w-full rounded-lg border border-accent/30 bg-cream px-2.5 py-1.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60'
@@ -47,8 +48,8 @@ export default function AgendaEditorPage() {
   useEffect(() => {
     getMeetings().then((fetched) => {
       setMeetings(fetched)
-      const notFinalized = fetched.find((m) => !m.finalized)
-      setActiveMeetingId((prev) => prev ?? notFinalized?.id ?? fetched[fetched.length - 1]?.id ?? null)
+      const upcoming = findNextActiveMeeting(fetched)
+      setActiveMeetingId((prev) => prev ?? upcoming?.id ?? fetched[fetched.length - 1]?.id ?? null)
     })
   }, [])
 
@@ -150,7 +151,7 @@ export default function AgendaEditorPage() {
             <button
               type="button"
               onClick={handleGenerate}
-              disabled={isPast}
+              disabled={isPast || activeMeeting.cancelled}
               className="flex items-center gap-2 rounded-xl border border-primary px-4 py-2.5 text-sm font-semibold text-primary transition enabled:hover:bg-primary enabled:hover:text-cream disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Sparkles size={16} />
@@ -158,7 +159,7 @@ export default function AgendaEditorPage() {
             </button>
             <button
               type="button"
-              disabled={!agenda || isPast}
+              disabled={!agenda || isPast || activeMeeting.cancelled}
               onClick={handleSend}
               className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -186,12 +187,22 @@ export default function AgendaEditorPage() {
                 <p className="text-sm font-semibold">{m.label}</p>
                 <p className={`text-xs ${active ? 'text-cream/80' : 'text-ink/50'}`}>
                   {m.dateLabel}
+                  {m.cancelled ? ' · Cancelled' : ''}
                 </p>
               </button>
             )
           })}
         </div>
 
+        {activeMeeting.cancelled ? (
+          <div className="mt-6">
+            <CancelledMeetingNotice
+              dateLabel={activeMeeting.dateLabel}
+              reason={activeMeeting.cancelReason}
+            />
+          </div>
+        ) : (
+        <>
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink/50">
           <span className="flex items-center gap-1.5">
             <Clock size={12} />
@@ -445,6 +456,8 @@ export default function AgendaEditorPage() {
               )}
             </div>
           </div>
+        )}
+        </>
         )}
       </div>
     </MemberLayout>

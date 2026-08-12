@@ -13,7 +13,12 @@ import MemberLayout from '../components/MemberLayout.jsx'
 import DeclineRoleModal from '../components/DeclineRoleModal.jsx'
 import { getAccount } from '../lib/mockAuth.js'
 import { roleCatalog } from '../data/roleCatalog.js'
-import { acceptAutoAssignedRole, declineMyRole, getMeetings } from '../lib/mockRolesStore.js'
+import {
+  acceptAutoAssignedRole,
+  declineMyRole,
+  findNextActiveMeeting,
+  getMeetings,
+} from '../lib/mockRolesStore.js'
 import { getMyMembershipStatus } from '../lib/mockMembershipStore.js'
 import { getNotifications, markAllRead } from '../lib/mockNotificationsStore.js'
 import { notificationIcons, defaultNotificationIcon } from '../components/notificationMeta.js'
@@ -63,7 +68,7 @@ export default function MemberDashboard() {
     setNotifications(getNotifications())
   }
 
-  const upcoming = meetings.find((m) => (m.hoursUntilMeeting ?? -1) >= 0)
+  const upcoming = findNextActiveMeeting(meetings)
   const myRole = upcoming?.myRoleId ? roleCatalog.find((r) => r.id === upcoming.myRoleId) : null
   const myRoleEntry = upcoming?.myRoleId ? upcoming.roles[upcoming.myRoleId] : null
 

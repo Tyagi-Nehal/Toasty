@@ -18,7 +18,11 @@ import { Link, Navigate } from 'react-router-dom'
 import MemberLayout from '../components/MemberLayout.jsx'
 import Avatar from '../components/Avatar.jsx'
 import { getAccount, hasExcomRole } from '../lib/mockAuth.js'
-import { getMeetings, getNotifications as getRoleNotifications } from '../lib/mockRolesStore.js'
+import {
+  findNextActiveMeeting,
+  getMeetings,
+  getNotifications as getRoleNotifications,
+} from '../lib/mockRolesStore.js'
 import { getPendingSignups } from '../lib/mockMemberSignups.js'
 import { getMembersWithStatus } from '../lib/mockMembershipStore.js'
 import { getAgendaHistory } from '../lib/mockAgendaStore.js'
@@ -103,7 +107,7 @@ export default function ExComDashboard() {
       getPendingSignups().then((signups) => setPendingSignupsCount(signups.length))
     }
     getMeetings().then((meetings) => {
-      const upcoming = meetings.find((m) => (m.hoursUntilMeeting ?? -1) >= 0)
+      const upcoming = findNextActiveMeeting(meetings)
       setUpcomingMeeting(upcoming ?? meetings[meetings.length - 1] ?? null)
     })
     if (canSeeMembers) {

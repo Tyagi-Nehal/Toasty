@@ -3,7 +3,7 @@ import { Clock, User, Megaphone, CalendarClock } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import { getAccount } from '../lib/mockAuth.js'
 import { getAgenda, getAgendaChangeSummary, syncAgendaWithRoleBoard } from '../lib/mockAgendaStore.js'
-import { getMeetings } from '../lib/mockRolesStore.js'
+import { findNextActiveMeeting, getMeetings } from '../lib/mockRolesStore.js'
 
 function formatTimestamp(iso) {
   if (!iso) return null
@@ -32,8 +32,9 @@ export default function AgendaPage() {
 
   useEffect(() => {
     getMeetings().then(async (meetings) => {
-      // Nearest upcoming meeting first; fall back to the most recent one.
-      const upcoming = meetings.find((m) => (m.hoursUntilMeeting ?? -1) >= 0)
+      // Nearest active (not cancelled) upcoming meeting first; fall back
+      // to the most recent one.
+      const upcoming = findNextActiveMeeting(meetings)
       const target = upcoming ?? meetings[meetings.length - 1]
       setMeeting(target ?? null)
       if (target) {
