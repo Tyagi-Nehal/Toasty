@@ -42,6 +42,16 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10)
 }
 
+// The roster, the signed-in account, and an ExCom appointment can each
+// carry a slightly different-cased/spaced version of the same person's
+// name (Google profile name vs. whatever a President typed while
+// registering an appointment vs. the roster's own spelling) — matching
+// case/whitespace-insensitively avoids a real member silently falling
+// through to "no renewal row found" just because of that drift.
+function normalizeName(name) {
+  return (name ?? '').trim().toLowerCase()
+}
+
 function isActive(membershipEnd) {
   return Boolean(membershipEnd) && membershipEnd >= todayISO()
 }
@@ -76,16 +86,23 @@ export async function getMemberRenewals() {
 export async function getMembersWithStatus() {
   const [members, renewals] = await Promise.all([getMembers(), getMemberRenewals()])
   return members.map((m) => {
-    const row = renewals.find((r) => r.member_name === m.name)
+    const row = renewals.find((r) => normalizeName(r.member_name) === normalizeName(m.name))
     return { name: m.name, ...toStatus(row) }
   })
 }
 
+// Resolves through the roster's own spelling of the signed-in member's
+// name before looking up their renewal row, instead of matching
+// account.name directly — guarantees this uses the exact same join key
+// getMembersWithStatus does, so the Treasurer's dashboard and a member's
+// own dashboard can never disagree about the same person's status.
 export async function getMyMembershipStatus() {
   const account = getAccount()
   if (!account) return { ...DEFAULT_STATUS, isActive: false }
-  const renewals = await getMemberRenewals()
-  const row = renewals.find((r) => r.member_name === account.name)
+  const [members, renewals] = await Promise.all([getMembers(), getMemberRenewals()])
+  const rosterMatch = members.find((m) => normalizeName(m.name) === normalizeName(account.name))
+  const lookupName = rosterMatch?.name ?? account.name
+  const row = renewals.find((r) => normalizeName(r.member_name) === normalizeName(lookupName))
   return toStatus(row)
 }
 
