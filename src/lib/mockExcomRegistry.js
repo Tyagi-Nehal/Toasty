@@ -93,15 +93,23 @@ export async function getRolesForEmail(email) {
   return [...new Set((data ?? []).map((row) => row.role))]
 }
 
-export async function getNameForEmail(email) {
+// Every { role: name } pair registered for this email — powers
+// role-aware display names for accounts holding multiple ExCom roles
+// under one shared email (see setActiveRoleOverride in mockAuth.js).
+// Without this, an email registered under 3 roles would show whichever
+// role's name was appointed most recently for every role, not the name
+// that was actually registered for the role currently being acted as.
+export async function getNamesByRoleForEmail(email) {
   const normalized = normalizeEmail(email)
-  if (!normalized) return null
+  if (!normalized) return {}
   const { data } = await supabase
     .from('excom_appointments')
-    .select('name')
+    .select('role, name')
     .eq('email', normalized)
-    .order('appointed_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  return data?.name ?? null
+    .order('appointed_at', { ascending: true })
+  const names = {}
+  for (const row of data ?? []) {
+    names[row.role] = row.name // later (more recently appointed) rows win per role
+  }
+  return names
 }

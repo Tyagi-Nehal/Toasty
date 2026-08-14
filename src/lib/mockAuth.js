@@ -1,4 +1,4 @@
-import { getRolesForEmail, getNameForEmail } from './mockExcomRegistry.js'
+import { getRolesForEmail, getNamesByRoleForEmail } from './mockExcomRegistry.js'
 import { verifyPresident } from './mockClubRegistry.js'
 import { getOrCreateSignupStatus } from './mockMemberSignups.js'
 
@@ -40,8 +40,17 @@ export async function syncAccountFromSupabaseUser(user) {
   const roles = isPresident ? ['President'] : await getRolesForEmail(email)
 
   let status, resolvedName
+  let excomRoleNames = {}
   if (roles.length > 0) {
-    const registeredName = isPresident ? presidentName : await getNameForEmail(email)
+    excomRoleNames = isPresident ? { President: presidentName } : await getNamesByRoleForEmail(email)
+    // If a role's already been picked for this session (see
+    // setActiveRoleOverride below), use that role's own registered name —
+    // not just whichever role was appointed most recently for this email —
+    // so a shared email tested under several roles shows the right person
+    // for the role actually being acted as, not the last one appointed.
+    const activeOverride = getActiveRoleOverride()
+    const registeredName =
+      (activeOverride && excomRoleNames[activeOverride]) || excomRoleNames[roles[0]]
     resolvedName = registeredName || googleName || email
     status = 'approved'
   } else {
@@ -59,6 +68,7 @@ export async function syncAccountFromSupabaseUser(user) {
     email,
     status,
     excomRoles: roles,
+    excomRoleNames,
     appliedForExcom,
   }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(account))
@@ -73,6 +83,14 @@ export async function syncAccountFromSupabaseUser(user) {
 // actually has, just narrows which one is "active" right now.
 export function setActiveRoleOverride(role) {
   sessionStorage.setItem(ROLE_OVERRIDE_KEY, role)
+  // Immediately correct the displayed/matched name to the one registered
+  // for this specific role, so switching roles doesn't leave the account
+  // showing whichever role's name happened to load first.
+  const account = getAccount()
+  const nameForRole = account?.excomRoleNames?.[role]
+  if (account && nameForRole && account.name !== nameForRole) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...account, name: nameForRole }))
+  }
 }
 
 export function getActiveRoleOverride() {
