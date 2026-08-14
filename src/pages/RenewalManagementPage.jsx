@@ -19,14 +19,16 @@ const selectClass =
 // dates by hand. The two date inputs stay available below for anything
 // that doesn't fit a standard term.
 //
-// The club's actual first term ran Oct 2025-Feb 2026 (5 months, shorter
-// than the usual 6) — every cycle from Oct 2026 onward follows the
-// standard Oct-Mar pattern.
+// The club's terms start Oct 2025 — nothing earlier is offered. That
+// first term ran Oct 2025-Feb 2026 (5 months, shorter than the usual 6);
+// every cycle from Oct 2026 onward follows the standard Oct-Mar pattern.
 function generateTerms() {
   const terms = []
   const startYear = new Date().getFullYear() - 1
   for (let y = startYear; y <= startYear + 3; y++) {
-    terms.push({ label: `Apr–Sep ${y}`, start: `${y}-04-01`, end: `${y}-09-30` })
+    if (y !== 2025) {
+      terms.push({ label: `Apr–Sep ${y}`, start: `${y}-04-01`, end: `${y}-09-30` })
+    }
     if (y === 2025) {
       terms.push({ label: 'Oct 2025–Feb 2026', start: '2025-10-01', end: '2026-02-28' })
     } else {
