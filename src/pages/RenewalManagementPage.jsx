@@ -29,6 +29,12 @@ function generateTerms() {
 }
 const TERM_OPTIONS = generateTerms()
 
+function formatRange(start, end) {
+  const fmt = (d) =>
+    new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+  return `${fmt(start)} – ${fmt(end)}`
+}
+
 function timeAgo(isoString) {
   const diffMs = Date.now() - new Date(isoString).getTime()
   const mins = Math.floor(diffMs / 60000)
@@ -88,8 +94,9 @@ export default function RenewalManagementPage() {
           </h1>
         </div>
         <p className="mt-1 text-sm text-ink/60">
-          Set each member's payment status and membership period. Active/Inactive
-          follows automatically from the membership end date.
+          Pick each member's 6-month cycle (Apr–Sep or Oct–Mar) — Active/Inactive
+          follows automatically from whether today falls inside it. Use "Custom"
+          only for a range that doesn't fit the standard cycle.
         </p>
 
         {/* Filter */}
@@ -112,82 +119,90 @@ export default function RenewalManagementPage() {
 
         <div className="mt-4 overflow-hidden rounded-2xl border border-accent/30 bg-white">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left text-sm">
+            <table className="w-full min-w-[700px] text-left text-sm">
               <thead>
                 <tr className="border-b border-accent/20 bg-cream/60 text-xs uppercase tracking-wide text-ink/50">
                   <th className="px-4 py-3 font-semibold">Member</th>
                   <th className="px-4 py-3 font-semibold">Payment Status</th>
-                  <th className="px-4 py-3 font-semibold">Term</th>
-                  <th className="px-4 py-3 font-semibold">Membership Start</th>
-                  <th className="px-4 py-3 font-semibold">Membership End</th>
+                  <th className="px-4 py-3 font-semibold">Cycle</th>
+                  <th className="px-4 py-3 font-semibold">Active Period</th>
                 </tr>
               </thead>
               <tbody>
-                {visible.map((member) => (
-                  <tr key={member.name} className="border-b border-accent/10 last:border-0">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <Avatar name={member.name} size={28} />
-                        <span className="font-medium text-ink">{member.name}</span>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                            member.isActive ? 'bg-primary/10 text-primary' : 'bg-ink/10 text-ink/50'
-                          }`}
+                {visible.map((member) => {
+                  const matchingTerm = TERM_OPTIONS.find(
+                    (t) => t.start === member.membershipStart && t.end === member.membershipEnd,
+                  )
+                  const isCustom = !matchingTerm
+                  return (
+                    <tr key={member.name} className="border-b border-accent/10 last:border-0">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <Avatar name={member.name} size={28} />
+                          <span className="font-medium text-ink">{member.name}</span>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                              member.isActive ? 'bg-primary/10 text-primary' : 'bg-ink/10 text-ink/50'
+                            }`}
+                          >
+                            {member.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={member.paymentStatus}
+                          onChange={(e) => handleFieldChange(member, 'paymentStatus', e.target.value)}
+                          className={selectClass}
                         >
-                          {member.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={member.paymentStatus}
-                        onChange={(e) => handleFieldChange(member, 'paymentStatus', e.target.value)}
-                        className={selectClass}
-                      >
-                        <option value="paid">Paid</option>
-                        <option value="pending">Pending</option>
-                        <option value="overdue">Overdue</option>
-                      </select>
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={
-                          TERM_OPTIONS.find(
-                            (t) => t.start === member.membershipStart && t.end === member.membershipEnd,
-                          )?.label ?? ''
-                        }
-                        onChange={(e) => handleTermChange(member, e.target.value)}
-                        className={selectClass}
-                      >
-                        <option value="">Custom / not set</option>
-                        {TERM_OPTIONS.map((t) => (
-                          <option key={t.label} value={t.label}>
-                            {t.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-4 py-3">
-                      <input
-                        type="date"
-                        value={member.membershipStart ?? ''}
-                        onChange={(e) => handleFieldChange(member, 'membershipStart', e.target.value)}
-                        className={selectClass}
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <input
-                        type="date"
-                        value={member.membershipEnd ?? ''}
-                        onChange={(e) => handleFieldChange(member, 'membershipEnd', e.target.value)}
-                        className={selectClass}
-                      />
-                    </td>
-                  </tr>
-                ))}
+                          <option value="paid">Paid</option>
+                          <option value="pending">Pending</option>
+                          <option value="overdue">Overdue</option>
+                        </select>
+                      </td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={matchingTerm?.label ?? ''}
+                          onChange={(e) => handleTermChange(member, e.target.value)}
+                          className={selectClass}
+                        >
+                          <option value="">Custom</option>
+                          {TERM_OPTIONS.map((t) => (
+                            <option key={t.label} value={t.label}>
+                              {t.label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3">
+                        {isCustom ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="date"
+                              value={member.membershipStart ?? ''}
+                              onChange={(e) => handleFieldChange(member, 'membershipStart', e.target.value)}
+                              className={selectClass}
+                            />
+                            <span className="text-ink/40">–</span>
+                            <input
+                              type="date"
+                              value={member.membershipEnd ?? ''}
+                              onChange={(e) => handleFieldChange(member, 'membershipEnd', e.target.value)}
+                              className={selectClass}
+                            />
+                          </div>
+                        ) : (
+                          <span className="text-ink/70">
+                            {formatRange(member.membershipStart, member.membershipEnd)}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
                 {visible.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-sm text-ink/50">
+                    <td colSpan={4} className="px-4 py-8 text-center text-sm text-ink/50">
                       No members with this status.
                     </td>
                   </tr>
