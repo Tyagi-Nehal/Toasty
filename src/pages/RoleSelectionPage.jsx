@@ -109,14 +109,22 @@ export default function RoleSelectionPage() {
     : null
 
   async function handleSelectRole(roleId) {
-    await selectRole(activeMeetingId, roleId)
-    refresh()
+    try {
+      await selectRole(activeMeetingId, roleId)
+      refresh()
+    } catch (err) {
+      window.alert(err.message)
+    }
   }
 
   async function handleDeclineConfirm() {
-    await declineMyRole(activeMeetingId)
-    refresh()
-    setIsDeclineOpen(false)
+    try {
+      await declineMyRole(activeMeetingId)
+      refresh()
+      setIsDeclineOpen(false)
+    } catch (err) {
+      window.alert(err.message)
+    }
   }
 
   return (
@@ -193,6 +201,13 @@ export default function RoleSelectionPage() {
                   type="button"
                   onClick={() => setIsDeclineOpen(true)}
                   disabled={activeMeeting.finalized || !isActiveMember}
+                  title={
+                    activeMeeting.finalized
+                      ? 'Roles for this meeting are finalized — ask the VPE to unlock it'
+                      : !isActiveMember
+                        ? 'Your membership is inactive — contact the Treasurer to renew'
+                        : undefined
+                  }
                   className="flex items-center gap-1.5 rounded-full border border-accent/50 px-4 py-2 text-sm font-semibold text-ink/70 transition hover:bg-cream disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <X size={15} />

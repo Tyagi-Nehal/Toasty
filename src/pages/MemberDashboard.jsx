@@ -84,14 +84,22 @@ export default function MemberDashboard() {
   const isVpeOnlyRole = upcoming?.myRoleId ? VPE_ONLY_ROLE_IDS.includes(upcoming.myRoleId) : false
 
   async function handleAccept() {
-    await acceptAutoAssignedRole(upcoming.id)
-    refresh()
+    try {
+      await acceptAutoAssignedRole(upcoming.id)
+      refresh()
+    } catch (err) {
+      window.alert(err.message)
+    }
   }
 
   async function handleDeclineConfirm() {
-    await declineMyRole(upcoming.id)
-    refresh()
-    setIsDeclineOpen(false)
+    try {
+      await declineMyRole(upcoming.id)
+      refresh()
+      setIsDeclineOpen(false)
+    } catch (err) {
+      window.alert(err.message)
+    }
   }
 
   return (
