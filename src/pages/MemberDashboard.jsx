@@ -23,6 +23,15 @@ import { getMyMembershipStatus } from '../lib/mockMembershipStore.js'
 import { getNotifications, markAllRead } from '../lib/mockNotificationsStore.js'
 import { notificationIcons, defaultNotificationIcon } from '../components/notificationMeta.js'
 
+function formatDate(dateStr) {
+  if (!dateStr) return ''
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
 function timeAgo(isoString) {
   const diffMs = Date.now() - new Date(isoString).getTime()
   const mins = Math.floor(diffMs / 60000)
@@ -103,6 +112,15 @@ export default function MemberDashboard() {
         <p className="mt-1 text-sm text-ink/60">
           Here's what's happening in your club this week.
         </p>
+        {membership && (
+          <p className="mt-1 text-xs text-ink/50">
+            {membership.isActive
+              ? `Membership active until ${formatDate(membership.membershipEnd)}`
+              : membership.membershipEnd
+                ? `Membership expired ${formatDate(membership.membershipEnd)} — contact the Treasurer to renew.`
+                : 'No membership on file yet — contact the Treasurer.'}
+          </p>
+        )}
 
         <div className="mt-8 grid gap-6 lg:grid-cols-3">
           {/* Main column */}

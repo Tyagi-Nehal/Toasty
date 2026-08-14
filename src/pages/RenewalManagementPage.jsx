@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Wallet, History } from 'lucide-react'
+import { Wallet, History, CheckSquare } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import Avatar from '../components/Avatar.jsx'
 import {
@@ -60,6 +60,9 @@ export default function RenewalManagementPage() {
   const [members, setMembers] = useState([])
   const [log, setLog] = useState(() => getRenewalLog())
   const [filter, setFilter] = useState('All')
+  const [selected, setSelected] = useState(new Set())
+  const [bulkTerm, setBulkTerm] = useState(TERM_OPTIONS[0]?.label ?? '')
+  const [applyingBulk, setApplyingBulk] = useState(false)
 
   function refresh() {
     getMembersWithStatus().then(setMembers)
@@ -91,8 +94,49 @@ export default function RenewalManagementPage() {
     refresh()
   }
 
-  const visible =
-    filter === 'All' ? members : members.filter((m) => m.paymentStatus === filter.toLowerCase())
+  function toggleSelected(name) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
+  function toggleSelectAll(names) {
+    setSelected((prev) => (names.every((n) => prev.has(n)) ? new Set() : new Set(names)))
+  }
+
+  // Rolls every selected member into one cycle at once — the real
+  // Toastmasters workflow twice a year (Apr/Oct) is renewing most of the
+  // club together, not one dropdown at a time. Each member keeps their
+  // own payment status; only the cycle dates change.
+  async function handleBulkApply() {
+    const term = TERM_OPTIONS.find((t) => t.label === bulkTerm)
+    if (!term || selected.size === 0) return
+    setApplyingBulk(true)
+    await Promise.all(
+      [...selected].map((name) => {
+        const member = members.find((m) => m.name === name)
+        return updateMemberRenewal(name, {
+          paymentStatus: member?.paymentStatus ?? 'pending',
+          membershipStart: term.start,
+          membershipEnd: term.end,
+        })
+      }),
+    )
+    setApplyingBulk(false)
+    setSelected(new Set())
+    refresh()
+  }
+
+  // Most urgent first: never set up at all, then soonest-to-expire —
+  // exactly who the Treasurer needs to chase, in order.
+  const visible = (filter === 'All' ? members : members.filter((m) => m.paymentStatus === filter.toLowerCase()))
+    .slice()
+    .sort((a, b) => (a.membershipEnd ?? '').localeCompare(b.membershipEnd ?? ''))
+  const visibleNames = visible.map((m) => m.name)
+  const allVisibleSelected = visibleNames.length > 0 && visibleNames.every((n) => selected.has(n))
 
   return (
     <MemberLayout>
@@ -127,11 +171,46 @@ export default function RenewalManagementPage() {
           ))}
         </div>
 
+        {/* Bulk renewal — the real cycle-rollover workflow twice a year */}
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-accent/40 bg-white p-4">
+          <CheckSquare size={16} className="shrink-0 text-primary" />
+          <span className="text-sm text-ink/60">
+            {selected.size > 0 ? `${selected.size} selected` : 'Select members below to renew them together'}
+          </span>
+          <select
+            value={bulkTerm}
+            onChange={(e) => setBulkTerm(e.target.value)}
+            className={selectClass}
+          >
+            {TERM_OPTIONS.map((t) => (
+              <option key={t.label} value={t.label}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={handleBulkApply}
+            disabled={selected.size === 0 || applyingBulk}
+            className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-cream shadow-sm shadow-primary/20 transition enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {applyingBulk ? 'Applying…' : 'Apply to selected'}
+          </button>
+        </div>
+
         <div className="mt-4 overflow-hidden rounded-2xl border border-accent/30 bg-white">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[700px] text-left text-sm">
               <thead>
                 <tr className="border-b border-accent/20 bg-cream/60 text-xs uppercase tracking-wide text-ink/50">
+                  <th className="w-10 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={() => toggleSelectAll(visibleNames)}
+                      aria-label="Select all visible members"
+                    />
+                  </th>
                   <th className="px-4 py-3 font-semibold">Member</th>
                   <th className="px-4 py-3 font-semibold">Payment Status</th>
                   <th className="px-4 py-3 font-semibold">Cycle</th>
@@ -146,6 +225,14 @@ export default function RenewalManagementPage() {
                   const isCustom = !matchingTerm
                   return (
                     <tr key={member.name} className="border-b border-accent/10 last:border-0">
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(member.name)}
+                          onChange={() => toggleSelected(member.name)}
+                          aria-label={`Select ${member.name}`}
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
                           <Avatar name={member.name} size={28} />
@@ -212,7 +299,7 @@ export default function RenewalManagementPage() {
                 })}
                 {visible.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-sm text-ink/50">
+                    <td colSpan={5} className="px-4 py-8 text-center text-sm text-ink/50">
                       No members with this status.
                     </td>
                   </tr>
