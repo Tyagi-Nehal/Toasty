@@ -78,7 +78,7 @@ export default function RenewalManagementPage() {
   // "that cycle," not "Custom") — only the Cycle dropdown itself changes
   // cycleLabel.
   async function handleFieldChange(member, field, value) {
-    await updateMemberRenewal(member.name, {
+    await updateMemberRenewal(member.email, member.name, {
       paymentStatus: member.paymentStatus,
       membershipStart: member.membershipStart,
       membershipEnd: member.membershipEnd,
@@ -93,7 +93,7 @@ export default function RenewalManagementPage() {
   // inputs, which stay bounded to this cycle's start/end.
   async function handleTermChange(member, termLabel) {
     const term = TERM_OPTIONS.find((t) => t.label === termLabel)
-    await updateMemberRenewal(member.name, {
+    await updateMemberRenewal(member.email, member.name, {
       paymentStatus: member.paymentStatus,
       membershipStart: term ? term.start : member.membershipStart,
       membershipEnd: term ? term.end : member.membershipEnd,
@@ -102,17 +102,17 @@ export default function RenewalManagementPage() {
     refresh()
   }
 
-  function toggleSelected(name) {
+  function toggleSelected(email) {
     setSelected((prev) => {
       const next = new Set(prev)
-      if (next.has(name)) next.delete(name)
-      else next.add(name)
+      if (next.has(email)) next.delete(email)
+      else next.add(email)
       return next
     })
   }
 
-  function toggleSelectAll(names) {
-    setSelected((prev) => (names.every((n) => prev.has(n)) ? new Set() : new Set(names)))
+  function toggleSelectAll(emails) {
+    setSelected((prev) => (emails.every((e) => prev.has(e)) ? new Set() : new Set(emails)))
   }
 
   // Rolls every selected member into one cycle at once — the real
@@ -124,9 +124,9 @@ export default function RenewalManagementPage() {
     if (!term || selected.size === 0) return
     setApplyingBulk(true)
     await Promise.all(
-      [...selected].map((name) => {
-        const member = members.find((m) => m.name === name)
-        return updateMemberRenewal(name, {
+      [...selected].map((email) => {
+        const member = members.find((m) => m.email === email)
+        return updateMemberRenewal(email, member?.name ?? email, {
           paymentStatus: member?.paymentStatus ?? 'pending',
           membershipStart: term.start,
           membershipEnd: term.end,
@@ -144,8 +144,8 @@ export default function RenewalManagementPage() {
   const visible = (filter === 'All' ? members : members.filter((m) => m.paymentStatus === filter.toLowerCase()))
     .slice()
     .sort((a, b) => (a.membershipEnd ?? '').localeCompare(b.membershipEnd ?? ''))
-  const visibleNames = visible.map((m) => m.name)
-  const allVisibleSelected = visibleNames.length > 0 && visibleNames.every((n) => selected.has(n))
+  const visibleEmails = visible.map((m) => m.email)
+  const allVisibleSelected = visibleEmails.length > 0 && visibleEmails.every((e) => selected.has(e))
 
   return (
     <MemberLayout>
@@ -157,9 +157,11 @@ export default function RenewalManagementPage() {
           </h1>
         </div>
         <p className="mt-1 text-sm text-ink/60">
-          Pick each member's 6-month cycle (Apr–Sep or Oct–Mar) — Active/Inactive
-          follows automatically from whether today falls inside it. Use "Custom"
-          only for a range that doesn't fit the standard cycle.
+          Every member approved by the VPM, plus everyone on ExCom, shows up here
+          automatically as soon as they sign in — nothing to add manually. Pick each
+          member's 6-month cycle (Apr–Sep or Oct–Mar) — Active/Inactive follows
+          automatically from whether today falls inside it. Use "Custom" only for a
+          range that doesn't fit the standard cycle.
         </p>
 
         {/* Filter */}
@@ -216,7 +218,7 @@ export default function RenewalManagementPage() {
                     <input
                       type="checkbox"
                       checked={allVisibleSelected}
-                      onChange={() => toggleSelectAll(visibleNames)}
+                      onChange={() => toggleSelectAll(visibleEmails)}
                       aria-label="Select all visible members"
                     />
                   </th>
@@ -230,26 +232,31 @@ export default function RenewalManagementPage() {
                 {visible.map((member) => {
                   const selectedTerm = TERM_OPTIONS.find((t) => t.label === member.cycleLabel)
                   return (
-                    <tr key={member.name} className="border-b border-accent/10 last:border-0">
+                    <tr key={member.email} className="border-b border-accent/10 last:border-0">
                       <td className="px-4 py-3">
                         <input
                           type="checkbox"
-                          checked={selected.has(member.name)}
-                          onChange={() => toggleSelected(member.name)}
+                          checked={selected.has(member.email)}
+                          onChange={() => toggleSelected(member.email)}
                           aria-label={`Select ${member.name}`}
                         />
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
                           <Avatar name={member.name} size={28} />
-                          <span className="font-medium text-ink">{member.name}</span>
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                              member.isActive ? 'bg-primary/10 text-primary' : 'bg-ink/10 text-ink/50'
-                            }`}
-                          >
-                            {member.isActive ? 'Active' : 'Inactive'}
-                          </span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-ink">{member.name}</span>
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                  member.isActive ? 'bg-primary/10 text-primary' : 'bg-ink/10 text-ink/50'
+                                }`}
+                              >
+                                {member.isActive ? 'Active' : 'Inactive'}
+                              </span>
+                            </div>
+                            <p className="truncate text-xs text-ink/40">{member.email}</p>
+                          </div>
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -309,7 +316,9 @@ export default function RenewalManagementPage() {
                 {visible.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-4 py-8 text-center text-sm text-ink/50">
-                      No members with this status.
+                      {members.length === 0
+                        ? 'No approved members yet — they appear here once the VPM approves their signup, or once they’re added to ExCom.'
+                        : 'No members with this status.'}
                     </td>
                   </tr>
                 )}

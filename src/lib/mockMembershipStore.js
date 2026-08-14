@@ -1,16 +1,20 @@
 // Real Treasurer-controlled membership renewals (supabase/schema.sql:
-// member_renewals — seeded blank for the real roster, see
-// supabase/seed-member-renewals.sql). Replaces the old fully-fabricated
-// mockRenewals.js + self-service UTR flow. Layered on top of the real
-// roster (mockRosterStore.js's `members` table) rather than a second,
-// disconnected member list.
+// member_renewals). The member list itself is no longer the seeded/
+// hardcoded roster (mockRosterStore.js's `members` table, which exists
+// only to feed VPE's role auto-assign scoring) — it's every real,
+// currently-approved account: VPM-approved signups (member_signups) plus
+// ExCom appointees (auto-approved via role match, never go through
+// member_signups). Matched by email throughout, not name — a real Google
+// account's email is stable and unique, unlike a freeform typed name
+// (e.g. roster "Isha" vs. ExCom-registered "Isha Karn" never matching).
 //
 // Active/inactive is derived, not stored: a member is active only if
 // membership_end is set and is today or later.
 
 import { supabase } from './supabaseClient.js'
 import { getAccount } from './mockAuth.js'
-import { getMembers } from './mockRosterStore.js'
+import { getApprovedSignups } from './mockMemberSignups.js'
+import { getExcomAppointments } from './mockExcomRegistry.js'
 
 const LOG_KEY = 'toasty_renewal_log'
 const MAX_LOG_ENTRIES = 25
@@ -42,14 +46,8 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10)
 }
 
-// The roster, the signed-in account, and an ExCom appointment can each
-// carry a slightly different-cased/spaced version of the same person's
-// name (Google profile name vs. whatever a President typed while
-// registering an appointment vs. the roster's own spelling) — matching
-// case/whitespace-insensitively avoids a real member silently falling
-// through to "no renewal row found" just because of that drift.
-function normalizeName(name) {
-  return (name ?? '').trim().toLowerCase()
+function normalizeEmail(email) {
+  return (email ?? '').trim().toLowerCase()
 }
 
 function isActive(membershipEnd) {
@@ -74,44 +72,59 @@ function toStatus(row) {
   }
 }
 
+// Every real, currently-approved club member — no hardcoded/seeded
+// names. Deduped by email; if the same email shows up in both lists
+// (e.g. a member later appointed to ExCom), the ExCom name wins since
+// getExcomAppointments() is ordered oldest-first and is applied second,
+// so the most recent appointment's name is what's kept.
+export async function getApprovedClubMembers() {
+  const [signups, excom] = await Promise.all([getApprovedSignups(), getExcomAppointments()])
+  const byEmail = new Map()
+  for (const s of signups) {
+    const email = normalizeEmail(s.email)
+    if (email) byEmail.set(email, { name: s.name, email })
+  }
+  for (const e of excom) {
+    const email = normalizeEmail(e.email)
+    if (email) byEmail.set(email, { name: e.name, email })
+  }
+  return [...byEmail.values()].sort((a, b) => a.name.localeCompare(b.name))
+}
+
 export async function getMemberRenewals() {
   const { data, error } = await supabase.from('member_renewals').select('*')
   if (error) console.error('[mockMembershipStore] getMemberRenewals failed:', error.message)
   return data ?? []
 }
 
-// Real roster left-joined with renewal status by name — anyone without a
-// row yet (shouldn't normally happen once the seed has run) falls back
-// to the same pending/inactive default.
+// Real approved members left-joined with renewal status by email —
+// anyone without a renewal row yet (a newly-approved member the
+// Treasurer hasn't set dues for) falls back to the pending/inactive
+// default.
 export async function getMembersWithStatus() {
-  const [members, renewals] = await Promise.all([getMembers(), getMemberRenewals()])
+  const [members, renewals] = await Promise.all([getApprovedClubMembers(), getMemberRenewals()])
   return members.map((m) => {
-    const row = renewals.find((r) => normalizeName(r.member_name) === normalizeName(m.name))
-    return { name: m.name, ...toStatus(row) }
+    const row = renewals.find((r) => normalizeEmail(r.email) === m.email)
+    return { name: m.name, email: m.email, ...toStatus(row) }
   })
 }
 
-// Resolves through the roster's own spelling of the signed-in member's
-// name before looking up their renewal row, instead of matching
-// account.name directly — guarantees this uses the exact same join key
-// getMembersWithStatus does, so the Treasurer's dashboard and a member's
-// own dashboard can never disagree about the same person's status.
 export async function getMyMembershipStatus() {
   const account = getAccount()
   if (!account) return { ...DEFAULT_STATUS, isActive: false }
-  const [members, renewals] = await Promise.all([getMembers(), getMemberRenewals()])
-  const rosterMatch = members.find((m) => normalizeName(m.name) === normalizeName(account.name))
-  const lookupName = rosterMatch?.name ?? account.name
-  const row = renewals.find((r) => normalizeName(r.member_name) === normalizeName(lookupName))
+  const renewals = await getMemberRenewals()
+  const row = renewals.find((r) => normalizeEmail(r.email) === normalizeEmail(account.email))
   return toStatus(row)
 }
 
 export async function updateMemberRenewal(
+  email,
   memberName,
   { paymentStatus, membershipStart, membershipEnd, cycleLabel },
 ) {
   const { error } = await supabase.from('member_renewals').upsert(
     {
+      email: normalizeEmail(email),
       member_name: memberName,
       payment_status: paymentStatus,
       membership_start: membershipStart || null,
@@ -119,7 +132,7 @@ export async function updateMemberRenewal(
       cycle_label: cycleLabel || null,
       updated_at: new Date().toISOString(),
     },
-    { onConflict: 'member_name' },
+    { onConflict: 'email' },
   )
   if (error) {
     console.error('[mockMembershipStore] updateMemberRenewal failed:', error.message)

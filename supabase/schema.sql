@@ -452,7 +452,14 @@ grant usage, select on all sequences in schema public to authenticated;
 -- from membership_end at read time (see mockMembershipStore.js).
 create table if not exists member_renewals (
   id bigint generated always as identity primary key,
-  member_name text not null unique,
+  member_name text not null,
+  -- Real member's email — the actual join key (see
+  -- getApprovedClubMembers in mockMembershipStore.js). member_name is
+  -- kept only for display; matching by freeform typed names caused real
+  -- mismatches (e.g. roster "Isha" vs. ExCom-registered "Isha Karn"
+  -- never matching, showing conflicting Active/Inactive on different
+  -- dashboards for the same person).
+  email text unique,
   payment_status text not null default 'pending' check (payment_status in ('paid','pending','overdue')),
   membership_start date,
   membership_end date,
