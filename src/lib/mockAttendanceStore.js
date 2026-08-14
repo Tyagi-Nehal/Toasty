@@ -57,7 +57,10 @@ export async function submitAttendance(meetingId, presentByName) {
   const { error } = await supabase
     .from('attendance')
     .upsert(rows, { onConflict: 'meeting_id,member_name' })
-  if (error) console.error('[mockAttendanceStore] submitAttendance failed:', error.message)
+  if (error) {
+    console.error('[mockAttendanceStore] submitAttendance failed:', error.message)
+    throw new Error('Could not save attendance — check your Secretary permissions and try again.')
+  }
 }
 
 // { [memberName]: { present, total } } across every recorded meeting — the
