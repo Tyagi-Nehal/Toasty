@@ -389,6 +389,11 @@ export default function RenewalManagementPage() {
                                 </option>
                               ))}
                             </select>
+                            {selected.has(member.email) && bulkTerm && bulkTerm !== member.cycleLabel && (
+                              <p className="mt-1 text-[11px] font-medium text-primary">
+                                → {bulkTerm} on Apply
+                              </p>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
