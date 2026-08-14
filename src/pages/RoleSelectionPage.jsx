@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle2, X, Lock, CircleDot } from 'lucide-react'
+import { CheckCircle2, X, Lock, CircleDot, ShieldCheck } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import DeclineRoleModal from '../components/DeclineRoleModal.jsx'
 import CancelledMeetingNotice from '../components/CancelledMeetingNotice.jsx'
 import { roleCatalog } from '../data/roleCatalog.js'
 import {
+  VPE_ONLY_ROLE_IDS,
   declineMyRole,
   findNextActiveMeeting,
   getMeetings,
@@ -12,12 +13,20 @@ import {
 } from '../lib/mockRolesStore.js'
 import { getMyMembershipStatus } from '../lib/mockMembershipStore.js'
 
-function StatusBadge({ role, isMine }) {
+function StatusBadge({ role, roleId, isMine }) {
   if (isMine) {
     return (
       <span className="flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
         <CheckCircle2 size={13} />
         Your role
+      </span>
+    )
+  }
+  if (role.status === 'open' && VPE_ONLY_ROLE_IDS.includes(roleId)) {
+    return (
+      <span className="flex items-center gap-1 rounded-full bg-ink/10 px-3 py-1 text-xs font-semibold text-ink/50">
+        <ShieldCheck size={13} />
+        Assigned by VPE
       </span>
     )
   }
@@ -174,15 +183,22 @@ export default function RoleSelectionPage() {
                 <p className="mt-1 text-lg font-bold text-ink">{myRole.name}</p>
                 <p className="text-sm text-ink/60">{myRole.description}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsDeclineOpen(true)}
-                disabled={activeMeeting.finalized || !isActiveMember}
-                className="flex items-center gap-1.5 rounded-full border border-accent/50 px-4 py-2 text-sm font-semibold text-ink/70 transition hover:bg-cream disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <X size={15} />
-                Decline Role
-              </button>
+              {VPE_ONLY_ROLE_IDS.includes(activeMeeting.myRoleId) ? (
+                <p className="flex items-center gap-1.5 text-xs text-ink/40">
+                  <ShieldCheck size={13} />
+                  Managed by the VPE
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsDeclineOpen(true)}
+                  disabled={activeMeeting.finalized || !isActiveMember}
+                  className="flex items-center gap-1.5 rounded-full border border-accent/50 px-4 py-2 text-sm font-semibold text-ink/70 transition hover:bg-cream disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <X size={15} />
+                  Decline Role
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -191,8 +207,10 @@ export default function RoleSelectionPage() {
         <div className="mt-6 space-y-3">
           {roleCatalog.map((role) => {
             const entry = activeMeeting.roles[role.id]
+            const isVpeOnly = VPE_ONLY_ROLE_IDS.includes(role.id)
             const canSelect =
               entry.status === 'open' &&
+              !isVpeOnly &&
               !activeMeeting.myRoleId &&
               !activeMeeting.finalized &&
               isActiveMember
@@ -210,7 +228,7 @@ export default function RoleSelectionPage() {
                   <p className="text-sm text-ink/60">{role.description}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <StatusBadge role={entry} isMine={isMine} />
+                  <StatusBadge role={entry} roleId={role.id} isMine={isMine} />
                   {canSelect && (
                     <button
                       type="button"
@@ -220,7 +238,7 @@ export default function RoleSelectionPage() {
                       Select this Role
                     </button>
                   )}
-                  {!canSelect && entry.status === 'open' && !isMine && (
+                  {!canSelect && entry.status === 'open' && !isMine && !isVpeOnly && (
                     <span
                       className="flex items-center gap-1 text-xs text-ink/40"
                       title={

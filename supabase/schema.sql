@@ -357,18 +357,23 @@ create policy "assignments vpe or president insert" on meeting_role_assignments
 -- doesn't retroactively make it "self-selected").
 alter table meeting_role_assignments add column if not exists accepted_at timestamptz;
 
+-- Presiding Officer ('po') and Sergeant at Arms ('saa') are excluded from
+-- the "status = 'open'" and "unclaimed auto" self-service branches below —
+-- those two roles are always the same real ExCom officers and are only
+-- ever set by the VPE (or President) via Override, never self-selected
+-- or auto-assigned. See VPE_ONLY_ROLE_IDS in mockRolesStore.js.
 drop policy if exists "assignments update" on meeting_role_assignments;
 create policy "assignments update" on meeting_role_assignments
   for update to authenticated
   using (
-    status = 'open'
+    (status = 'open' and role_id not in ('po', 'saa'))
     or lower(taken_by_email) = lower(auth.jwt() ->> 'email')
     -- Claiming/accepting or declining your own not-yet-claimed
     -- auto-assigned role. Auto-assign only ever records taken_by_name
     -- (no email), so without this clause a member could never actually
     -- act on their own auto-assigned role — a real bug found while
     -- wiring up Accept, not new looseness added for it.
-    or (status = 'auto' and taken_by_email is null)
+    or (status = 'auto' and taken_by_email is null and role_id not in ('po', 'saa'))
     or exists (
       select 1 from excom_appointments
       where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPE'
@@ -380,7 +385,7 @@ create policy "assignments update" on meeting_role_assignments
   )
   with check (
     lower(taken_by_email) = lower(auth.jwt() ->> 'email')
-    or taken_by_email is null
+    or (taken_by_email is null and role_id not in ('po', 'saa'))
     or exists (
       select 1 from excom_appointments
       where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPE'

@@ -18,6 +18,7 @@ import RescheduleMeetingModal from '../components/RescheduleMeetingModal.jsx'
 import CancelledMeetingNotice from '../components/CancelledMeetingNotice.jsx'
 import { roleCatalog } from '../data/roleCatalog.js'
 import {
+  VPE_ONLY_ROLE_IDS,
   autoAssignMeeting,
   cancelMeeting,
   canFinalizeMeeting,
@@ -388,7 +389,14 @@ export default function RoleManagementPage() {
                             entry.status === 'open' ? 'bg-accent/5' : ''
                           }`}
                         >
-                          <td className="px-4 py-2.5 font-medium text-ink">{role.name}</td>
+                          <td className="px-4 py-2.5 font-medium text-ink">
+                            {role.name}
+                            {VPE_ONLY_ROLE_IDS.includes(role.id) && (
+                              <span className="ml-1.5 rounded-full bg-ink/10 px-1.5 py-0.5 text-[10px] font-semibold text-ink/50">
+                                VPE only
+                              </span>
+                            )}
+                          </td>
                           <td className="px-4 py-2.5 text-ink/70">{entry.takenBy ?? '—'}</td>
                           <td className="px-4 py-2.5">
                             <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${badge.className}`}>
@@ -426,7 +434,14 @@ export default function RoleManagementPage() {
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <p className="font-medium text-ink">{role.name}</p>
+                        <p className="font-medium text-ink">
+                          {role.name}
+                          {VPE_ONLY_ROLE_IDS.includes(role.id) && (
+                            <span className="ml-1.5 rounded-full bg-ink/10 px-1.5 py-0.5 text-[10px] font-semibold text-ink/50">
+                              VPE only
+                            </span>
+                          )}
+                        </p>
                         <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${badge.className}`}>
                           {badge.text}
                         </span>

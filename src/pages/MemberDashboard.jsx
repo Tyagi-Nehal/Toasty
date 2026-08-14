@@ -14,6 +14,7 @@ import DeclineRoleModal from '../components/DeclineRoleModal.jsx'
 import { getAccount } from '../lib/mockAuth.js'
 import { roleCatalog } from '../data/roleCatalog.js'
 import {
+  VPE_ONLY_ROLE_IDS,
   acceptAutoAssignedRole,
   declineMyRole,
   findNextActiveMeeting,
@@ -80,6 +81,7 @@ export default function MemberDashboard() {
   const upcoming = findNextActiveMeeting(meetings)
   const myRole = upcoming?.myRoleId ? roleCatalog.find((r) => r.id === upcoming.myRoleId) : null
   const myRoleEntry = upcoming?.myRoleId ? upcoming.roles[upcoming.myRoleId] : null
+  const isVpeOnlyRole = upcoming?.myRoleId ? VPE_ONLY_ROLE_IDS.includes(upcoming.myRoleId) : false
 
   async function handleAccept() {
     await acceptAutoAssignedRole(upcoming.id)
@@ -185,12 +187,14 @@ export default function MemberDashboard() {
                           <p className="font-semibold text-ink">{myRole.name}</p>
                           {myRoleEntry.status === 'auto' && (
                             <p className="mt-1 text-xs font-medium text-primary">
-                              Auto-assigned
-                              {myRoleEntry.acceptedAt ? ' · Confirmed' : ' · Awaiting your response'}
+                              {isVpeOnlyRole
+                                ? 'Assigned by the VPE'
+                                : `Auto-assigned${myRoleEntry.acceptedAt ? ' · Confirmed' : ' · Awaiting your response'}`}
                             </p>
                           )}
                         </div>
-                        {myRoleEntry.status === 'auto' &&
+                        {!isVpeOnlyRole &&
+                          myRoleEntry.status === 'auto' &&
                           !myRoleEntry.acceptedAt &&
                           (membership && !membership.isActive ? (
                             <p className="text-xs font-medium text-ink/50">
@@ -216,13 +220,14 @@ export default function MemberDashboard() {
                               </button>
                             </div>
                           ))}
-                        {myRoleEntry.status === 'auto' && myRoleEntry.acceptedAt && (
+                        {!isVpeOnlyRole && myRoleEntry.status === 'auto' && myRoleEntry.acceptedAt && (
                           <span className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
                             <CheckCircle2 size={14} />
                             You're all set
                           </span>
                         )}
-                        {myRoleEntry.status === 'taken' &&
+                        {!isVpeOnlyRole &&
+                          myRoleEntry.status === 'taken' &&
                           (membership && !membership.isActive ? (
                             <p className="text-xs font-medium text-ink/50">
                               Your membership is inactive — contact the Treasurer to renew.

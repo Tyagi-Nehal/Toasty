@@ -23,6 +23,13 @@ import { getAttendanceStatsByMember } from './mockAttendanceStore.js'
 const LOG_KEY = 'toasty_role_notifications'
 const MAX_LOG_ENTRIES = 25
 
+// Presiding Officer and Sergeant at Arms are meeting-conducting roles
+// always held by the same real ExCom officers, not roles any member
+// picks — only the VPE assigns them (via Override), never self-select
+// or auto-assign. Backed by an RLS policy of the same name/intent on
+// meeting_role_assignments, not just this client-side gate.
+export const VPE_ONLY_ROLE_IDS = ['po', 'saa']
+
 function logAction(message) {
   const entry = { id: crypto.randomUUID(), message, time: new Date().toISOString() }
   try {
@@ -219,6 +226,9 @@ export async function getMeeting(meetingId) {
 }
 
 export async function selectRole(meetingId, roleId) {
+  if (VPE_ONLY_ROLE_IDS.includes(roleId)) {
+    throw new Error('This role is assigned by the VPE, not self-selected.')
+  }
   const account = getAccount()
   const meeting = await getMeeting(meetingId)
   await supabase
@@ -234,6 +244,9 @@ export async function declineMyRole(meetingId) {
   const meeting = await getMeeting(meetingId)
   const myRoleId = meeting?.myRoleId
   if (!myRoleId) return
+  if (VPE_ONLY_ROLE_IDS.includes(myRoleId)) {
+    throw new Error('This role is managed by the VPE — ask them to reassign it.')
+  }
 
   await supabase
     .from('meeting_role_assignments')
@@ -312,7 +325,7 @@ async function runAutoAssign(meetingId, trigger) {
   let filledCount = 0
   const newAssignments = []
   for (const [roleId, entry] of Object.entries(meeting.roles)) {
-    if (entry.status !== 'open') continue
+    if (entry.status !== 'open' || VPE_ONLY_ROLE_IDS.includes(roleId)) continue
     const available = members.filter((m) => !usedNames.has(m.name))
     if (available.length === 0) break
     const [best] = available
