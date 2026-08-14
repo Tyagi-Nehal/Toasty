@@ -46,7 +46,12 @@ function isActive(membershipEnd) {
   return Boolean(membershipEnd) && membershipEnd >= todayISO()
 }
 
-const DEFAULT_STATUS = { paymentStatus: 'pending', membershipStart: null, membershipEnd: null }
+const DEFAULT_STATUS = {
+  paymentStatus: 'pending',
+  membershipStart: null,
+  membershipEnd: null,
+  cycleLabel: null,
+}
 
 function toStatus(row) {
   if (!row) return { ...DEFAULT_STATUS, isActive: false }
@@ -54,6 +59,7 @@ function toStatus(row) {
     paymentStatus: row.payment_status,
     membershipStart: row.membership_start,
     membershipEnd: row.membership_end,
+    cycleLabel: row.cycle_label,
     isActive: isActive(row.membership_end),
   }
 }
@@ -83,13 +89,17 @@ export async function getMyMembershipStatus() {
   return toStatus(row)
 }
 
-export async function updateMemberRenewal(memberName, { paymentStatus, membershipStart, membershipEnd }) {
+export async function updateMemberRenewal(
+  memberName,
+  { paymentStatus, membershipStart, membershipEnd, cycleLabel },
+) {
   const { error } = await supabase.from('member_renewals').upsert(
     {
       member_name: memberName,
       payment_status: paymentStatus,
       membership_start: membershipStart || null,
       membership_end: membershipEnd || null,
+      cycle_label: cycleLabel || null,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'member_name' },

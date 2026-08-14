@@ -73,23 +73,31 @@ export default function RenewalManagementPage() {
     refresh()
   }, [])
 
+  // Editing a date within an already-selected cycle keeps that cycle
+  // (a partial start/end for someone who joined or left mid-term is still
+  // "that cycle," not "Custom") — only the Cycle dropdown itself changes
+  // cycleLabel.
   async function handleFieldChange(member, field, value) {
     await updateMemberRenewal(member.name, {
       paymentStatus: member.paymentStatus,
       membershipStart: member.membershipStart,
       membershipEnd: member.membershipEnd,
+      cycleLabel: member.cycleLabel,
       [field]: value,
     })
     refresh()
   }
 
+  // Picking a cycle resets the active period to that cycle's full range;
+  // the Treasurer can then narrow it for a partial renewal via the date
+  // inputs, which stay bounded to this cycle's start/end.
   async function handleTermChange(member, termLabel) {
     const term = TERM_OPTIONS.find((t) => t.label === termLabel)
-    if (!term) return
     await updateMemberRenewal(member.name, {
       paymentStatus: member.paymentStatus,
-      membershipStart: term.start,
-      membershipEnd: term.end,
+      membershipStart: term ? term.start : member.membershipStart,
+      membershipEnd: term ? term.end : member.membershipEnd,
+      cycleLabel: term ? term.label : null,
     })
     refresh()
   }
@@ -122,6 +130,7 @@ export default function RenewalManagementPage() {
           paymentStatus: member?.paymentStatus ?? 'pending',
           membershipStart: term.start,
           membershipEnd: term.end,
+          cycleLabel: term.label,
         })
       }),
     )
@@ -219,10 +228,7 @@ export default function RenewalManagementPage() {
               </thead>
               <tbody>
                 {visible.map((member) => {
-                  const matchingTerm = TERM_OPTIONS.find(
-                    (t) => t.start === member.membershipStart && t.end === member.membershipEnd,
-                  )
-                  const isCustom = !matchingTerm
+                  const selectedTerm = TERM_OPTIONS.find((t) => t.label === member.cycleLabel)
                   return (
                     <tr key={member.name} className="border-b border-accent/10 last:border-0">
                       <td className="px-4 py-3">
@@ -259,7 +265,7 @@ export default function RenewalManagementPage() {
                       </td>
                       <td className="px-4 py-3">
                         <select
-                          value={matchingTerm?.label ?? ''}
+                          value={member.cycleLabel ?? ''}
                           onChange={(e) => handleTermChange(member, e.target.value)}
                           className={selectClass}
                         >
@@ -272,26 +278,29 @@ export default function RenewalManagementPage() {
                         </select>
                       </td>
                       <td className="px-4 py-3">
-                        {isCustom ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="date"
-                              value={member.membershipStart ?? ''}
-                              onChange={(e) => handleFieldChange(member, 'membershipStart', e.target.value)}
-                              className={selectClass}
-                            />
-                            <span className="text-ink/40">–</span>
-                            <input
-                              type="date"
-                              value={member.membershipEnd ?? ''}
-                              onChange={(e) => handleFieldChange(member, 'membershipEnd', e.target.value)}
-                              className={selectClass}
-                            />
-                          </div>
-                        ) : (
-                          <span className="text-ink/70">
-                            {formatRange(member.membershipStart, member.membershipEnd)}
-                          </span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="date"
+                            value={member.membershipStart ?? ''}
+                            min={selectedTerm?.start}
+                            max={selectedTerm?.end}
+                            onChange={(e) => handleFieldChange(member, 'membershipStart', e.target.value)}
+                            className={selectClass}
+                          />
+                          <span className="text-ink/40">–</span>
+                          <input
+                            type="date"
+                            value={member.membershipEnd ?? ''}
+                            min={selectedTerm?.start}
+                            max={selectedTerm?.end}
+                            onChange={(e) => handleFieldChange(member, 'membershipEnd', e.target.value)}
+                            className={selectClass}
+                          />
+                        </div>
+                        {selectedTerm && (
+                          <p className="mt-1 text-[11px] text-ink/40">
+                            Within {formatRange(selectedTerm.start, selectedTerm.end)}
+                          </p>
                         )}
                       </td>
                     </tr>

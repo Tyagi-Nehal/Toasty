@@ -451,6 +451,12 @@ create table if not exists member_renewals (
   payment_status text not null default 'pending' check (payment_status in ('paid','pending','overdue')),
   membership_start date,
   membership_end date,
+  -- Which standard 6-month term the member's active window belongs to
+  -- (e.g. "Oct 2025-Feb 2026"), independent of membership_start/end —
+  -- lets the Treasurer set a partial window (joined/left mid-cycle)
+  -- while the UI still bounds editing to that cycle's dates. Null means
+  -- a fully custom range not tied to any standard term.
+  cycle_label text,
   updated_at timestamptz not null default now()
 );
 
