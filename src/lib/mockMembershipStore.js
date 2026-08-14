@@ -63,12 +63,19 @@ const DEFAULT_STATUS = {
 
 function toStatus(row) {
   if (!row) return { ...DEFAULT_STATUS, isActive: false }
+  const active = isActive(row.membership_end)
   return {
-    paymentStatus: row.payment_status,
+    // A member who's lapsed into Inactive (didn't get renewed into a new
+    // term) shouldn't keep showing "Paid" from whatever term they last
+    // paid for — that reads as if they're covered when they're not. This
+    // mirrors the symmetric rule on the way in: renewing into an active
+    // window auto-marks Paid (see autoPaymentStatus in
+    // RenewalManagementPage.jsx); lapsing back out of one auto-reverts it.
+    paymentStatus: active || row.payment_status !== 'paid' ? row.payment_status : 'pending',
     membershipStart: row.membership_start,
     membershipEnd: row.membership_end,
     cycleLabel: row.cycle_label,
-    isActive: isActive(row.membership_end),
+    isActive: active,
   }
 }
 
@@ -140,54 +147,4 @@ export async function updateMemberRenewal(
     return
   }
   logAction(`Treasurer updated renewal details for ${memberName}`)
-
-  // member_renewals only ever holds one row per member (the current
-  // state — overwritten on every edit), so without this, past terms'
-  // records would be gone the moment they're renewed for a new one.
-  // This append-only snapshot is what powers the Previous Terms view.
-  const { error: historyError } = await supabase.from('member_renewal_history').insert({
-    email: normalizedEmail,
-    member_name: memberName,
-    payment_status: paymentStatus,
-    membership_start: membershipStart || null,
-    membership_end: membershipEnd || null,
-    cycle_label: cycleLabel || null,
-  })
-  if (historyError) {
-    console.error('[mockMembershipStore] renewal history insert failed:', historyError.message)
-  }
-}
-
-// Each member's most recently recorded status specifically for the given
-// term label (e.g. "Oct 2025–Feb 2026") — a read-only look back, since a
-// member can be edited multiple times within the same term (a correction,
-// a late payment) and only the latest of those should represent "what
-// happened that term."
-export async function getRenewalHistoryForTerm(cycleLabel) {
-  if (!cycleLabel) return []
-  const { data, error } = await supabase
-    .from('member_renewal_history')
-    .select('*')
-    .eq('cycle_label', cycleLabel)
-    .order('recorded_at', { ascending: false })
-  if (error) {
-    console.error('[mockMembershipStore] getRenewalHistoryForTerm failed:', error.message)
-    return []
-  }
-  const seen = new Map()
-  for (const row of data ?? []) {
-    const email = normalizeEmail(row.email)
-    if (!seen.has(email)) seen.set(email, row) // first hit per email = most recent (desc order)
-  }
-  return [...seen.values()]
-    .map((row) => ({
-      name: row.member_name,
-      email: normalizeEmail(row.email),
-      paymentStatus: row.payment_status,
-      membershipStart: row.membership_start,
-      membershipEnd: row.membership_end,
-      cycleLabel: row.cycle_label,
-      recordedAt: row.recorded_at,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name))
 }
