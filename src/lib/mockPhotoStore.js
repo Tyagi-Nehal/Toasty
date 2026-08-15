@@ -69,6 +69,16 @@ export async function removeClubPagePhoto(id, url) {
 
 // ---- "Our Story" / "Achievements" content blocks (photo + title + text) ----
 
+async function getContentBlockRow(id) {
+  const { data, error } = await supabase
+    .from('club_content_blocks')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) console.error('[mockPhotoStore] getContentBlockRow failed:', error.message)
+  return data
+}
+
 export async function getContentBlocks(section) {
   const { data, error } = await supabase
     .from('club_content_blocks')
@@ -78,44 +88,86 @@ export async function getContentBlocks(section) {
   if (error) console.error('[mockPhotoStore] getContentBlocks failed:', error.message)
   return (data ?? []).map((r) => ({
     id: r.id,
-    photoUrl: r.photo_url,
+    photoUrls: r.photo_urls ?? [],
     title: r.title,
     content: r.content,
   }))
 }
 
-export async function addContentBlock(section, { title, content, file }) {
-  const photoUrl = file ? await uploadClubPhoto(file, `club-page/${section}`) : null
+// files: multiple photos per block, not just one — uploaded together and
+// stored as [{id, url}], same shape as meeting posters/group photos.
+export async function addContentBlock(section, { title, content, files }) {
+  const uploaded = await Promise.all(
+    (files ?? []).map(async (file) => ({
+      id: crypto.randomUUID(),
+      url: await uploadClubPhoto(file, `club-page/${section}`),
+    })),
+  )
   const { error } = await supabase
     .from('club_content_blocks')
-    .insert({ section, title, content: content || null, photo_url: photoUrl })
+    .insert({ section, title, content: content || null, photo_urls: uploaded })
   if (error) {
     console.error('[mockPhotoStore] addContentBlock failed:', error.message)
-    return
+    throw new Error('Could not save this block — try again in a moment.')
   }
   logAction(`VPPR added a "${section}" block: "${title}"`)
 }
 
-export async function updateContentBlock(id, section, { title, content, photoUrl, file }) {
-  const finalPhotoUrl = file ? await uploadClubPhoto(file, `club-page/${section}`) : photoUrl
+// Title/content only — photos on an existing block are managed
+// separately (addContentBlockPhotos/removeContentBlockPhoto below), same
+// split as meeting theme vs. meeting photos.
+export async function updateContentBlockText(id, section, { title, content }) {
   const { error } = await supabase
     .from('club_content_blocks')
-    .update({ title, content: content || null, photo_url: finalPhotoUrl ?? null })
+    .update({ title, content: content || null })
     .eq('id', id)
   if (error) {
-    console.error('[mockPhotoStore] updateContentBlock failed:', error.message)
-    return
+    console.error('[mockPhotoStore] updateContentBlockText failed:', error.message)
+    throw new Error('Could not save this block — try again in a moment.')
   }
   logAction(`VPPR updated a "${section}" block: "${title}"`)
 }
 
-export async function removeContentBlock(id, url) {
+export async function addContentBlockPhotos(id, section, files) {
+  const uploaded = await Promise.all(
+    files.map(async (file) => ({
+      id: crypto.randomUUID(),
+      url: await uploadClubPhoto(file, `club-page/${section}`),
+    })),
+  )
+  const existing = await getContentBlockRow(id)
+  const { error } = await supabase
+    .from('club_content_blocks')
+    .update({ photo_urls: [...(existing?.photo_urls ?? []), ...uploaded] })
+    .eq('id', id)
+  if (error) {
+    console.error('[mockPhotoStore] addContentBlockPhotos failed:', error.message)
+    throw new Error('Could not add photos — try again in a moment.')
+  }
+  logAction(`VPPR added ${uploaded.length} photo${uploaded.length === 1 ? '' : 's'} to a "${section}" block`)
+}
+
+export async function removeContentBlockPhoto(id, section, photoId, url) {
+  const existing = await getContentBlockRow(id)
+  const { error } = await supabase
+    .from('club_content_blocks')
+    .update({ photo_urls: (existing?.photo_urls ?? []).filter((p) => p.id !== photoId) })
+    .eq('id', id)
+  if (error) {
+    console.error('[mockPhotoStore] removeContentBlockPhoto failed:', error.message)
+    throw new Error('Could not remove this photo — try again in a moment.')
+  }
+  await deleteClubPhoto(url)
+  logAction(`VPPR removed a photo from a "${section}" block`)
+}
+
+export async function removeContentBlock(id, photoUrls) {
   const { error } = await supabase.from('club_content_blocks').delete().eq('id', id)
   if (error) {
     console.error('[mockPhotoStore] removeContentBlock failed:', error.message)
     return
   }
-  if (url) await deleteClubPhoto(url)
+  await Promise.all((photoUrls ?? []).map((p) => deleteClubPhoto(p.url)))
   logAction('VPPR removed a content block from the club page')
 }
 

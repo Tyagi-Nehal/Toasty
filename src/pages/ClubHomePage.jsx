@@ -39,33 +39,49 @@ function ContentBlockSection({ title, blocks, emptyMessage }) {
         <p className="mt-4 text-sm text-ink/50">{emptyMessage}</p>
       ) : (
         <div className="mt-6 space-y-5">
-          {blocks.map((block) => (
-            <div
-              key={block.id}
-              className="overflow-hidden rounded-3xl border border-accent/30 bg-white shadow-sm shadow-primary/5"
-            >
-              <div className={`grid gap-0 ${block.photoUrl ? 'lg:grid-cols-2' : ''}`}>
-                <div className="flex flex-col justify-center p-6 sm:p-10">
-                  <h3 className="text-xl font-bold text-ink sm:text-2xl">{block.title}</h3>
-                  {block.content && (
-                    <p className="mt-3 text-sm leading-relaxed text-ink/70 sm:text-base">
-                      {block.content}
-                    </p>
+          {blocks.map((block) => {
+            const photos = block.photoUrls ?? []
+            return (
+              <div
+                key={block.id}
+                className="overflow-hidden rounded-3xl border border-accent/30 bg-white shadow-sm shadow-primary/5"
+              >
+                <div className={`grid gap-0 ${photos.length > 0 ? 'lg:grid-cols-2' : ''}`}>
+                  <div className="flex flex-col justify-center p-6 sm:p-10">
+                    <h3 className="text-xl font-bold text-ink sm:text-2xl">{block.title}</h3>
+                    {block.content && (
+                      <p className="mt-3 text-sm leading-relaxed text-ink/70 sm:text-base">
+                        {block.content}
+                      </p>
+                    )}
+                  </div>
+                  {photos.length === 1 && (
+                    <div className="min-h-[220px]">
+                      <img
+                        src={photos[0].url}
+                        alt={block.title}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+                  {photos.length > 1 && (
+                    <div className="grid min-h-[220px] grid-cols-2 gap-0.5">
+                      {photos.map((photo) => (
+                        <img
+                          key={photo.id}
+                          src={photo.url}
+                          alt={block.title}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      ))}
+                    </div>
                   )}
                 </div>
-                {block.photoUrl && (
-                  <div className="min-h-[220px]">
-                    <img
-                      src={block.photoUrl}
-                      alt={block.title}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  </div>
-                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </section>

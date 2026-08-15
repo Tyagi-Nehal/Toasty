@@ -24,6 +24,7 @@ import { uploadClubPhoto } from '../lib/storage.js'
 import {
   addClubPagePhoto,
   addContentBlock,
+  addContentBlockPhotos,
   addMeetingCertificate,
   addMeetingGroupPhotos,
   addMeetingPosters,
@@ -34,11 +35,12 @@ import {
   getPhotoUploadLog,
   removeClubPagePhoto,
   removeContentBlock,
+  removeContentBlockPhoto,
   removeMeetingGroupPhoto,
   removeMeetingPoster,
   reorderMeetingGroupPhotos,
   saveMeetingTheme,
-  updateContentBlock,
+  updateContentBlockText,
   upsertExcomProfile,
 } from '../lib/mockPhotoStore.js'
 
@@ -146,17 +148,21 @@ function MainBannerUploader() {
   )
 }
 
-// Shared editor for "Our Story" / "Achievements" content blocks (photo +
-// title + text, repeatable) — same shape and UI for both sections.
+// Shared editor for "Our Story" / "Achievements" content blocks (photos +
+// title + text, repeatable) — same shape and UI for both sections. A
+// block can hold multiple photos, not just one: for an existing block,
+// adding/removing a photo saves immediately (same pattern as Meeting
+// Posters); for a brand-new block that has no id yet, chosen files are
+// staged locally and uploaded together when the block itself is saved.
 function ContentBlocksEditor({ section }) {
   const [blocks, setBlocks] = useState([])
   const [formOpen, setFormOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
-  const [existingPhotoUrl, setExistingPhotoUrl] = useState(null)
-  const [photoFile, setPhotoFile] = useState(null)
-  const [photoPreview, setPhotoPreview] = useState(null)
+  const [existingPhotos, setExistingPhotos] = useState([])
+  const [stagedFiles, setStagedFiles] = useState([])
+  const [savingPhotos, setSavingPhotos] = useState(false)
   const [saving, setSaving] = useState(false)
 
   function refresh() {
@@ -172,9 +178,8 @@ function ContentBlocksEditor({ section }) {
     setEditingId(null)
     setTitle('')
     setContent('')
-    setExistingPhotoUrl(null)
-    setPhotoFile(null)
-    setPhotoPreview(null)
+    setExistingPhotos([])
+    setStagedFiles([])
     setFormOpen(true)
   }
 
@@ -182,79 +187,125 @@ function ContentBlocksEditor({ section }) {
     setEditingId(block.id)
     setTitle(block.title)
     setContent(block.content ?? '')
-    setExistingPhotoUrl(block.photoUrl)
-    setPhotoFile(null)
-    setPhotoPreview(null)
+    setExistingPhotos(block.photoUrls ?? [])
+    setStagedFiles([])
     setFormOpen(true)
   }
 
-  function handlePhotoChange(e) {
-    const file = e.target.files?.[0]
+  async function handlePhotoFilesChosen(e) {
+    const files = Array.from(e.target.files ?? [])
     e.target.value = ''
-    if (!file) return
-    setPhotoFile(file)
-    setPhotoPreview(URL.createObjectURL(file))
+    if (files.length === 0) return
+    if (!editingId) {
+      setStagedFiles((prev) => [
+        ...prev,
+        ...files.map((file) => ({ file, previewUrl: URL.createObjectURL(file) })),
+      ])
+      return
+    }
+    setSavingPhotos(true)
+    try {
+      await addContentBlockPhotos(editingId, section, files)
+      const fresh = await getContentBlocks(section)
+      setExistingPhotos(fresh.find((b) => b.id === editingId)?.photoUrls ?? [])
+      setBlocks(fresh)
+    } catch (err) {
+      window.alert(err.message)
+    } finally {
+      setSavingPhotos(false)
+    }
+  }
+
+  function removeStagedFile(index) {
+    setStagedFiles((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  async function handleRemoveExistingPhoto(photo) {
+    setSavingPhotos(true)
+    try {
+      await removeContentBlockPhoto(editingId, section, photo.id, photo.url)
+      setExistingPhotos((prev) => prev.filter((p) => p.id !== photo.id))
+      refresh()
+    } catch (err) {
+      window.alert(err.message)
+    } finally {
+      setSavingPhotos(false)
+    }
   }
 
   async function handleSave() {
     if (!title.trim()) return
     setSaving(true)
-    if (editingId) {
-      await updateContentBlock(editingId, section, {
-        title: title.trim(),
-        content: content.trim(),
-        photoUrl: existingPhotoUrl,
-        file: photoFile,
-      })
-    } else {
-      await addContentBlock(section, { title: title.trim(), content: content.trim(), file: photoFile })
+    try {
+      if (editingId) {
+        await updateContentBlockText(editingId, section, { title: title.trim(), content: content.trim() })
+      } else {
+        await addContentBlock(section, {
+          title: title.trim(),
+          content: content.trim(),
+          files: stagedFiles.map((s) => s.file),
+        })
+      }
+      setFormOpen(false)
+      refresh()
+    } catch (err) {
+      window.alert(err.message)
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
-    setFormOpen(false)
-    refresh()
   }
 
   async function handleDelete(block) {
-    await removeContentBlock(block.id, block.photoUrl)
+    await removeContentBlock(block.id, block.photoUrls)
     refresh()
   }
 
   return (
     <div className="space-y-3">
-      {blocks.map((block) => (
-        <div
-          key={block.id}
-          className="flex items-center gap-3 rounded-2xl border border-accent/30 bg-white p-4"
-        >
-          {block.photoUrl ? (
-            <img src={block.photoUrl} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
-          ) : (
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-cream text-ink/30">
-              <ImageIcon size={20} />
+      {blocks.map((block) => {
+        const photos = block.photoUrls ?? []
+        return (
+          <div
+            key={block.id}
+            className="flex items-center gap-3 rounded-2xl border border-accent/30 bg-white p-4"
+          >
+            {photos.length > 0 ? (
+              <div className="relative h-14 w-14 shrink-0">
+                <img src={photos[0].url} alt="" className="h-14 w-14 rounded-xl object-cover" />
+                {photos.length > 1 && (
+                  <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1 text-[10px] font-semibold text-cream">
+                    +{photos.length - 1}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-cream text-ink/30">
+                <ImageIcon size={20} />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-semibold text-ink">{block.title}</p>
+              {block.content && <p className="truncate text-xs text-ink/50">{block.content}</p>}
             </div>
-          )}
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold text-ink">{block.title}</p>
-            {block.content && <p className="truncate text-xs text-ink/50">{block.content}</p>}
+            <button
+              type="button"
+              onClick={() => startEdit(block)}
+              aria-label="Edit block"
+              className="rounded-lg p-1.5 text-ink/40 transition hover:bg-cream hover:text-primary"
+            >
+              <Pencil size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDelete(block)}
+              aria-label="Delete block"
+              className="rounded-lg p-1.5 text-ink/40 transition hover:bg-red-50 hover:text-red-600"
+            >
+              <Trash2 size={15} />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => startEdit(block)}
-            aria-label="Edit block"
-            className="rounded-lg p-1.5 text-ink/40 transition hover:bg-cream hover:text-primary"
-          >
-            <Pencil size={15} />
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDelete(block)}
-            aria-label="Delete block"
-            className="rounded-lg p-1.5 text-ink/40 transition hover:bg-red-50 hover:text-red-600"
-          >
-            <Trash2 size={15} />
-          </button>
-        </div>
-      ))}
+        )
+      })}
 
       {!formOpen ? (
         <button
@@ -286,19 +337,52 @@ function ContentBlocksEditor({ section }) {
           />
 
           <label className="mt-4 block text-xs font-medium text-ink/60">
-            Photo <span className="text-ink/40">(optional)</span>
+            Photos <span className="text-ink/40">(optional, add as many as you like)</span>
           </label>
-          {(photoPreview || existingPhotoUrl) && (
-            <img
-              src={photoPreview ?? existingPhotoUrl}
-              alt=""
-              className="mt-2 h-32 w-full rounded-xl object-cover"
-            />
+
+          {(existingPhotos.length > 0 || stagedFiles.length > 0) && (
+            <div className="mt-2 grid grid-cols-3 gap-2.5 sm:grid-cols-4">
+              {existingPhotos.map((photo) => (
+                <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-xl">
+                  <img src={photo.url} alt="" className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveExistingPhoto(photo)}
+                    disabled={savingPhotos}
+                    aria-label="Remove photo"
+                    className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-ink/60 text-cream opacity-0 transition group-hover:opacity-100 disabled:opacity-40"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+              {stagedFiles.map((staged, index) => (
+                <div key={staged.previewUrl} className="group relative aspect-square overflow-hidden rounded-xl">
+                  <img src={staged.previewUrl} alt="" className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeStagedFile(index)}
+                    aria-label="Remove photo"
+                    className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-ink/60 text-cream opacity-0 transition group-hover:opacity-100"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
-          <label className="mt-2 flex w-fit cursor-pointer items-center gap-1.5 rounded-xl border border-primary px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary hover:text-cream">
+
+          <label className="mt-3 flex w-fit cursor-pointer items-center gap-1.5 rounded-xl border border-primary px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary hover:text-cream">
             <ImagePlus size={15} />
-            Choose photo
-            <input type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+            {savingPhotos ? 'Saving…' : 'Add photos'}
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              disabled={savingPhotos}
+              onChange={handlePhotoFilesChosen}
+              className="hidden"
+            />
           </label>
 
           <div className="mt-5 flex gap-3">

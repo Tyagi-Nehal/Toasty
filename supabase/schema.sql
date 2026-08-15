@@ -648,7 +648,10 @@ grant usage, select on all sequences in schema public to authenticated;
 create table if not exists club_content_blocks (
   id bigint generated always as identity primary key,
   section text not null check (section in ('story','achievements')),
-  photo_url text,
+  photo_url text, -- legacy, superseded by photo_urls (kept, unused)
+  -- Multiple photos per block, [{id, url}] — same shape as
+  -- meeting_photos.posters/photos below.
+  photo_urls jsonb not null default '[]'::jsonb,
   title text not null,
   content text,
   created_at timestamptz not null default now()
