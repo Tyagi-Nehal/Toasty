@@ -83,8 +83,12 @@ export default function LandingPage() {
         <div className="absolute inset-0 bg-cream/30" />
 
         <div className="relative mx-auto max-w-6xl px-4 pt-12 pb-32 text-center sm:px-6 sm:pt-16 sm:pb-40 lg:pt-20">
-          <div className="mx-auto max-w-2xl">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-primary shadow-sm backdrop-blur">
+          {/* Everything sits on one solid card instead of loose text
+              directly on the photos — the paragraph especially had no
+              backing of its own and disappeared against lighter parts
+              of the photos behind it. */}
+          <div className="mx-auto max-w-2xl rounded-[2rem] bg-white/90 p-6 shadow-xl shadow-ink/10 backdrop-blur sm:p-10">
+            <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
               Toastmasters International
             </span>
             <h1 className="mt-4 text-4xl font-extrabold leading-tight text-ink sm:text-5xl">
@@ -107,13 +111,13 @@ export default function LandingPage() {
               </a>
               <a
                 href="#why-join"
-                className="rounded-full border border-primary/50 bg-white/60 px-6 py-3 text-sm font-semibold text-primary backdrop-blur transition hover:bg-white/90"
+                className="rounded-full border border-primary/50 px-6 py-3 text-sm font-semibold text-primary transition hover:bg-primary/10"
               >
                 Learn More
               </a>
             </div>
 
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3 rounded-2xl bg-white/80 p-4 text-left shadow-sm backdrop-blur">
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3 rounded-2xl bg-primary/5 p-4 text-left">
               <Trophy size={28} className="shrink-0 text-primary" />
               <p className="text-sm text-ink/70">
                 Each year, thousands of members compete for the title of{' '}
