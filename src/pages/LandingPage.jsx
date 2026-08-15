@@ -80,7 +80,7 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
-        <div className="absolute inset-0 bg-cream/70" />
+        <div className="absolute inset-0 bg-cream/30" />
 
         <div className="relative mx-auto max-w-6xl px-4 pt-12 pb-32 text-center sm:px-6 sm:pt-16 sm:pb-40 lg:pt-20">
           <div className="mx-auto max-w-2xl">
