@@ -66,8 +66,8 @@ export default function LandingPage() {
       <PublicNavbar showClubLinks />
 
       {/* Hero — 4 vertical photos adjacent to each other as the full
-          background, with a warm tinted overlay (not black) for text
-          contrast. */}
+          background, faded toward cream (their own colors, just muted)
+          instead of tinted a solid color. */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 grid grid-cols-4">
           {heroPhotos.map((photo) => (
@@ -80,17 +80,17 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
-        <div className="absolute inset-0 bg-primary-dark/75" />
+        <div className="absolute inset-0 bg-cream/70" />
 
         <div className="relative mx-auto max-w-6xl px-4 pt-12 pb-32 text-center sm:px-6 sm:pt-16 sm:pb-40 lg:pt-20">
           <div className="mx-auto max-w-2xl">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-white backdrop-blur">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-primary shadow-sm backdrop-blur">
               Toastmasters International
             </span>
-            <h1 className="mt-4 text-4xl font-extrabold leading-tight text-white sm:text-5xl">
-              Where leaders <span className="text-accent">are made.</span>
+            <h1 className="mt-4 text-4xl font-extrabold leading-tight text-ink sm:text-5xl">
+              Where leaders <span className="text-primary">are made.</span>
             </h1>
-            <p className="mt-4 text-base leading-relaxed text-white/85 sm:text-lg">
+            <p className="mt-4 text-base leading-relaxed text-ink/70 sm:text-lg">
               Since 1924, Toastmasters International has helped people become
               more confident public speakers and leaders through a
               worldwide network of member-run clubs. Every meeting is a
@@ -101,23 +101,23 @@ export default function LandingPage() {
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <a
                 href="#find-club"
-                className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-primary shadow-lg shadow-primary-dark/30 transition hover:bg-cream"
+                className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-cream shadow-lg shadow-primary/30 transition hover:bg-primary-dark"
               >
                 Find Your Club
               </a>
               <a
                 href="#why-join"
-                className="rounded-full border border-white/50 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                className="rounded-full border border-primary/50 bg-white/60 px-6 py-3 text-sm font-semibold text-primary backdrop-blur transition hover:bg-white/90"
               >
                 Learn More
               </a>
             </div>
 
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3 rounded-2xl bg-white/15 p-4 text-left backdrop-blur">
-              <Trophy size={28} className="shrink-0 text-white" />
-              <p className="text-sm text-white/90">
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3 rounded-2xl bg-white/80 p-4 text-left shadow-sm backdrop-blur">
+              <Trophy size={28} className="shrink-0 text-primary" />
+              <p className="text-sm text-ink/70">
                 Each year, thousands of members compete for the title of{' '}
-                <span className="font-semibold text-white">
+                <span className="font-semibold text-ink">
                   World Champion of Public Speaking
                 </span>{' '}
                 — Toastmasters' most prestigious honor.
