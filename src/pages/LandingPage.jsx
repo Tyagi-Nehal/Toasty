@@ -12,7 +12,6 @@ import {
 import PublicNavbar from '../components/PublicNavbar.jsx'
 import Footer from '../components/Footer.jsx'
 import ClubSelector from '../components/ClubSelector.jsx'
-import heroMicrophone from '../assets/landing/hero-microphone-audience.jpg'
 
 const stats = [
   { icon: Users, label: 'Members worldwide', value: '265,000+' },
@@ -55,31 +54,27 @@ export default function LandingPage() {
     <div className="min-h-screen bg-cream">
       <PublicNavbar showClubLinks />
 
-      {/* Hero — angled photo background with a dark gradient overlay,
-          instead of a light cream section. */}
-      <section className="relative overflow-hidden bg-ink">
-        <div className="absolute inset-0">
-          <img
-            src={heroMicrophone}
-            alt="A Toastmasters speaker addressing a large audience"
-            className="h-full w-full object-cover"
-          />
-          <div
-            className="absolute inset-0 bg-gradient-to-br from-ink via-ink/90 to-primary-dark/70"
-            style={{ clipPath: 'polygon(0 0, 68% 0, 42% 100%, 0 100%)' }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-ink/60 via-ink/10 to-transparent" />
-        </div>
+      {/* Hero — a warm gradient built entirely from Toasty's own brand
+          colors (no black, no background photo). */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-primary-dark via-primary to-accent">
+        <div
+          aria-hidden="true"
+          className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/10 blur-3xl"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute -bottom-32 left-1/3 h-80 w-80 rounded-full bg-primary-dark/30 blur-3xl"
+        />
 
-        <div className="relative mx-auto max-w-6xl px-4 pt-12 pb-32 sm:px-6 sm:pt-16 sm:pb-40 lg:pt-20">
-          <div className="max-w-xl">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-cream backdrop-blur">
+        <div className="relative mx-auto max-w-6xl px-4 pt-12 pb-32 text-center sm:px-6 sm:pt-16 sm:pb-40 lg:pt-20">
+          <div className="mx-auto max-w-2xl">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-white backdrop-blur">
               Toastmasters International
             </span>
             <h1 className="mt-4 text-4xl font-extrabold leading-tight text-white sm:text-5xl">
-              Where leaders <span className="text-accent">are made.</span>
+              Where leaders <span className="text-ink">are made.</span>
             </h1>
-            <p className="mt-4 text-base leading-relaxed text-white/75 sm:text-lg">
+            <p className="mt-4 text-base leading-relaxed text-white/85 sm:text-lg">
               Since 1924, Toastmasters International has helped people become
               more confident public speakers and leaders through a
               worldwide network of member-run clubs. Every meeting is a
@@ -87,24 +82,24 @@ export default function LandingPage() {
               leadership skills.
             </p>
 
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
               <a
                 href="#find-club"
-                className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-ink shadow-lg shadow-ink/20 transition hover:bg-cream"
+                className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-primary shadow-lg shadow-primary-dark/30 transition hover:bg-cream"
               >
                 Find Your Club
               </a>
               <a
                 href="#why-join"
-                className="rounded-full border border-white/40 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                className="rounded-full border border-white/50 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
               >
                 Learn More
               </a>
             </div>
 
-            <div className="mt-8 flex flex-wrap items-center gap-3 rounded-2xl bg-white/10 p-4 backdrop-blur">
-              <Trophy size={28} className="shrink-0 text-accent" />
-              <p className="text-sm text-white/80">
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3 rounded-2xl bg-white/15 p-4 text-left backdrop-blur">
+              <Trophy size={28} className="shrink-0 text-white" />
+              <p className="text-sm text-white/90">
                 Each year, thousands of members compete for the title of{' '}
                 <span className="font-semibold text-white">
                   World Champion of Public Speaking
