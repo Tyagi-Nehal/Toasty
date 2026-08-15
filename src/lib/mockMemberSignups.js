@@ -5,6 +5,7 @@
 // static placeholder names with no connection to real sign-ups at all.
 
 import { supabase } from './supabaseClient.js'
+import { scoreSignupApproval } from './mockPointsStore.js'
 
 function normalizeEmail(email) {
   return (email ?? '').trim().toLowerCase()
@@ -66,7 +67,11 @@ export async function getApprovedSignups() {
 }
 
 export async function approveSignup(id) {
-  await supabase.from('member_signups').update({ status: 'approved' }).eq('id', id)
+  await supabase
+    .from('member_signups')
+    .update({ status: 'approved', approved_at: new Date().toISOString() })
+    .eq('id', id)
+  await scoreSignupApproval()
 }
 
 export async function rejectSignup(id) {

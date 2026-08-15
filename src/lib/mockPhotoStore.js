@@ -9,6 +9,7 @@
 import { supabase } from './supabaseClient.js'
 import { uploadClubPhoto, deleteClubPhoto } from './storage.js'
 import { formatFullDate } from './mockRolesStore.js'
+import { scorePhotosSubmission } from './mockPointsStore.js'
 
 const LOG_KEY = 'toasty_photo_upload_log'
 const MAX_LOG_ENTRIES = 25
@@ -278,10 +279,15 @@ export async function addMeetingGroupPhotos(meeting, files) {
     })),
   )
   const existing = await getMeetingPhotos(meeting.id)
+  const isFirstUpload = (existing?.photos ?? []).length === 0
   const next = await upsertMeetingPhotosRow(meeting, {
     photos: [...(existing?.photos ?? []), ...uploaded],
   })
   logAction(`VPPR added ${uploaded.length} photo${uploaded.length === 1 ? '' : 's'} for ${meeting.dateLabel}`)
+  // Points score off the first real upload for this meeting, not every
+  // subsequent add — "photos submitted on time" means it happened once,
+  // promptly, not that every edit afterward should re-check the window.
+  if (isFirstUpload) await scorePhotosSubmission(meeting, new Date().toISOString())
   return next
 }
 

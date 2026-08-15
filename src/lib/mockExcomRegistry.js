@@ -10,6 +10,7 @@
 // Function names are unchanged from the old localStorage-backed version.
 
 import { supabase } from './supabaseClient.js'
+import { scoreExcomAppointment } from './mockPointsStore.js'
 
 function normalizeEmail(email) {
   return (email ?? '').trim().toLowerCase()
@@ -50,6 +51,8 @@ export async function registerExcomMember({ role, name, email, appointedByEmail 
   })
   if (error) return { error: error.message ?? 'Something went wrong. Please try again.' }
 
+  await scoreExcomAppointment()
+
   return {
     role,
     name,
@@ -76,6 +79,23 @@ export async function getRoleForEmail(email) {
     .limit(1)
     .maybeSingle()
   return data?.role ?? null
+}
+
+// Reverse of getRoleForEmail — the email currently holding a given role
+// (most recent appointment wins). Used to attribute ExCom points to
+// whoever actually holds a role, even when the President performs the
+// triggering action on that role's behalf (see mockPointsStore.js) —
+// crediting getAccount()'s email directly would wrongly give the
+// President points meant for e.g. the VPM.
+export async function getEmailForRole(role) {
+  const { data } = await supabase
+    .from('excom_appointments')
+    .select('email')
+    .eq('role', role)
+    .order('appointed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return data?.email ?? null
 }
 
 // Returns every distinct role registered to this email (most-recent

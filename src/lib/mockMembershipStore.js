@@ -15,6 +15,7 @@ import { supabase } from './supabaseClient.js'
 import { getAccount } from './mockAuth.js'
 import { getApprovedSignups } from './mockMemberSignups.js'
 import { getExcomAppointments } from './mockExcomRegistry.js'
+import { scoreRenewal } from './mockPointsStore.js'
 
 const LOG_KEY = 'toasty_renewal_log'
 const MAX_LOG_ENTRIES = 25
@@ -130,6 +131,16 @@ export async function updateMemberRenewal(
   { paymentStatus, membershipStart, membershipEnd, cycleLabel },
 ) {
   const normalizedEmail = normalizeEmail(email)
+
+  // Checked before the upsert — whether this member already had a row is
+  // what tells Treasurer scoring "new member's first renewal" (worth
+  // more) from "existing member renewing again" (routine).
+  const { data: existingRow } = await supabase
+    .from('member_renewals')
+    .select('id')
+    .eq('email', normalizedEmail)
+    .maybeSingle()
+
   const { error } = await supabase.from('member_renewals').upsert(
     {
       email: normalizedEmail,
@@ -147,4 +158,5 @@ export async function updateMemberRenewal(
     return
   }
   logAction(`Treasurer updated renewal details for ${memberName}`)
+  await scoreRenewal(normalizedEmail, Boolean(existingRow))
 }

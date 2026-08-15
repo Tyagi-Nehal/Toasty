@@ -7,6 +7,7 @@ import {
   ImagePlus,
   ListChecks,
   MessageSquare,
+  Star,
   UserCheck2,
   UserCog,
   UsersRound,
@@ -17,7 +18,7 @@ import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import MemberLayout from '../components/MemberLayout.jsx'
 import Avatar from '../components/Avatar.jsx'
-import { getAccount, hasExcomRole } from '../lib/mockAuth.js'
+import { getAccount, getDisplayRole, hasExcomRole } from '../lib/mockAuth.js'
 import {
   findNextActiveMeeting,
   getMeetings,
@@ -28,6 +29,24 @@ import { getMembersWithStatus } from '../lib/mockMembershipStore.js'
 import { getAgendaHistory } from '../lib/mockAgendaStore.js'
 import { getVisitRequestsLog } from '../lib/mockVisitRequests.js'
 import { getAllFeedback } from '../lib/mockFeedbackStore.js'
+import { getMonthlyBreakdown, getMonthlyPoints } from '../lib/mockPointsStore.js'
+
+// Phase 1 only covers automatic/measurable categories — discretionary
+// awards, the External-booking bonus, guest-approval points, and the
+// monthly poll aren't scored yet, so President/Associate accounts will
+// correctly show 0 here until those land.
+const categoryLabels = {
+  finalize_agenda: 'Finalized + agenda sent by Tuesday',
+  no_repetition: 'No role repetition',
+  mom_on_time: 'MOM submitted on time',
+  attendance_on_time: 'Attendance marked on time',
+  on_time_start: 'Meeting started on time',
+  photos_on_time: 'Photos submitted on time',
+  new_member_registered: 'New members registered',
+  growth_bonus: 'Club growth bonus',
+  renewal_new_member: 'New-member renewals',
+  renewal_existing_member: 'Existing-member renewals',
+}
 
 function timeAgo(isoString) {
   const diffMs = Date.now() - new Date(isoString).getTime()
@@ -100,7 +119,10 @@ export default function ExComDashboard() {
   const [recentActivity, setRecentActivity] = useState(() => getRecentActivity())
   const [members, setMembers] = useState([])
   const [pendingRenewalsCount, setPendingRenewalsCount] = useState(0)
+  const [monthlyPoints, setMonthlyPoints] = useState(0)
+  const [pointsBreakdown, setPointsBreakdown] = useState([])
   const canSeeMembers = hasExcomRole('VPM') || hasExcomRole('Treasurer')
+  const displayRole = getDisplayRole(account)
 
   useEffect(() => {
     if (hasExcomRole('VPM')) {
@@ -115,6 +137,10 @@ export default function ExComDashboard() {
         setMembers(list)
         setPendingRenewalsCount(list.filter((m) => m.paymentStatus !== 'paid').length)
       })
+    }
+    if (displayRole && account?.email) {
+      getMonthlyPoints(displayRole, account.email).then(setMonthlyPoints)
+      getMonthlyBreakdown(displayRole, account.email).then(setPointsBreakdown)
     }
   }, [])
 
@@ -202,6 +228,33 @@ export default function ExComDashboard() {
             </Link>
           ))}
         </div>
+
+        {/* Points this month — Phase 1: automatic/measurable scoring
+            only, so President/Associate accounts correctly show 0 until
+            discretionary awards and the monthly poll land. */}
+        {displayRole && (
+          <div className="mt-6 rounded-3xl border border-accent/30 bg-white p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <Star size={16} className="text-primary" />
+                Points This Month
+              </div>
+              <span className="text-2xl font-extrabold text-primary">{monthlyPoints}</span>
+            </div>
+            {pointsBreakdown.length > 0 ? (
+              <ul className="mt-3 space-y-1.5">
+                {pointsBreakdown.map((row) => (
+                  <li key={row.category} className="flex items-center justify-between text-sm">
+                    <span className="text-ink/60">{categoryLabels[row.category] ?? row.category}</span>
+                    <span className="font-medium text-ink">+{row.points}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-sm text-ink/50">No points recorded yet this month.</p>
+            )}
+          </div>
+        )}
 
         <div className="mt-8 grid gap-6 lg:grid-cols-3">
           {/* Quick actions */}

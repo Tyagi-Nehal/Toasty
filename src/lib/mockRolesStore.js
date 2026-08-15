@@ -19,6 +19,7 @@ import {
   scoreMemberForRole,
 } from './mockRosterStore.js'
 import { getAttendanceStatsByMember } from './mockAttendanceStore.js'
+import { scoreVpeFinalize } from './mockPointsStore.js'
 
 const LOG_KEY = 'toasty_role_notifications'
 const MAX_LOG_ENTRIES = 25
@@ -365,13 +366,17 @@ export async function autoAssignMeeting(meetingId) {
 // already uses, for consistency rather than inventing a new mechanism.
 export async function finalizeMeeting(meetingId) {
   const meeting = await getMeeting(meetingId)
-  await supabase.from('meetings').update({ finalized: true }).eq('id', meetingId)
+  await supabase
+    .from('meetings')
+    .update({ finalized: true, finalized_at: new Date().toISOString() })
+    .eq('id', meetingId)
   logAction(`VPE finalized roles for ${meeting.dateLabel}`)
   pushNotification({
     type: 'roles_finalized',
     message: `Roles for ${meeting.dateLabel} are finalized — check your assignment.`,
     link: '/roles',
   })
+  await scoreVpeFinalize(meeting)
 }
 
 // Reverses finalizeMeeting — re-opens the meeting for VPE edits (override,

@@ -9,6 +9,7 @@ import { supabase } from './supabaseClient.js'
 import { getMembers } from './mockRosterStore.js'
 import { getMeetings } from './mockRolesStore.js'
 import { getAccount } from './mockAuth.js'
+import { scoreAttendanceSubmission } from './mockPointsStore.js'
 
 // Meetings whose date has already arrived, most recent first, capped to a
 // short list. Uses meeting.date <= today (string compare), NOT
@@ -44,15 +45,20 @@ export async function getAttendanceForMeeting(meetingId) {
 
 // Batch upsert — the whole roster's present/absent state saved in one
 // call, matching the "Submit Attendance" button being a single explicit
-// action rather than autosaving every toggle.
-export async function submitAttendance(meetingId, presentByName) {
+// action rather than autosaving every toggle. `meeting` is the caller's
+// already-loaded meeting view (has .date/.time/.dateLabel), passed in
+// rather than re-fetched here to avoid a circular import with
+// mockRolesStore.js (which already imports this file for attendance
+// stats) — only used for on-time points scoring.
+export async function submitAttendance(meetingId, presentByName, meeting) {
   const account = getAccount()
+  const submittedAt = new Date().toISOString()
   const rows = Object.entries(presentByName).map(([member_name, present]) => ({
     meeting_id: meetingId,
     member_name,
     present,
     submitted_by_email: account?.email ?? null,
-    updated_at: new Date().toISOString(),
+    updated_at: submittedAt,
   }))
   const { error } = await supabase
     .from('attendance')
@@ -61,6 +67,7 @@ export async function submitAttendance(meetingId, presentByName) {
     console.error('[mockAttendanceStore] submitAttendance failed:', error.message)
     throw new Error('Could not save attendance — check your Secretary permissions and try again.')
   }
+  if (meeting) await scoreAttendanceSubmission(meeting, submittedAt)
 }
 
 // { [memberName]: { present, total } } across every recorded meeting — the

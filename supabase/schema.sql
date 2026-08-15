@@ -185,7 +185,11 @@ create table if not exists member_signups (
   email text not null unique,
   applied_for_excom boolean not null default false,
   status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
-  submitted_at timestamptz not null default now()
+  submitted_at timestamptz not null default now(),
+  -- Set by approveSignup() — an audit timestamp, not the points source
+  -- (VPM's new_member_registered points come from the excom_points ledger
+  -- itself, which caps by counting events per month, not by this column).
+  approved_at timestamptz
 );
 
 alter table member_signups enable row level security;
@@ -297,6 +301,9 @@ create table if not exists meetings (
   time text,
   theme text,
   finalized boolean not null default false,
+  -- When finalizeMeeting() last ran — used to check the VPE's
+  -- finalize-by-Tuesday points rule (see excom_points below).
+  finalized_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -875,4 +882,52 @@ create policy "poll_votes self insert" on poll_votes
 
 grant select, insert, update on polls to authenticated;
 grant select, insert on poll_votes to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+
+-- ExCom points, Phase 1 (automatic/measurable scoring only — see
+-- mockPointsStore.js). An event log, not a running total, so every
+-- point is auditable and a monthly sum is just sum(points) filtered by
+-- awarded_at — later phases (discretionary awards, the monthly poll)
+-- insert into this same table with their own categories.
+create table if not exists excom_points (
+  id bigint generated always as identity primary key,
+  role text not null,
+  email text not null,
+  meeting_id bigint references meetings(id) on delete set null,
+  category text not null,
+  points integer not null,
+  awarded_at timestamptz not null default now(),
+  note text,
+  -- Who/what this point is *about*, when different from who earned it —
+  -- e.g. the member being renewed for Treasurer's renewal categories.
+  -- Used to dedupe "already scored this specific member this month"
+  -- separately from the earner's own email, so repeated edits to the
+  -- same member (a payment-status tweak, a date correction) don't each
+  -- consume a slot in the monthly event cap.
+  subject_email text
+);
+
+alter table excom_points enable row level security;
+
+drop policy if exists "excom_points authenticated select" on excom_points;
+create policy "excom_points authenticated select" on excom_points
+  for select to authenticated using (true);
+
+-- A point is always inserted by the same account that just performed the
+-- action being scored (e.g. the Secretary's own MOM-submit call inserts
+-- the Secretary's own point row), so email = the caller's JWT email
+-- covers every real case; President-as-superuser included for
+-- consistency with every other write policy in this file.
+drop policy if exists "excom_points self role insert" on excom_points;
+create policy "excom_points self role insert" on excom_points
+  for insert to authenticated
+  with check (
+    lower(email) = lower(auth.jwt() ->> 'email')
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
+grant select, insert on excom_points to authenticated;
 grant usage, select on all sequences in schema public to authenticated;

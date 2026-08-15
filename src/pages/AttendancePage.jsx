@@ -53,7 +53,7 @@ export default function AttendancePage() {
   async function handleSubmit() {
     setSubmitting(true)
     try {
-      await submitAttendance(activeMeetingId, Object.fromEntries(attendance))
+      await submitAttendance(activeMeetingId, Object.fromEntries(attendance), activeMeeting)
       setSubmitted(true)
       setAlreadySubmitted(true)
     } catch (err) {

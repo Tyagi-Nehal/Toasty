@@ -7,6 +7,8 @@
 
 import { supabase } from './supabaseClient.js'
 import { getAccount } from './mockAuth.js'
+import { getMeeting } from './mockRolesStore.js'
+import { scoreMomSubmission } from './mockPointsStore.js'
 
 export async function getSubmittedMOM(meetingId) {
   const { data, error } = await supabase
@@ -43,5 +45,7 @@ export async function saveSubmittedMOM(meetingId, mom, meta) {
     console.error('[mockMOMStore] saveSubmittedMOM failed:', error.message)
     return null
   }
+  const meeting = await getMeeting(meetingId)
+  await scoreMomSubmission(meeting, mom, submittedAt)
   return { ...mom, ...meta, submittedAt }
 }
