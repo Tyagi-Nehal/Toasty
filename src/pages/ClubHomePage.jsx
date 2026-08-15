@@ -39,15 +39,21 @@ function ContentBlockSection({ title, blocks, emptyMessage }) {
         <p className="mt-4 text-sm text-ink/50">{emptyMessage}</p>
       ) : (
         <div className="mt-6 space-y-5">
-          {blocks.map((block) => {
+          {blocks.map((block, index) => {
             const photos = block.photoUrls ?? []
+            // Alternate sides block by block — first block's photos on
+            // the left, text on the right; second block back to text
+            // left/photos right; and so on. Only matters at the lg
+            // breakpoint where the two sit side by side — mobile always
+            // stacks text above photos regardless.
+            const flip = photos.length > 0 && index % 2 === 0
             return (
               <div
                 key={block.id}
                 className="overflow-hidden rounded-3xl border border-accent/30 bg-white shadow-sm shadow-primary/5"
               >
                 <div className={`grid gap-0 ${photos.length > 0 ? 'lg:grid-cols-2' : ''}`}>
-                  <div className="flex flex-col justify-center p-6 sm:p-10">
+                  <div className={`flex flex-col justify-center p-6 sm:p-10 ${flip ? 'lg:order-2' : ''}`}>
                     <h3 className="text-xl font-bold text-ink sm:text-2xl">{block.title}</h3>
                     {block.content && (
                       <p className="mt-3 text-sm leading-relaxed text-ink/70 sm:text-base">
@@ -56,7 +62,7 @@ function ContentBlockSection({ title, blocks, emptyMessage }) {
                     )}
                   </div>
                   {photos.length === 1 && (
-                    <div className="min-h-[220px]">
+                    <div className={`min-h-[220px] ${flip ? 'lg:order-1' : ''}`}>
                       <img
                         src={photos[0].url}
                         alt={block.title}
@@ -66,7 +72,7 @@ function ContentBlockSection({ title, blocks, emptyMessage }) {
                     </div>
                   )}
                   {photos.length > 1 && (
-                    <div className="grid min-h-[220px] grid-cols-2 gap-0.5">
+                    <div className={`grid min-h-[220px] grid-cols-2 gap-0.5 ${flip ? 'lg:order-1' : ''}`}>
                       {photos.map((photo) => (
                         <img
                           key={photo.id}
