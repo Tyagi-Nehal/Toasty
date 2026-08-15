@@ -12,6 +12,17 @@ import {
 import PublicNavbar from '../components/PublicNavbar.jsx'
 import Footer from '../components/Footer.jsx'
 import ClubSelector from '../components/ClubSelector.jsx'
+import heroStrip1 from '../assets/landing/hero-strip-1-empowerment.jpg'
+import heroStrip2 from '../assets/landing/hero-strip-2-handshake.jpg'
+import heroStrip3 from '../assets/landing/hero-strip-3-celebration.jpg'
+import heroStrip4 from '../assets/landing/hero-strip-4-speaker.jpg'
+
+const heroPhotos = [
+  { src: heroStrip1, alt: 'A silhouette raising a fist against a sunset sky' },
+  { src: heroStrip2, alt: 'Colleagues greeting each other with a handshake' },
+  { src: heroStrip3, alt: 'Two colleagues hugging and celebrating' },
+  { src: heroStrip4, alt: 'A speaker addressing an audience on stage' },
+]
 
 const stats = [
   { icon: Users, label: 'Members worldwide', value: '265,000+' },
@@ -54,17 +65,22 @@ export default function LandingPage() {
     <div className="min-h-screen bg-cream">
       <PublicNavbar showClubLinks />
 
-      {/* Hero — a warm gradient built entirely from Toasty's own brand
-          colors (no black, no background photo). */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary-dark via-primary to-accent">
-        <div
-          aria-hidden="true"
-          className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/10 blur-3xl"
-        />
-        <div
-          aria-hidden="true"
-          className="absolute -bottom-32 left-1/3 h-80 w-80 rounded-full bg-primary-dark/30 blur-3xl"
-        />
+      {/* Hero — 4 vertical photos adjacent to each other as the full
+          background, with a warm tinted overlay (not black) for text
+          contrast. */}
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 grid grid-cols-4">
+          {heroPhotos.map((photo) => (
+            <div key={photo.src} className="h-full w-full">
+              <img
+                src={photo.src}
+                alt={photo.alt}
+                className="h-full w-full object-cover"
+              />
+            </div>
+          ))}
+        </div>
+        <div className="absolute inset-0 bg-primary-dark/75" />
 
         <div className="relative mx-auto max-w-6xl px-4 pt-12 pb-32 text-center sm:px-6 sm:pt-16 sm:pb-40 lg:pt-20">
           <div className="mx-auto max-w-2xl">
@@ -72,7 +88,7 @@ export default function LandingPage() {
               Toastmasters International
             </span>
             <h1 className="mt-4 text-4xl font-extrabold leading-tight text-white sm:text-5xl">
-              Where leaders <span className="text-ink">are made.</span>
+              Where leaders <span className="text-accent">are made.</span>
             </h1>
             <p className="mt-4 text-base leading-relaxed text-white/85 sm:text-lg">
               Since 1924, Toastmasters International has helped people become
