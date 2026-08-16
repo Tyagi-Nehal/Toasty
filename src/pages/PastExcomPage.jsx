@@ -20,11 +20,15 @@ export default function PastExcomPage() {
           The members who've led the club before us. Contact info and extra
           details are shown only where the club has them on record.
         </p>
+        <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+          Founding ExCom · Term: February 2026 – June 2026
+        </span>
 
         <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {pastExcom.map((member) => {
             const hasDeptInfo = member.department || member.branch
             const profile = profiles[member.id]
+            const name = profile?.displayName || member.name
             const hasContact = profile?.phone || profile?.email || member.phone || member.email
             const phone = profile?.phone || member.phone
             const email = profile?.email || member.email
@@ -36,10 +40,10 @@ export default function PastExcomPage() {
               >
                 <div className="flex items-center gap-3">
                   {profile?.photoUrl ? (
-                    <div className="h-[52px] w-[52px] shrink-0 overflow-hidden rounded-full">
+                    <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full">
                       <img
                         src={profile.photoUrl}
-                        alt={member.name}
+                        alt={name}
                         className="h-full w-full object-cover"
                         style={{
                           objectPosition: profile.photoPosition ?? '50% 50%',
@@ -49,10 +53,10 @@ export default function PastExcomPage() {
                       />
                     </div>
                   ) : (
-                    <Avatar name={member.name} size={52} />
+                    <Avatar name={name} size={64} />
                   )}
                   <div className="min-w-0">
-                    <p className="truncate font-semibold text-ink">{member.name}</p>
+                    <p className="truncate font-semibold text-ink">{name}</p>
                     <p className="truncate text-sm font-medium text-primary">
                       {member.role}
                     </p>

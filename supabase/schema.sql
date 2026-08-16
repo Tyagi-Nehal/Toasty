@@ -687,6 +687,11 @@ alter table excom_profiles add column if not exists email text;
 -- Zoom level (100 = fit-to-circle, no zoom), paired with photo_position
 -- as the transform-origin so zooming stays centered on the chosen spot.
 alter table excom_profiles add column if not exists photo_zoom numeric default 100;
+-- VPPR-editable name override — src/data/excom.js's `name` field stays
+-- the canonical "who's on the roster + their role" list, but the VPPR
+-- can correct how a name displays (spelling, preferred name) without
+-- touching that static file. Null means "use the roster name as-is".
+alter table excom_profiles add column if not exists display_name text;
 
 -- Real per-meeting attendance, taken by the Secretary. Replaces the
 -- fully local/fake AttendancePage.jsx prototype. Feeds the VPE

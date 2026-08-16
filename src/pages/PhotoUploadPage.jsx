@@ -972,6 +972,7 @@ function ExcomProfilesTab({ refreshLog }) {
   ]
   const [profiles, setProfiles] = useState({})
   const [selectedId, setSelectedId] = useState(allMembers[0]?.id ?? null)
+  const [nameDraft, setNameDraft] = useState('')
   const [bioDraft, setBioDraft] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
@@ -994,6 +995,7 @@ function ExcomProfilesTab({ refreshLog }) {
   const selectedProfile = profiles[selectedId]
 
   useEffect(() => {
+    setNameDraft(selectedProfile?.displayName || selected?.name || '')
     setBioDraft(selectedProfile?.bio ?? '')
     setPhone(selectedProfile?.phone ?? '')
     setEmail(selectedProfile?.email ?? '')
@@ -1005,6 +1007,8 @@ function ExcomProfilesTab({ refreshLog }) {
     setPhotoPreview(null)
   }, [
     selectedId,
+    selected?.name,
+    selectedProfile?.displayName,
     selectedProfile?.bio,
     selectedProfile?.phone,
     selectedProfile?.email,
@@ -1026,10 +1030,15 @@ function ExcomProfilesTab({ refreshLog }) {
     if (photoFile) {
       photoUrl = await uploadClubPhoto(photoFile, 'excom-profiles')
     }
+    // Only save a display-name override when it actually differs from
+    // the roster's own name — typing it back to match just clears the
+    // override instead of storing a redundant duplicate.
+    const trimmedName = nameDraft.trim()
     await upsertExcomProfile(selected.id, selected.name, {
       photoUrl,
       photoPosition: `${posX}% ${posY}%`,
       photoZoom: zoom,
+      displayName: trimmedName && trimmedName !== selected.name ? trimmedName : null,
       bio: bioDraft,
       phone,
       email,
@@ -1054,22 +1063,25 @@ function ExcomProfilesTab({ refreshLog }) {
               </p>
               {allMembers
                 .filter((m) => m.group === group)
-                .map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setSelectedId(m.id)}
-                    className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition ${
-                      selectedId === m.id ? 'bg-primary/10' : 'hover:bg-cream'
-                    }`}
-                  >
-                    <Avatar name={m.name} size={28} />
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
-                      {m.name}
-                    </span>
-                    <span className="shrink-0 text-xs text-ink/40">{m.role}</span>
-                  </button>
-                ))}
+                .map((m) => {
+                  const displayName = profiles[m.id]?.displayName || m.name
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setSelectedId(m.id)}
+                      className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition ${
+                        selectedId === m.id ? 'bg-primary/10' : 'hover:bg-cream'
+                      }`}
+                    >
+                      <Avatar name={displayName} size={28} />
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
+                        {displayName}
+                      </span>
+                      <span className="shrink-0 text-xs text-ink/40">{m.role}</span>
+                    </button>
+                  )
+                })}
             </div>
           ))}
         </div>
@@ -1091,14 +1103,26 @@ function ExcomProfilesTab({ refreshLog }) {
                   }}
                 />
               ) : (
-                <Avatar name={selected.name} size={80} />
+                <Avatar name={nameDraft || selected.name} size={80} />
               )}
             </div>
             <div>
-              <p className="font-semibold text-ink">{selected.name}</p>
+              <p className="font-semibold text-ink">{nameDraft || selected.name}</p>
               <p className="text-sm text-ink/60">{selected.role}</p>
             </div>
           </div>
+
+          <label className="mt-5 block text-xs font-medium text-ink/60">Name</label>
+          <input
+            type="text"
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            placeholder={selected.name}
+            className="mt-1.5 w-full max-w-xs rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
+          />
+          <p className="mt-1 text-[11px] text-ink/40">
+            Corrects how the name displays to members — the roster name stays "{selected.name}".
+          </p>
 
           <label className="mt-5 flex w-fit cursor-pointer items-center gap-1.5 rounded-xl border border-primary px-4 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary hover:text-cream">
             <ImagePlus size={15} />
