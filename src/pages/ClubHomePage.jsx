@@ -30,9 +30,9 @@ const TINTS = [
 
 // "Our Story" and "Achievements" are both VPPR-authored, repeatable
 // photo + title + text blocks — same layout for both, per request.
-function ContentBlockSection({ title, blocks, emptyMessage }) {
+function ContentBlockSection({ id, title, blocks, emptyMessage }) {
   return (
-    <section className="mx-auto max-w-6xl px-4 pb-14 sm:px-6">
+    <section id={id} className="mx-auto max-w-6xl scroll-mt-20 px-4 pb-14 sm:px-6">
       <h2 className="text-2xl font-bold text-ink sm:text-3xl">{title}</h2>
 
       {blocks.length === 0 ? (
@@ -270,12 +270,14 @@ export default function ClubHomePage() {
 
       <div className="pt-16 pb-6">
         <ContentBlockSection
+          id="our-story"
           title="Our Story"
           blocks={storyBlocks}
           emptyMessage="The club's story hasn't been added yet."
         />
 
         <ContentBlockSection
+          id="achievements"
           title="Achievements"
           blocks={achievementBlocks}
           emptyMessage="No achievements added yet."

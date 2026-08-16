@@ -19,16 +19,31 @@ export default function PublicNavbar({ showClubLinks = false, showMemberPageLink
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
         <Logo />
         <nav className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 sm:gap-x-5">
-          {showMemberPageLinks &&
-            memberPageLinks.map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
+          {showMemberPageLinks && (
+            <>
+              <a
+                href="#our-story"
                 className="text-sm font-medium text-ink/70 transition hover:text-primary"
               >
-                {link.label}
-              </Link>
-            ))}
+                Our Story
+              </a>
+              <a
+                href="#achievements"
+                className="text-sm font-medium text-ink/70 transition hover:text-primary"
+              >
+                Achievements
+              </a>
+              {memberPageLinks.map((link) => (
+                <Link
+                  key={link.to}
+                  to={link.to}
+                  className="text-sm font-medium text-ink/70 transition hover:text-primary"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </>
+          )}
           {showClubLinks && (
             <>
               <a
