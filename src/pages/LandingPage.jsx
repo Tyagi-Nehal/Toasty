@@ -83,11 +83,11 @@ export default function LandingPage() {
         <div className="absolute inset-0 bg-cream/30" />
 
         <div className="relative mx-auto max-w-6xl px-4 pt-12 pb-32 text-center sm:px-6 sm:pt-16 sm:pb-40 lg:pt-20">
-          {/* Everything sits on one solid card instead of loose text
-              directly on the photos — the paragraph especially had no
-              backing of its own and disappeared against lighter parts
-              of the photos behind it. */}
-          <div className="mx-auto max-w-2xl rounded-[2rem] bg-white/90 p-6 shadow-xl shadow-ink/10 backdrop-blur sm:p-10">
+          {/* A frosted-glass card, not a solid one — heavy blur softens
+              the photo behind into a readable backdrop for the text
+              instead of hiding it outright, and it's still visible
+              through the translucent white. */}
+          <div className="mx-auto max-w-2xl rounded-[2rem] bg-white/45 p-6 shadow-xl shadow-ink/10 backdrop-blur-2xl sm:p-10">
             <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
               Toastmasters International
             </span>
