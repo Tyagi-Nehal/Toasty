@@ -125,30 +125,11 @@ function App() {
           </RequireApprovedAccount>
         }
       />
-      <Route
-        path="/mentors"
-        element={
-          <RequireApprovedAccount>
-            <MentorPage />
-          </RequireApprovedAccount>
-        }
-      />
-      <Route
-        path="/past-excom"
-        element={
-          <RequireApprovedAccount>
-            <PastExcomPage />
-          </RequireApprovedAccount>
-        }
-      />
-      <Route
-        path="/excom"
-        element={
-          <RequireApprovedAccount>
-            <ExcomPage />
-          </RequireApprovedAccount>
-        }
-      />
+      {/* Public — reachable from the club page's navbar without signing
+          in, same as the club page itself. */}
+      <Route path="/mentors" element={<MentorPage />} />
+      <Route path="/past-excom" element={<PastExcomPage />} />
+      <Route path="/excom" element={<ExcomPage />} />
       <Route
         path="/profile"
         element={

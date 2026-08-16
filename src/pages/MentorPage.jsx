@@ -1,11 +1,14 @@
 import { Award, Briefcase, Building2, Mail, Phone, UsersRound } from 'lucide-react'
-import MemberLayout from '../components/MemberLayout.jsx'
+import PublicNavbar from '../components/PublicNavbar.jsx'
+import Footer from '../components/Footer.jsx'
 import Avatar from '../components/Avatar.jsx'
 import { mentors } from '../data/mentors.js'
 
+// Public — reachable from the club page's navbar without signing in.
 export default function MentorPage() {
   return (
-    <MemberLayout>
+    <div className="min-h-screen bg-cream">
+      <PublicNavbar showMemberPageLinks />
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
         <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">Mentors</h1>
         <p className="mt-1 text-sm text-ink/60">
@@ -73,6 +76,7 @@ export default function MentorPage() {
           </div>
         )}
       </div>
-    </MemberLayout>
+      <Footer />
+    </div>
   )
 }

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Building2, GraduationCap, Mail, Phone, Sparkles } from 'lucide-react'
-import MemberLayout from '../components/MemberLayout.jsx'
+import PublicNavbar from '../components/PublicNavbar.jsx'
+import Footer from '../components/Footer.jsx'
 import Avatar from '../components/Avatar.jsx'
 import { pastExcom } from '../data/excom.js'
 import { getExcomProfiles } from '../lib/mockPhotoStore.js'
 
+// Public — reachable from the club page's navbar without signing in.
 export default function PastExcomPage() {
   const [profiles, setProfiles] = useState({})
 
@@ -13,7 +15,8 @@ export default function PastExcomPage() {
   }, [])
 
   return (
-    <MemberLayout>
+    <div className="min-h-screen bg-cream">
+      <PublicNavbar showMemberPageLinks />
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
         <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">Past ExCom</h1>
         <p className="mt-1 text-sm text-ink/60">
@@ -112,6 +115,7 @@ export default function PastExcomPage() {
           })}
         </div>
       </div>
-    </MemberLayout>
+      <Footer />
+    </div>
   )
 }
