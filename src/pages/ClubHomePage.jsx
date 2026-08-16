@@ -204,7 +204,7 @@ export default function ClubHomePage() {
       <section className="relative overflow-hidden">
         {heroPhoto ? (
           <div className="absolute inset-0">
-            <img src={heroPhoto.url} alt="" className="h-full w-full object-cover object-[50%_25%]" />
+            <img src={heroPhoto.url} alt="" className="h-full w-full object-cover object-[50%_18%]" />
             <div className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/55 to-ink/25" />
           </div>
         ) : (
