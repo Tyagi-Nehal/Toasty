@@ -14,6 +14,7 @@ import {
 import PublicNavbar from '../components/PublicNavbar.jsx'
 import Footer from '../components/Footer.jsx'
 import JoinClubModal from '../components/JoinClubModal.jsx'
+import PhotoLightbox from '../components/PhotoLightbox.jsx'
 import { getClubById } from '../lib/mockClubRegistry.js'
 import { getClubDetails } from '../data/clubDetails.js'
 import { dismissMyAcknowledgment, getMyPendingAcknowledgment } from '../lib/mockVisitRequests.js'
@@ -30,7 +31,7 @@ const TINTS = [
 
 // "Our Story" and "Achievements" are both VPPR-authored, repeatable
 // photo + title + text blocks — same layout for both, per request.
-function ContentBlockSection({ id, title, blocks, emptyMessage }) {
+function ContentBlockSection({ id, title, blocks, emptyMessage, onPhotoClick }) {
   return (
     <section id={id} className="mx-auto max-w-6xl scroll-mt-20 px-4 pb-14 sm:px-6">
       <h2 className="text-2xl font-bold text-ink sm:text-3xl">{title}</h2>
@@ -53,7 +54,7 @@ function ContentBlockSection({ id, title, blocks, emptyMessage }) {
                 className="overflow-hidden rounded-3xl border border-accent/30 bg-white shadow-sm shadow-primary/5"
               >
                 <div className={`grid gap-0 ${photos.length > 0 ? 'lg:grid-cols-2' : ''}`}>
-                  <div className={`flex flex-col justify-center p-6 sm:p-10 ${flip ? 'lg:order-2' : ''}`}>
+                  <div className={`flex flex-col justify-center p-8 sm:p-12 ${flip ? 'lg:order-2' : ''}`}>
                     <h3 className="text-xl font-bold text-ink sm:text-2xl">{block.title}</h3>
                     {block.content && (
                       <p className="mt-3 text-sm leading-relaxed text-ink/70 sm:text-base">
@@ -62,24 +63,26 @@ function ContentBlockSection({ id, title, blocks, emptyMessage }) {
                     )}
                   </div>
                   {photos.length === 1 && (
-                    <div className={`min-h-[220px] ${flip ? 'lg:order-1' : ''}`}>
+                    <div className={`min-h-[300px] ${flip ? 'lg:order-1' : ''}`}>
                       <img
                         src={photos[0].url}
                         alt={block.title}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full cursor-pointer object-cover transition hover:opacity-90"
                         loading="lazy"
+                        onClick={() => onPhotoClick(photos[0].url)}
                       />
                     </div>
                   )}
                   {photos.length > 1 && (
-                    <div className={`grid min-h-[220px] grid-cols-2 gap-0.5 ${flip ? 'lg:order-1' : ''}`}>
+                    <div className={`grid min-h-[300px] grid-cols-2 gap-0.5 ${flip ? 'lg:order-1' : ''}`}>
                       {photos.map((photo) => (
                         <img
                           key={photo.id}
                           src={photo.url}
                           alt={block.title}
-                          className="h-full w-full object-cover"
+                          className="h-full w-full cursor-pointer object-cover transition hover:opacity-90"
                           loading="lazy"
+                          onClick={() => onPhotoClick(photo.url)}
                         />
                       ))}
                     </div>
@@ -103,6 +106,7 @@ export default function ClubHomePage() {
   const [heroPhotos, setHeroPhotos] = useState([])
   const [storyBlocks, setStoryBlocks] = useState([])
   const [achievementBlocks, setAchievementBlocks] = useState([])
+  const [lightboxUrl, setLightboxUrl] = useState(null)
 
   useEffect(() => {
     setClub(undefined)
@@ -274,6 +278,7 @@ export default function ClubHomePage() {
           title="Our Story"
           blocks={storyBlocks}
           emptyMessage="The club's story hasn't been added yet."
+          onPhotoClick={setLightboxUrl}
         />
 
         <ContentBlockSection
@@ -281,6 +286,7 @@ export default function ClubHomePage() {
           title="Achievements"
           blocks={achievementBlocks}
           emptyMessage="No achievements added yet."
+          onPhotoClick={setLightboxUrl}
         />
       </div>
 
@@ -289,6 +295,8 @@ export default function ClubHomePage() {
       {isJoinOpen && (
         <JoinClubModal club={club} onClose={() => setIsJoinOpen(false)} />
       )}
+
+      <PhotoLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
     </div>
   )
 }
