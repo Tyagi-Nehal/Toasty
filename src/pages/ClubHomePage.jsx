@@ -39,7 +39,7 @@ function ContentBlockSection({ id, title, blocks, emptyMessage, onPhotoClick }) 
       {blocks.length === 0 ? (
         <p className="mt-4 text-sm text-ink/50">{emptyMessage}</p>
       ) : (
-        <div className="mt-6 space-y-5">
+        <div className="mt-6 space-y-8">
           {blocks.map((block, index) => {
             const photos = block.photoUrls ?? []
             // Alternate sides block by block — first block's photos on
@@ -74,13 +74,13 @@ function ContentBlockSection({ id, title, blocks, emptyMessage, onPhotoClick }) 
                     </div>
                   )}
                   {photos.length > 1 && (
-                    <div className={`grid min-h-[300px] grid-cols-2 gap-0.5 ${flip ? 'lg:order-1' : ''}`}>
+                    <div className={`grid min-h-[300px] grid-cols-2 gap-2 bg-cream p-2 ${flip ? 'lg:order-1' : ''}`}>
                       {photos.map((photo) => (
                         <img
                           key={photo.id}
                           src={photo.url}
                           alt={block.title}
-                          className="h-full w-full cursor-pointer object-cover transition hover:opacity-90"
+                          className="h-full w-full cursor-pointer rounded-xl object-cover transition hover:opacity-90"
                           loading="lazy"
                           onClick={() => onPhotoClick(photo.url)}
                         />
