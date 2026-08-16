@@ -32,16 +32,18 @@ export default function ExcomPage() {
               >
                 <div className="flex items-center gap-3">
                   {profile?.photoUrl ? (
-                    <img
-                      src={profile.photoUrl}
-                      alt={member.name}
-                      className="h-[52px] w-[52px] rounded-full object-cover"
-                      style={{
-                        objectPosition: profile.photoPosition ?? '50% 50%',
-                        transform: `scale(${(profile.photoZoom ?? 100) / 100})`,
-                        transformOrigin: profile.photoPosition ?? '50% 50%',
-                      }}
-                    />
+                    <div className="h-[52px] w-[52px] shrink-0 overflow-hidden rounded-full">
+                      <img
+                        src={profile.photoUrl}
+                        alt={member.name}
+                        className="h-full w-full object-cover"
+                        style={{
+                          objectPosition: profile.photoPosition ?? '50% 50%',
+                          transform: `scale(${(profile.photoZoom ?? 100) / 100})`,
+                          transformOrigin: profile.photoPosition ?? '50% 50%',
+                        }}
+                      />
+                    </div>
                   ) : (
                     <Avatar name={member.name} size={52} />
                   )}
