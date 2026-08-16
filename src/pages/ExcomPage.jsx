@@ -36,7 +36,11 @@ export default function ExcomPage() {
                       src={profile.photoUrl}
                       alt={member.name}
                       className="h-[52px] w-[52px] rounded-full object-cover"
-                      style={{ objectPosition: profile.photoPosition ?? '50% 50%' }}
+                      style={{
+                        objectPosition: profile.photoPosition ?? '50% 50%',
+                        transform: `scale(${(profile.photoZoom ?? 100) / 100})`,
+                        transformOrigin: profile.photoPosition ?? '50% 50%',
+                      }}
                     />
                   ) : (
                     <Avatar name={member.name} size={52} />

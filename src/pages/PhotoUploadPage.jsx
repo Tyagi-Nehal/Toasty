@@ -977,6 +977,7 @@ function ExcomProfilesTab({ refreshLog }) {
   const [email, setEmail] = useState('')
   const [posX, setPosX] = useState(50)
   const [posY, setPosY] = useState(50)
+  const [zoom, setZoom] = useState(100)
   const [saving, setSaving] = useState(false)
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(null)
@@ -999,9 +1000,17 @@ function ExcomProfilesTab({ refreshLog }) {
     const [px, py] = (selectedProfile?.photoPosition ?? '50% 50%').replace(/%/g, '').split(' ').map(Number)
     setPosX(Number.isFinite(px) ? px : 50)
     setPosY(Number.isFinite(py) ? py : 50)
+    setZoom(selectedProfile?.photoZoom ?? 100)
     setPhotoFile(null)
     setPhotoPreview(null)
-  }, [selectedId, selectedProfile?.bio, selectedProfile?.phone, selectedProfile?.email, selectedProfile?.photoPosition])
+  }, [
+    selectedId,
+    selectedProfile?.bio,
+    selectedProfile?.phone,
+    selectedProfile?.email,
+    selectedProfile?.photoPosition,
+    selectedProfile?.photoZoom,
+  ])
 
   function handlePhotoChange(e) {
     const file = e.target.files?.[0]
@@ -1020,6 +1029,7 @@ function ExcomProfilesTab({ refreshLog }) {
     await upsertExcomProfile(selected.id, selected.name, {
       photoUrl,
       photoPosition: `${posX}% ${posY}%`,
+      photoZoom: zoom,
       bio: bioDraft,
       phone,
       email,
@@ -1074,7 +1084,11 @@ function ExcomProfilesTab({ refreshLog }) {
                   src={displayPhoto}
                   alt={selected.name}
                   className="h-full w-full object-cover"
-                  style={{ objectPosition: `${posX}% ${posY}%` }}
+                  style={{
+                    objectPosition: `${posX}% ${posY}%`,
+                    transform: `scale(${zoom / 100})`,
+                    transformOrigin: `${posX}% ${posY}%`,
+                  }}
                 />
               ) : (
                 <Avatar name={selected.name} size={80} />
@@ -1116,6 +1130,17 @@ function ExcomProfilesTab({ refreshLog }) {
                   max="100"
                   value={posY}
                   onChange={(e) => setPosY(Number(e.target.value))}
+                  className="mt-1 w-full"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-ink/50">Zoom</label>
+                <input
+                  type="range"
+                  min="100"
+                  max="250"
+                  value={zoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
                   className="mt-1 w-full"
                 />
               </div>

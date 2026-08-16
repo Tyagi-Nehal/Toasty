@@ -684,6 +684,9 @@ grant select, insert, update, delete on club_content_blocks to authenticated;
 alter table excom_profiles add column if not exists photo_position text default '50% 50%';
 alter table excom_profiles add column if not exists phone text;
 alter table excom_profiles add column if not exists email text;
+-- Zoom level (100 = fit-to-circle, no zoom), paired with photo_position
+-- as the transform-origin so zooming stays centered on the chosen spot.
+alter table excom_profiles add column if not exists photo_zoom numeric default 100;
 
 -- Real per-meeting attendance, taken by the Secretary. Replaces the
 -- fully local/fake AttendancePage.jsx prototype. Feeds the VPE

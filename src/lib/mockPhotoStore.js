@@ -180,6 +180,7 @@ export async function getExcomProfiles() {
     acc[r.member_key] = {
       photoUrl: r.photo_url,
       photoPosition: r.photo_position || '50% 50%',
+      photoZoom: r.photo_zoom ?? 100,
       bio: r.bio,
       phone: r.phone,
       email: r.email,
@@ -188,12 +189,17 @@ export async function getExcomProfiles() {
   }, {})
 }
 
-export async function upsertExcomProfile(memberKey, memberName, { photoUrl, photoPosition, bio, phone, email }) {
+export async function upsertExcomProfile(
+  memberKey,
+  memberName,
+  { photoUrl, photoPosition, photoZoom, bio, phone, email },
+) {
   const { error } = await supabase.from('excom_profiles').upsert(
     {
       member_key: memberKey,
       photo_url: photoUrl ?? null,
       photo_position: photoPosition || '50% 50%',
+      photo_zoom: photoZoom || 100,
       bio: bio ?? null,
       phone: phone || null,
       email: email || null,
