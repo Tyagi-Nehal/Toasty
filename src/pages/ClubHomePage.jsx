@@ -205,39 +205,45 @@ export default function ClubHomePage() {
         {heroPhoto ? (
           <div className="absolute inset-0">
             <img src={heroPhoto.url} alt="" className="h-full w-full object-cover object-[50%_28%]" />
-            <div className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/55 to-ink/25" />
           </div>
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-primary to-primary-dark" />
         )}
 
         <div className="relative mx-auto max-w-6xl px-4 pt-20 pb-32 sm:px-6 sm:pt-24 sm:pb-36">
-          <span className="inline-flex items-center gap-2 rounded-full bg-cream/20 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-cream backdrop-blur-sm">
-            Toastmasters Club
-          </span>
-          <h1 className="mt-4 max-w-3xl text-3xl font-extrabold leading-tight text-cream sm:text-5xl">
-            {club.name}
-          </h1>
-          <p className="mt-3 max-w-2xl text-base text-cream/80 sm:text-lg">
-            {details.tagline}
-          </p>
+          {/* A contained panel behind the text, not a dark wash over the
+              whole photo — otherwise the photo itself barely reads as a
+              photo, and whoever's standing behind the text gets hidden
+              for no reason (nothing to do with where they are in frame,
+              just that text happened to land on them). */}
+          <div className="max-w-xl rounded-3xl bg-ink/70 p-6 shadow-lg shadow-ink/20 backdrop-blur-sm sm:p-8">
+            <span className="inline-flex items-center gap-2 rounded-full bg-cream/20 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-cream">
+              Toastmasters Club
+            </span>
+            <h1 className="mt-4 text-3xl font-extrabold leading-tight text-cream sm:text-5xl">
+              {club.name}
+            </h1>
+            <p className="mt-3 text-base text-cream/80 sm:text-lg">
+              {details.tagline}
+            </p>
 
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link
-              to="/login"
-              className="flex items-center gap-2 rounded-full bg-cream px-6 py-3 text-sm font-semibold text-primary shadow-md shadow-ink/10 transition hover:bg-white"
-            >
-              <LogIn size={18} />
-              Login
-            </Link>
-            <button
-              type="button"
-              onClick={() => setIsJoinOpen(true)}
-              className="flex items-center gap-2 rounded-full border border-cream/60 px-6 py-3 text-sm font-semibold text-cream transition hover:bg-cream/10"
-            >
-              <HeartHandshake size={18} />
-              I'm interested in visiting
-            </button>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link
+                to="/login"
+                className="flex items-center gap-2 rounded-full bg-cream px-6 py-3 text-sm font-semibold text-primary shadow-md shadow-ink/10 transition hover:bg-white"
+              >
+                <LogIn size={18} />
+                Login
+              </Link>
+              <button
+                type="button"
+                onClick={() => setIsJoinOpen(true)}
+                className="flex items-center gap-2 rounded-full border border-cream/60 px-6 py-3 text-sm font-semibold text-cream transition hover:bg-cream/10"
+              >
+                <HeartHandshake size={18} />
+                I'm interested in visiting
+              </button>
+            </div>
           </div>
 
           {extraHeroPhotos.length > 0 && (
