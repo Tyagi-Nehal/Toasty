@@ -24,18 +24,22 @@ export default function PublicNavbar({ showClubLinks = false, showMemberPageLink
         <nav className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 sm:gap-x-5">
           {showMemberPageLinks && (
             <>
-              <a
-                href="#our-story"
+              {/* Hardcoded to the one real club, same shortcut ClubHomePage
+                  already takes for its clubContacts block — these links can
+                  be clicked from /excom, /past-excom, /mentors too, which
+                  have no clubId of their own to build the target from. */}
+              <Link
+                to="/club/mahe-bengaluru-toastmasters-club#our-story"
                 className="text-sm font-medium text-ink/70 transition hover:text-primary"
               >
                 Our Story
-              </a>
-              <a
-                href="#achievements"
+              </Link>
+              <Link
+                to="/club/mahe-bengaluru-toastmasters-club#achievements"
                 className="text-sm font-medium text-ink/70 transition hover:text-primary"
               >
                 Achievements
-              </a>
+              </Link>
               {memberPageLinks.map((link) => (
                 <Link
                   key={link.to}

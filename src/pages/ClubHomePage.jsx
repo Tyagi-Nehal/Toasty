@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import {
   Calendar,
   CalendarDays,
@@ -99,6 +99,7 @@ function ContentBlockSection({ id, title, blocks, emptyMessage, onPhotoClick }) 
 
 export default function ClubHomePage() {
   const { clubId } = useParams()
+  const location = useLocation()
   const [isJoinOpen, setIsJoinOpen] = useState(false)
   const [ackBanner, setAckBanner] = useState(null)
   // undefined = still loading, null = confirmed not found, object = found
@@ -122,6 +123,16 @@ export default function ClubHomePage() {
     getContentBlocks('story').then(setStoryBlocks)
     getContentBlocks('achievements').then(setAchievementBlocks)
   }, [])
+
+  // React Router doesn't scroll to the URL hash on its own (that's a native
+  // full-page-load behavior), and the sections it targets render async
+  // (club fetch + content blocks) — so re-run this once everything the
+  // hash could point at has actually mounted, not just on first paint.
+  useEffect(() => {
+    if (!location.hash || !club) return
+    const el = document.querySelector(location.hash)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [location.hash, club, storyBlocks, achievementBlocks])
 
   function dismissBanner() {
     dismissMyAcknowledgment()
