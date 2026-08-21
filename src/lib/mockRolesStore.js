@@ -201,29 +201,29 @@ async function getMeetingRaw(meetingId) {
 // the exact cutoff instant. Gating to VPE/President isn't just a design
 // choice: the role_history insert inside runAutoAssign is RLS-restricted
 // to VPE/President, so anyone else's session couldn't complete it anyway.
-// Bounded to meetings whose cutoff passed recently — otherwise every
+// Scoped to only ever the single next active meeting — members can
+// self-select roles up to 3 meetings out, but auto-assign must never
+// reach ahead into meeting #2 or #3 just because their own cutoff
+// happens to have passed too (e.g. the VPE falling behind on finalizing
+// meeting #1). Bounded to a recent window on top of that — otherwise a
 // historical meeting VPPR backfills for photos (no role rows at all, so
 // every role defaults to 'open', and its cutoff is always long past)
-// would get swept in here too, turning one dashboard load into an
-// auto-assign run across dozens of meetings that were never meant to
-// have real roles in the first place.
+// could get swept in here too, turning one dashboard load into an
+// auto-assign run across meetings never meant to have real roles.
 const DUE_WINDOW_MS = 14 * 24 * 60 * 60 * 1000 // 14 days
 
 async function runDueAutoAssignments(views) {
-  const now = Date.now()
-  const due = views.filter(
-    (v) =>
-      !v.finalized &&
-      !v.cancelled &&
-      v.pastCutoff &&
-      v.autoAssignCutoff &&
-      now - v.autoAssignCutoff.getTime() <= DUE_WINDOW_MS &&
-      Object.values(v.roles).some((r) => r.status === 'open'),
-  )
-  for (const v of due) {
-    await runAutoAssign(v.id, 'the Saturday 9 AM cutoff')
-  }
-  return due.length > 0
+  const next = findNextActiveMeeting(views)
+  const isDue =
+    next &&
+    !next.finalized &&
+    next.pastCutoff &&
+    next.autoAssignCutoff &&
+    Date.now() - next.autoAssignCutoff.getTime() <= DUE_WINDOW_MS &&
+    Object.values(next.roles).some((r) => r.status === 'open')
+  if (!isDue) return false
+  await runAutoAssign(next.id, 'the Saturday 9 AM cutoff')
+  return true
 }
 
 export async function getMeetings() {

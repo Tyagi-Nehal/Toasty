@@ -159,8 +159,22 @@ export default function AgendaEditorPage() {
             </button>
             <button
               type="button"
-              disabled={!agenda || isPast || activeMeeting.cancelled}
+              disabled={
+                !agenda ||
+                isPast ||
+                activeMeeting.cancelled ||
+                !agenda.theme?.trim() ||
+                !agenda.wordOfDay?.trim()
+              }
               onClick={handleSend}
+              title={
+                agenda &&
+                !isPast &&
+                !activeMeeting.cancelled &&
+                (!agenda.theme?.trim() || !agenda.wordOfDay?.trim())
+                  ? 'Fill in the Theme and Word of the Day before sending'
+                  : undefined
+              }
               className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Send size={16} />
