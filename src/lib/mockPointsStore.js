@@ -391,8 +391,15 @@ export async function scorePhotosSubmission(meeting, submittedAt) {
   })
 }
 
-// VPM: new member registered (capped 3/month), then checks the shared
-// growth bonus. Called from approveSignup().
+// VPM: new member registered, capped at just 1/month -- VPM has no other
+// automatic, always-available point source (unlike every other role,
+// their entire score depends on someone actually applying to join), so
+// the first approval in a month is worth the full 80-point ceiling on
+// its own rather than needing 3 separate signups to get there. Doesn't
+// fix a genuinely zero-signup month (nothing to do, nothing to score,
+// same as any role in a month with zero meetings), but makes hitting
+// parity realistic with any recruitment activity at all, not a lot of
+// it. Then checks the shared growth bonus. Called from approveSignup().
 export async function scoreSignupApproval() {
   const vpmEmail = await getEmailForRole('VPM')
   if (vpmEmail) {
@@ -400,9 +407,9 @@ export async function scoreSignupApproval() {
       role: 'VPM',
       email: vpmEmail,
       category: 'new_member_registered',
-      points: 25,
+      points: 80,
       note: 'New member registered',
-      maxEventsPerMonth: 3,
+      maxEventsPerMonth: 1,
     })
   }
   await checkGrowthBonus()
@@ -449,15 +456,21 @@ async function checkGrowthBonus() {
   }
 }
 
-// Treasurer: renewal of a new member (no prior member_renewals row,
-// capped 3/month) vs. an existing member (capped 10/month). Called from
-// updateMemberRenewal() with the member being renewed and whether a row
-// already existed *before* the upsert that's about to happen. Deduped
-// per member per month (awardPointsWithMonthlySubjectCap) — that same
-// store function fires on every field edit (payment status, a single
-// date tweak), not just genuine renewals, so without the dedup a
-// Treasurer correcting one member's payment status three times in a day
-// would burn three of the month's capped slots on one person.
+// Treasurer: renewal of an existing member (capped 4/month) is the
+// routine driver — unlike VPM's new-signup problem, renewal work is at
+// least somewhat reliable since members rotate through renewal cycles
+// continuously, so 20 points x a 4/month cap reaches the same 80
+// ceiling every other role has on routine work alone. Renewal of a
+// brand-new member (no prior member_renewals row, capped 3/month) is
+// bonus credit on top, same pattern as VPE's external_booking — a
+// month with real membership growth can push Treasurer past 80.
+// Called from updateMemberRenewal() with the member being renewed and
+// whether a row already existed *before* the upsert about to happen.
+// Deduped per member per month (awardPointsWithMonthlySubjectCap) —
+// that same store function fires on every field edit (payment status,
+// a single date tweak), not just genuine renewals, so without the
+// dedup a Treasurer correcting one member's payment status three times
+// in a day would burn three of the month's capped slots on one person.
 export async function scoreRenewal(memberEmail, hadExistingRow) {
   const treasurerEmail = await getEmailForRole('Treasurer')
   if (!treasurerEmail) return
@@ -467,9 +480,9 @@ export async function scoreRenewal(memberEmail, hadExistingRow) {
       email: treasurerEmail,
       subjectEmail: memberEmail,
       category: 'renewal_existing_member',
-      points: 3,
+      points: 20,
       note: 'Renewal of an existing member',
-      maxEventsPerMonth: 10,
+      maxEventsPerMonth: 4,
     })
   } else {
     await awardPointsWithMonthlySubjectCap({
