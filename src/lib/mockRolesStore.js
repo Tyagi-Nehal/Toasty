@@ -19,7 +19,7 @@ import {
   scoreMemberForRole,
 } from './mockRosterStore.js'
 import { getAttendanceStatsByMember } from './mockAttendanceStore.js'
-import { scoreVpeFinalize } from './mockPointsStore.js'
+import { scoreExternalBooking, scoreVpeFinalize } from './mockPointsStore.js'
 
 const LOG_KEY = 'toasty_role_notifications'
 const MAX_LOG_ENTRIES = 25
@@ -30,6 +30,19 @@ const MAX_LOG_ENTRIES = 25
 // or auto-assign. Backed by an RLS policy of the same name/intent on
 // meeting_role_assignments, not just this client-side gate.
 export const VPE_ONLY_ROLE_IDS = ['po', 'saa']
+
+// Speaker/evaluator slots depend on real people committing to a specific
+// speech, which often isn't locked in until much closer to the meeting
+// than every other role — so finalizing shouldn't be blocked on these
+// specifically, unlike every other role.
+export const OPTIONAL_FOR_FINALIZE_ROLE_IDS = [
+  'speaker-1',
+  'speaker-2',
+  'speaker-3',
+  'evaluator-1',
+  'evaluator-2',
+  'evaluator-3',
+]
 
 function logAction(message) {
   const entry = { id: crypto.randomUUID(), message, time: new Date().toISOString() }
@@ -300,6 +313,7 @@ export async function overrideRole(meetingId, roleId, { takenBy }) {
       ? `VPE manually assigned ${roleName(roleId)} to ${takenBy} for ${meeting.dateLabel}`
       : `VPE reopened ${roleName(roleId)} for ${meeting.dateLabel}`,
   )
+  if (takenBy) await scoreExternalBooking(takenBy)
 }
 
 // Picks the best-fit real member (by attendance + role rotation/fairness
@@ -417,16 +431,19 @@ export function getRoleFillSummary(meeting) {
   const entries = Object.values(meeting.roles)
   const filled = entries.filter((r) => r.status !== 'open').length
   const open = entries.length - filled
+  const requiredOpen = Object.entries(meeting.roles).filter(
+    ([roleId, r]) => r.status === 'open' && !OPTIONAL_FOR_FINALIZE_ROLE_IDS.includes(roleId),
+  ).length
   const phase = meeting.finalized
-    ? open > 0
+    ? requiredOpen > 0
       ? 'finalized-incomplete'
       : 'finalized'
-    : open === 0
+    : requiredOpen === 0
       ? 'ready-to-finalize'
       : meeting.pastCutoff
         ? 'past-cutoff'
         : 'self-select'
-  return { total: entries.length, filled, open, phase }
+  return { total: entries.length, filled, open, requiredOpen, phase }
 }
 
 // Cancelling doesn't touch the meeting's agenda/MOM/attendance/roles/

@@ -32,12 +32,13 @@ import { getAllFeedback } from '../lib/mockFeedbackStore.js'
 import { getMonthlyBreakdown, getMonthlyPoints } from '../lib/mockPointsStore.js'
 
 // Phase 1 only covers automatic/measurable categories — discretionary
-// awards, the External-booking bonus, guest-approval points, and the
-// monthly poll aren't scored yet, so President/Associate accounts will
-// correctly show 0 here until those land.
+// awards, guest-approval points, and the monthly poll aren't scored yet,
+// so President/Associate accounts will correctly show 0 here until those
+// land.
 const categoryLabels = {
   finalize_agenda: 'Finalized + agenda sent by Tuesday',
   no_repetition: 'No role repetition',
+  external_booking: 'Booked an external guest',
   mom_on_time: 'MOM submitted on time',
   attendance_on_time: 'Attendance marked on time',
   on_time_start: 'Meeting started on time',

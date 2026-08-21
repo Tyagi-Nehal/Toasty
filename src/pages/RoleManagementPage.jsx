@@ -43,13 +43,13 @@ const statusLabels = {
 // One tab-chip label/color per getRoleFillSummary phase — colors reuse
 // tokens already meaningful elsewhere on this page (e.g. accent/15 +
 // text-primary is the same pair as the role board's "Open" badge).
-function tabChip({ phase, open }, cancelled) {
+function tabChip({ phase, open, requiredOpen }, cancelled) {
   if (cancelled) return { text: 'Cancelled', className: 'bg-ink/10 text-ink/50' }
   switch (phase) {
     case 'finalized':
       return { text: 'Finalized', className: 'bg-primary/10 text-primary' }
     case 'finalized-incomplete':
-      return { text: `Finalized · ${open} open`, className: 'bg-red-50 text-red-700' }
+      return { text: `Finalized · ${requiredOpen} open`, className: 'bg-red-50 text-red-700' }
     case 'ready-to-finalize':
       return { text: 'Ready to finalize', className: 'bg-primary/10 text-primary' }
     default:
@@ -192,7 +192,7 @@ export default function RoleManagementPage() {
   // must be the real chronological previous one, even if it's scrolled
   // out of this page's visible window.
   const canFinalize = canFinalizeMeeting(meetings, activeMeetingId)
-  const { filled, open, total, phase } = getRoleFillSummary(activeMeeting)
+  const { filled, open, total, requiredOpen, phase } = getRoleFillSummary(activeMeeting)
   const fillPercent = total > 0 ? Math.round((filled / total) * 100) : 0
   const isIncomplete = phase === 'finalized-incomplete'
 
@@ -277,10 +277,13 @@ export default function RoleManagementPage() {
                   `Self-select open until ${activeMeeting.autoAssignCutoffLabel}. ${open} still open.`}
                 {phase === 'past-cutoff' &&
                   `${open} roles still open, past the self-select cutoff.`}
-                {phase === 'ready-to-finalize' && 'All roles filled — ready to finalize.'}
+                {phase === 'ready-to-finalize' &&
+                  (open > 0
+                    ? `Ready to finalize — ${open} speaker/evaluator role${open > 1 ? 's' : ''} still open.`
+                    : 'All roles filled — ready to finalize.')}
                 {phase === 'finalized' && 'Finalized — members have been notified.'}
                 {isIncomplete &&
-                  `Finalized with ${open} roles still open — members may see their assignment as unavailable with no explanation.`}
+                  `Finalized with ${requiredOpen} required role${requiredOpen > 1 ? 's' : ''} still open — members may see their assignment as unavailable with no explanation.`}
               </p>
             </div>
 
@@ -296,9 +299,7 @@ export default function RoleManagementPage() {
                   Trigger Auto-Assign Now
                 </button>
               )}
-              {(phase === 'ready-to-finalize' ||
-                phase === 'self-select' ||
-                phase === 'past-cutoff') && (
+              {phase === 'ready-to-finalize' && (
                 <button
                   type="button"
                   onClick={handleFinalizeClick}

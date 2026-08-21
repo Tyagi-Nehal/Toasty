@@ -13,6 +13,7 @@
 import { supabase } from './supabaseClient.js'
 import { getAgenda } from './mockAgendaStore.js'
 import { getEmailForRole } from './mockExcomRegistry.js'
+import { getMembers } from './mockRosterStore.js'
 
 function normalizeEmail(email) {
   return (email ?? '').trim().toLowerCase()
@@ -254,6 +255,36 @@ export async function scoreVpeFinalize(meeting) {
       note: `Finalized + agenda sent by Tuesday for ${meeting.dateLabel ?? meeting.date}`,
     })
   }
+}
+
+// VPE: booking an external (non-member) guest into a role via Override —
+// capped 3/month, deduped per external person per month so re-editing the
+// same override doesn't burn multiple capped slots. "External" just means
+// the assigned name doesn't match anyone in the real member roster
+// (members table) — that's the only source of truth this app has for who
+// actually belongs to the club. Called from overrideRole() whenever the
+// VPE types in a name.
+export async function scoreExternalBooking(takenByName) {
+  const trimmedName = (takenByName ?? '').trim()
+  if (!trimmedName) return
+  const vpeEmail = await getEmailForRole('VPE')
+  if (!vpeEmail) return
+
+  const members = await getMembers()
+  const isRealMember = members.some(
+    (m) => m.name.trim().toLowerCase() === trimmedName.toLowerCase(),
+  )
+  if (isRealMember) return
+
+  await awardPointsWithMonthlySubjectCap({
+    role: 'VPE',
+    email: vpeEmail,
+    subjectEmail: trimmedName,
+    category: 'external_booking',
+    points: 5,
+    note: `Booked an external guest, ${trimmedName}, into a role`,
+    maxEventsPerMonth: 3,
+  })
 }
 
 // Secretary: MOM submitted within 24h. SAA: meeting started on time, per

@@ -23,12 +23,12 @@ export default function FinalizeConfirmModal({ openCount, meetingLabel, onClose,
         </div>
         <p className="mt-1 text-sm text-ink/60">{meetingLabel}</p>
 
-        <div className="mt-4 flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700">
-          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+        <div className="mt-4 flex items-start gap-2 rounded-xl bg-accent/15 p-3 text-sm text-ink/70">
+          <AlertTriangle size={16} className="mt-0.5 shrink-0 text-primary" />
           <span>
-            {openCount} of 15 roles {openCount === 1 ? 'is' : 'are'} still open. Finalizing
-            will lock the board and notify members — anyone without a role will see it
-            listed as unavailable, with no way to tell why.
+            {openCount} speaker/evaluator role{openCount === 1 ? ' is' : 's are'} still open —
+            that's fine to finalize with, since those often get claimed closer to the
+            meeting. Finalizing locks the board and notifies members.
           </span>
         </div>
 
