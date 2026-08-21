@@ -222,7 +222,11 @@ export async function getMonthlyBreakdown(role, email) {
 
 // VPE: finalize+agenda-by-Tuesday, and no-role-repetition. Called from
 // finalizeMeeting() with the meeting view (already has .roles and .date)
-// fetched just before the finalize write.
+// fetched just before the finalize write. Sized so these two alone reach
+// the same 80/month ceiling every other role has at a routine ~4
+// meetings — external_booking (below) is genuine extra credit on top,
+// not required to get there, since VPE can't control whether outside
+// guests actually show up to book.
 export async function scoreVpeFinalize(meeting) {
   const vpeEmail = await getEmailForRole('VPE')
   if (!vpeEmail || !meeting) return
@@ -251,14 +255,14 @@ export async function scoreVpeFinalize(meeting) {
       email: vpeEmail,
       meetingId: meeting.id,
       category: 'finalize_agenda',
-      points: 13,
+      points: 18,
       note: `Finalized + agenda sent by Tuesday for ${meeting.dateLabel ?? meeting.date}`,
     })
   }
 }
 
 // VPE: booking an external (non-member) guest into a role via Override —
-// capped 3/month, deduped per external person per month so re-editing the
+// capped 4/month, deduped per external person per month so re-editing the
 // same override doesn't burn multiple capped slots. "External" just means
 // the assigned name doesn't match anyone in the real member roster
 // (members table) — that's the only source of truth this app has for who
@@ -340,9 +344,12 @@ export async function scoreAttendanceSubmission(meeting, submittedAt) {
   })
 }
 
-// VPPR: photos submitted within 24h — up to 19/meeting, capped at
-// 75 total for the month (a hybrid of the two cap styles above: once
+// VPPR: photos submitted within 24h — up to 20/meeting, capped at
+// 80 total for the month (a hybrid of the two cap styles above: once
 // per meeting, but also bounded by a running monthly points total).
+// Sized so routine on-time uploads alone reach the same 80 ceiling every
+// other role has, with growth_bonus landing as genuine extra credit on
+// top rather than something needed to get there.
 export async function scorePhotosSubmission(meeting, submittedAt) {
   if (!meeting) return
   const vpprEmail = await getEmailForRole('VPPR')
@@ -371,7 +378,7 @@ export async function scorePhotosSubmission(meeting, submittedAt) {
     .gte('awarded_at', start)
     .lt('awarded_at', end)
   const monthTotal = (monthRows ?? []).reduce((sum, row) => sum + row.points, 0)
-  const remaining = Math.max(0, 75 - monthTotal)
+  const remaining = Math.max(0, 80 - monthTotal)
   if (remaining === 0) return
 
   await awardPoints({
@@ -379,7 +386,7 @@ export async function scorePhotosSubmission(meeting, submittedAt) {
     email: normalized,
     meetingId: meeting.id,
     category: 'photos_on_time',
-    points: Math.min(19, remaining),
+    points: Math.min(20, remaining),
     note: `Photos submitted within 24h for ${meeting.dateLabel ?? meeting.date}`,
   })
 }
