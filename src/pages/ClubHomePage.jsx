@@ -222,7 +222,7 @@ export default function ClubHomePage() {
           <div className="absolute inset-0 bg-gradient-to-br from-primary to-primary-dark" />
         )}
 
-        <div className="relative mx-auto max-w-6xl px-4 pt-20 pb-32 sm:px-6 sm:pt-24 sm:pb-36">
+        <div className="relative mx-auto max-w-6xl px-4 pt-32 pb-32 sm:px-6 sm:pt-36 sm:pb-36">
           <span className="inline-flex items-center gap-2 rounded-full bg-cream/20 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-cream backdrop-blur-sm">
             Toastmasters Club
           </span>

@@ -296,7 +296,9 @@ export default function RoleManagementPage() {
                   Trigger Auto-Assign Now
                 </button>
               )}
-              {phase === 'ready-to-finalize' && (
+              {(phase === 'ready-to-finalize' ||
+                phase === 'self-select' ||
+                phase === 'past-cutoff') && (
                 <button
                   type="button"
                   onClick={handleFinalizeClick}

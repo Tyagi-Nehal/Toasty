@@ -7,10 +7,3 @@ export function getDeclinePenalty(hoursUntilMeeting) {
   }
   return { points: -4, label: 'You will lose 4 points.' }
 }
-
-export const DECLINE_REASONS = [
-  'Emergency',
-  'Scheduling conflict',
-  'Health',
-  'Other',
-]
