@@ -50,7 +50,7 @@ insert into role_history (member_name, role_id, meeting_date) values
   ('Aman','saa','2026-07-08'),
   ('Durva','saa','2026-07-15'),
   ('Venkatakrishnan','saa','2026-07-22'),
-  ('Durva','saa','2026-07-30'),
+  ('Durva','saa','2026-07-29'),
   ('Durva','saa','2026-08-06'),
   ('Durva','saa','2026-08-13'),
   -- Presiding Officer (2026-07-01 co-presided)
@@ -59,7 +59,7 @@ insert into role_history (member_name, role_id, meeting_date) values
   ('Sarvajit','po','2026-07-08'),
   ('Faizaan','po','2026-07-15'),
   ('Sarvajit','po','2026-07-22'),
-  ('Sarvajit','po','2026-07-30'),
+  ('Sarvajit','po','2026-07-29'),
   ('Faizaan','po','2026-08-06'),
   ('Sarvajit','po','2026-08-13'),
   -- Toastmaster of the Day
@@ -67,14 +67,14 @@ insert into role_history (member_name, role_id, meeting_date) values
   ('Faizaan','tmod','2026-07-08'),
   ('Ahana','tmod','2026-07-15'),
   ('Nehal','tmod','2026-07-22'),
-  ('Namita','tmod','2026-07-30'),
+  ('Namita','tmod','2026-07-29'),
   ('Isha','tmod','2026-08-06'),
   ('Anish','tmod','2026-08-13'),
   -- General Evaluator (2026-07-01 skipped: External GE, not a member)
   ('Anish','ge','2026-07-08'),
   ('Nehal','ge','2026-07-15'),
   ('Aman','ge','2026-07-22'),
-  ('Ahana','ge','2026-07-30'),
+  ('Ahana','ge','2026-07-29'),
   ('Swetha','ge','2026-08-06'),
   ('Arjun','ge','2026-08-13'),
   -- Prepared Speaker 1
@@ -82,7 +82,7 @@ insert into role_history (member_name, role_id, meeting_date) values
   ('Ahana','speaker-1','2026-07-08'),
   ('Hritvik','speaker-1','2026-07-15'),
   ('Faizaan','speaker-1','2026-07-22'),
-  ('Venkatakrishnan','speaker-1','2026-07-30'),
+  ('Venkatakrishnan','speaker-1','2026-07-29'),
   ('Arjun','speaker-1','2026-08-06'),
   ('Sarvajit','speaker-1','2026-08-13'),
   -- Individual Evaluator 1
@@ -90,7 +90,7 @@ insert into role_history (member_name, role_id, meeting_date) values
   ('Advik','evaluator-1','2026-07-08'),
   ('Aman','evaluator-1','2026-07-15'),
   ('Ahana','evaluator-1','2026-07-22'),
-  ('Aman','evaluator-1','2026-07-30'),
+  ('Aman','evaluator-1','2026-07-29'),
   ('Nick','evaluator-1','2026-08-06'),
   ('Faizaan','evaluator-1','2026-08-13'),
   -- Table Topics Master
@@ -98,7 +98,7 @@ insert into role_history (member_name, role_id, meeting_date) values
   ('Namita','ttm','2026-07-08'),
   ('Advik','ttm','2026-07-15'),
   ('Chozhan','ttm','2026-07-22'),
-  ('Nick','ttm','2026-07-30'),
+  ('Nick','ttm','2026-07-29'),
   ('Nehal','ttm','2026-08-06'),
   ('Hritvik','ttm','2026-08-13'),
   -- Timer
@@ -106,7 +106,7 @@ insert into role_history (member_name, role_id, meeting_date) values
   ('Parth','timer','2026-07-08'),
   ('Thasvin','timer','2026-07-15'),
   ('Venkatakrishnan','timer','2026-07-22'),
-  ('Advik','timer','2026-07-30'),
+  ('Advik','timer','2026-07-29'),
   ('Namita','timer','2026-08-06'),
   ('Sripad','timer','2026-08-13'),
   -- Grammarian
@@ -114,7 +114,7 @@ insert into role_history (member_name, role_id, meeting_date) values
   ('Nehal','grammarian','2026-07-08'),
   ('Anish','grammarian','2026-07-15'),
   ('Nick','grammarian','2026-07-22'),
-  ('Faizaan','grammarian','2026-07-30'),
+  ('Faizaan','grammarian','2026-07-29'),
   ('Parth','grammarian','2026-08-06'),
   ('Ruhaani','grammarian','2026-08-13'),
   -- Ah-Counter
@@ -122,7 +122,7 @@ insert into role_history (member_name, role_id, meeting_date) values
   ('Swetha','ah-counter','2026-07-08'),
   ('Venkatakrishnan','ah-counter','2026-07-15'),
   ('Sarvajit','ah-counter','2026-07-22'),
-  ('Nehal','ah-counter','2026-07-30'),
+  ('Nehal','ah-counter','2026-07-29'),
   ('Sripad','ah-counter','2026-08-06'),
   ('Swetha','ah-counter','2026-08-13'),
   -- Listener
@@ -130,6 +130,6 @@ insert into role_history (member_name, role_id, meeting_date) values
   ('Hritvik','listener','2026-07-08'),
   ('Nick','listener','2026-07-15'),
   ('Durva','listener','2026-07-22'),
-  ('Hritvik','listener','2026-07-30'),
+  ('Hritvik','listener','2026-07-29'),
   ('Chozhan','listener','2026-08-06'),
   ('Isha','listener','2026-08-13');
