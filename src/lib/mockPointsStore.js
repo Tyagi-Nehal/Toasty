@@ -251,7 +251,7 @@ export async function scoreVpeFinalize(meeting) {
       email: vpeEmail,
       meetingId: meeting.id,
       category: 'finalize_agenda',
-      points: 8,
+      points: 13,
       note: `Finalized + agenda sent by Tuesday for ${meeting.dateLabel ?? meeting.date}`,
     })
   }
@@ -283,7 +283,7 @@ export async function scoreExternalBooking(takenByName) {
     category: 'external_booking',
     points: 5,
     note: `Booked an external guest, ${trimmedName}, into a role`,
-    maxEventsPerMonth: 3,
+    maxEventsPerMonth: 4,
   })
 }
 
@@ -315,7 +315,7 @@ export async function scoreMomSubmission(meeting, mom, submittedAt) {
           email: saaEmail,
           meetingId: meeting.id,
           category: 'on_time_start',
-          points: 7,
+          points: 20,
           note: `Meeting started on time for ${meeting.dateLabel ?? meeting.date}`,
         })
       }
@@ -340,8 +340,8 @@ export async function scoreAttendanceSubmission(meeting, submittedAt) {
   })
 }
 
-// VPPR: photos submitted within 24h — up to 11/meeting, capped at
-// 45 total for the month (a hybrid of the two cap styles above: once
+// VPPR: photos submitted within 24h — up to 19/meeting, capped at
+// 76 total for the month (a hybrid of the two cap styles above: once
 // per meeting, but also bounded by a running monthly points total).
 export async function scorePhotosSubmission(meeting, submittedAt) {
   if (!meeting) return
@@ -371,7 +371,7 @@ export async function scorePhotosSubmission(meeting, submittedAt) {
     .gte('awarded_at', start)
     .lt('awarded_at', end)
   const monthTotal = (monthRows ?? []).reduce((sum, row) => sum + row.points, 0)
-  const remaining = Math.max(0, 45 - monthTotal)
+  const remaining = Math.max(0, 76 - monthTotal)
   if (remaining === 0) return
 
   await awardPoints({
@@ -379,7 +379,7 @@ export async function scorePhotosSubmission(meeting, submittedAt) {
     email: normalized,
     meetingId: meeting.id,
     category: 'photos_on_time',
-    points: Math.min(11, remaining),
+    points: Math.min(19, remaining),
     note: `Photos submitted within 24h for ${meeting.dateLabel ?? meeting.date}`,
   })
 }
@@ -393,7 +393,7 @@ export async function scoreSignupApproval() {
       role: 'VPM',
       email: vpmEmail,
       category: 'new_member_registered',
-      points: 15,
+      points: 25,
       note: 'New member registered',
       maxEventsPerMonth: 3,
     })
