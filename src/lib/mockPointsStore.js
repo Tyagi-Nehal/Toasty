@@ -341,7 +341,7 @@ export async function scoreAttendanceSubmission(meeting, submittedAt) {
 }
 
 // VPPR: photos submitted within 24h — up to 19/meeting, capped at
-// 76 total for the month (a hybrid of the two cap styles above: once
+// 75 total for the month (a hybrid of the two cap styles above: once
 // per meeting, but also bounded by a running monthly points total).
 export async function scorePhotosSubmission(meeting, submittedAt) {
   if (!meeting) return
@@ -371,7 +371,7 @@ export async function scorePhotosSubmission(meeting, submittedAt) {
     .gte('awarded_at', start)
     .lt('awarded_at', end)
   const monthTotal = (monthRows ?? []).reduce((sum, row) => sum + row.points, 0)
-  const remaining = Math.max(0, 76 - monthTotal)
+  const remaining = Math.max(0, 75 - monthTotal)
   if (remaining === 0) return
 
   await awardPoints({
