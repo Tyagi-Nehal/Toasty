@@ -21,6 +21,7 @@ import {
   getMeetings,
 } from '../lib/mockRolesStore.js'
 import { getMyMembershipStatus } from '../lib/mockMembershipStore.js'
+import { getMemberMonthlyPoints } from '../lib/mockPointsStore.js'
 import { getNotifications, markAllRead } from '../lib/mockNotificationsStore.js'
 import { notificationIcons, defaultNotificationIcon } from '../components/notificationMeta.js'
 
@@ -54,12 +55,14 @@ export default function MemberDashboard() {
   const [isDeclineOpen, setIsDeclineOpen] = useState(false)
   const [notifications, setNotifications] = useState(() => getNotifications())
   const [membership, setMembership] = useState(null)
+  const [points, setPoints] = useState(0)
 
   function refresh() {
     getMeetings().then((fetched) => {
       setMeetings(fetched)
       setLoadingMeeting(false)
     })
+    if (account?.email) getMemberMonthlyPoints(account.email).then(setPoints)
   }
 
   useEffect(() => {
@@ -141,14 +144,19 @@ export default function MemberDashboard() {
                 <div>
                   <p className="text-sm text-ink/60">My points this month</p>
                   <p className="text-3xl font-extrabold text-ink">
-                    0<span className="ml-1 text-base font-medium text-ink/40">pts</span>
+                    {points}
+                    <span className="ml-1 text-base font-medium text-ink/40">pts</span>
                   </p>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent/20 text-primary">
                   <TrendingUp size={22} />
                 </div>
               </div>
-              <p className="mt-3 text-xs text-ink/50">Points tracking is coming soon.</p>
+              <p className="mt-3 text-xs text-ink/50">
+                {points < 0
+                  ? 'Includes a deduction for a declined role this month.'
+                  : 'No point activity yet this month.'}
+              </p>
             </div>
 
             {/* Upcoming meeting card */}

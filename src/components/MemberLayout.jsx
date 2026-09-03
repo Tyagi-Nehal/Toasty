@@ -12,7 +12,7 @@ import {
   BookOpen,
   Inbox,
   LayoutGrid,
-  UserCheck2,
+  Vote,
 } from 'lucide-react'
 import Logo from './Logo.jsx'
 import Avatar from './Avatar.jsx'
@@ -39,13 +39,17 @@ const baseNavLinks = [
   { to: '/minutes', label: 'Minutes', icon: BookOpen },
   { to: '/attendance-log', label: 'Attendance', icon: ClipboardCheck },
   { to: '/photos', label: 'Photos', icon: Images },
+  // Open to every approved member, not just SAA — the SAA builds/releases
+  // the poll from PollEditorPage (reachable via the ExCom tab), but voting
+  // itself and this link are for the whole club. Results stay SAA-only,
+  // shown on PollEditorPage once the poll closes — never surfaced here.
+  { to: '/poll', label: 'Voting Poll', icon: Vote },
 ]
 
-// Secretary's Attendance/MOM submit forms and SAA's Poll Editor are
-// reachable via the ExCom tab's quick actions (see ExComDashboard.jsx) —
-// not duplicated here as their own top-level tabs.
+// Secretary's Attendance/MOM submit forms and SAA's Poll Editor, and
+// VPM's Approvals, are reachable via the ExCom tab's quick actions (see
+// ExComDashboard.jsx) — not duplicated here as their own top-level tabs.
 const excomNavLinks = [
-  { to: '/approvals', label: 'Approvals', icon: UserCheck2, role: 'VPM' },
   { to: '/feedback-inbox', label: 'Feedback Inbox', icon: Inbox, role: 'President' },
 ]
 

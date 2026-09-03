@@ -47,8 +47,8 @@ export default function NewMemberApprovalsPage() {
   const [approved, setApproved] = useState([])
   const [log, setLog] = useState(() => getApprovalsLog())
   const [visitRequests, setVisitRequests] = useState(() => getVisitRequests())
-  const referralMembers = getReferralMembers()
-  const [referralMember, setReferralMember] = useState(referralMembers[0])
+  const [referralMembers, setReferralMembers] = useState([])
+  const [referralMember, setReferralMember] = useState('')
   const [referralFeedback, setReferralFeedback] = useState(null)
 
   function refresh() {
@@ -60,6 +60,10 @@ export default function NewMemberApprovalsPage() {
 
   useEffect(() => {
     refresh()
+    getReferralMembers().then((members) => {
+      setReferralMembers(members)
+      setReferralMember((current) => current || members[0] || '')
+    })
   }, [])
 
   async function handleAcknowledgeVisit(id) {
@@ -82,14 +86,14 @@ export default function NewMemberApprovalsPage() {
     refresh()
   }
 
-  function handleGuestAttended() {
-    recordGuestAttended(referralMember)
+  async function handleGuestAttended() {
+    await recordGuestAttended(referralMember)
     setReferralFeedback(`${referralMember} awarded +6 points for their guest attending.`)
     refresh()
   }
 
-  function handleGuestConverted() {
-    recordGuestConverted(referralMember)
+  async function handleGuestConverted() {
+    await recordGuestConverted(referralMember)
     setReferralFeedback(
       `${referralMember} awarded +8 points, VPM awarded +10 points — guest converted to member.`,
     )
@@ -305,14 +309,16 @@ export default function NewMemberApprovalsPage() {
             <button
               type="button"
               onClick={handleGuestAttended}
-              className="rounded-xl border border-primary px-4 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary hover:text-cream"
+              disabled={!referralMember}
+              className="rounded-xl border border-primary px-4 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary hover:text-cream disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-primary"
             >
               Guest attended (+6)
             </button>
             <button
               type="button"
               onClick={handleGuestConverted}
-              className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
+              disabled={!referralMember}
+              className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-50"
             >
               Guest converted to member (+8 / +10 VPM)
             </button>

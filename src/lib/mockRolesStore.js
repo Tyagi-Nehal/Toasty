@@ -19,7 +19,7 @@ import {
   scoreMemberForRole,
 } from './mockRosterStore.js'
 import { getAttendanceStatsByMember } from './mockAttendanceStore.js'
-import { scoreExternalBooking, scoreVpeFinalize } from './mockPointsStore.js'
+import { scoreExternalBooking, scoreVpeFinalize, scoreRoleDecline } from './mockPointsStore.js'
 
 const LOG_KEY = 'toasty_role_notifications'
 const MAX_LOG_ENTRIES = 25
@@ -267,6 +267,7 @@ export async function declineMyRole(meetingId) {
     .update({ status: 'open', taken_by_name: null, taken_by_email: null, accepted_at: null })
     .eq('meeting_id', meetingId)
     .eq('role_id', myRoleId)
+  await scoreRoleDecline(meeting, account)
   logAction(`You declined ${roleName(myRoleId)} for ${meeting.dateLabel}`)
 }
 

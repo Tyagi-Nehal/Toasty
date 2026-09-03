@@ -14,6 +14,7 @@ import { supabase } from './supabaseClient.js'
 import { getAgenda } from './mockAgendaStore.js'
 import { getEmailForRole } from './mockExcomRegistry.js'
 import { getMembers } from './mockRosterStore.js'
+import { getDeclinePenalty } from './points.js'
 
 function normalizeEmail(email) {
   return (email ?? '').trim().toLowerCase()
@@ -471,6 +472,104 @@ async function checkGrowthBonus() {
 // a single date tweak), not just genuine renewals, so without the
 // dedup a Treasurer correcting one member's payment status three times
 // in a day would burn three of the month's capped slots on one person.
+// Member points (member_points table) — separate from excom_points
+// above, which is ExCom-officer scoring only. Phase 1 has exactly one
+// category: declining a self-selected/auto-assigned meeting role, tiered
+// by how close to the meeting the decline happens (points.js's
+// getDeclinePenalty). Called from declineMyRole().
+export async function getMemberMonthlyPoints(email) {
+  const normalized = normalizeEmail(email)
+  if (!normalized) return 0
+  const { start, end } = getCurrentMonthRange()
+  const { data, error } = await supabase
+    .from('member_points')
+    .select('points')
+    .eq('member_email', normalized)
+    .gte('awarded_at', start)
+    .lt('awarded_at', end)
+  if (error) {
+    console.error('[mockPointsStore] getMemberMonthlyPoints failed:', error.message)
+    return 0
+  }
+  return (data ?? []).reduce((sum, row) => sum + row.points, 0)
+}
+
+export async function scoreRoleDecline(meeting, account) {
+  const normalized = normalizeEmail(account?.email)
+  if (!normalized || !meeting) return
+  const penalty = getDeclinePenalty(meeting.hoursUntilMeeting ?? -1)
+  if (!penalty.points) return
+  const { error } = await supabase.from('member_points').insert({
+    member_email: normalized,
+    member_name: account?.name ?? null,
+    meeting_id: meeting.id ?? null,
+    category: 'role_decline',
+    points: penalty.points,
+    note: `Declined a role for ${meeting.dateLabel ?? meeting.date} (${penalty.label.toLowerCase()})`,
+  })
+  // Scoring is a side effect of the real decline — it should never fail
+  // or block that action, only log if it does.
+  if (error) console.error('[mockPointsStore] scoreRoleDecline failed:', error.message)
+}
+
+// Best-effort name -> email lookup for a real roster member, via their
+// own approved signup (the only place in this schema that pairs a real
+// member's name with a real email — the seeded `members` roster table
+// has no email column at all). Returns null if the member never signed
+// up through the app themselves (e.g. a pre-existing member from the
+// original attendance-sheet seed) — same identity gap as
+// deriveMyRoleId's name-fallback in mockRolesStore.js.
+async function resolveMemberEmailByName(name) {
+  const { data } = await supabase
+    .from('member_signups')
+    .select('email')
+    .eq('status', 'approved')
+    .ilike('name', name)
+    .limit(1)
+    .maybeSingle()
+  return data?.email ?? null
+}
+
+// Referral points, from the VPM's New Member Approvals page —
+// mockApprovalsStore.js's recordGuestAttended/recordGuestConverted.
+// member_email may end up null (see resolveMemberEmailByName above);
+// the row is still recorded by name for audit purposes, it just won't
+// surface in that member's own "points this month" total until their
+// real email is known.
+export async function awardReferralPoints(memberName, category, points) {
+  const trimmedName = (memberName ?? '').trim()
+  if (!trimmedName) return
+  const email = await resolveMemberEmailByName(trimmedName)
+  const { error } = await supabase.from('member_points').insert({
+    member_email: email,
+    member_name: trimmedName,
+    meeting_id: null,
+    category,
+    points,
+    note:
+      category === 'guest_attended'
+        ? `${trimmedName}'s guest attended a meeting`
+        : `${trimmedName}'s guest converted to a member`,
+  })
+  if (error) console.error('[mockPointsStore] awardReferralPoints failed:', error.message)
+}
+
+// VPM's own +10 bonus when a referred guest converts — a real ExCom
+// role with a real email via getEmailForRole, no identity gap here, so
+// this goes into excom_points like every other VPM category.
+export async function awardVpmReferralBonus() {
+  const vpmEmail = await getEmailForRole('VPM')
+  if (!vpmEmail) return
+  await awardPoints({
+    role: 'VPM',
+    email: vpmEmail,
+    meetingId: null,
+    category: 'guest_converted_bonus',
+    points: 10,
+    note: 'A member-referred guest converted to a member',
+  })
+}
+
 export async function scoreRenewal(memberEmail, hadExistingRow) {
   const treasurerEmail = await getEmailForRole('Treasurer')
   if (!treasurerEmail) return

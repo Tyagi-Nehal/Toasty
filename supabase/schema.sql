@@ -942,3 +942,74 @@ create policy "excom_points self role insert" on excom_points
 
 grant select, insert on excom_points to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
+
+-- Member-level points (separate from excom_points, which is ExCom-officer
+-- scoring only). Categories so far: role_decline (points.js's
+-- getDeclinePenalty() + mockPointsStore.js's scoreRoleDecline(), for
+-- declining a self-selected/auto-assigned meeting role) and
+-- guest_attended/guest_converted (referral points, mockPointsStore.js's
+-- awardReferralPoints(), from the VPM's New Member Approvals page).
+-- Same event-log shape as excom_points for the same reason: auditable,
+-- and a monthly total is just a filtered sum.
+--
+-- member_email is nullable: the real club roster (members table) was
+-- seeded from the attendance sheet and has no email on file, so a
+-- referral point for a roster member who hasn't signed in through the
+-- app yet can only be recorded against their name, not an email —
+-- same identity gap as deriveMyRoleId's name-fallback in
+-- mockRolesStore.js. Such a row won't surface in that member's own
+-- dashboard total until their real email is known, a known limitation,
+-- not a bug.
+create table if not exists member_points (
+  id bigint generated always as identity primary key,
+  member_email text,
+  member_name text,
+  meeting_id bigint references meetings(id) on delete set null,
+  category text not null,
+  points integer not null,
+  awarded_at timestamptz not null default now(),
+  note text
+);
+
+alter table member_points alter column member_email drop not null;
+alter table member_points enable row level security;
+
+drop policy if exists "member_points authenticated select" on member_points;
+create policy "member_points authenticated select" on member_points
+  for select to authenticated using (true);
+
+-- Self/President covers a member's own action (declining their own
+-- role). VPM is added separately: the VPM's New Member Approvals page
+-- awards referral points to *other* members (a guest's referrer) and a
+-- bonus to the VPM's own email in the same action — neither of those
+-- rows has member_email = the VPM's own JWT email, so without this
+-- clause the referral-points feature couldn't write anything at all.
+drop policy if exists "member_points self or president insert" on member_points;
+create policy "member_points self or president insert" on member_points
+  for insert to authenticated
+  with check (
+    lower(member_email) = lower(auth.jwt() ->> 'email')
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+    or exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPM'
+    )
+  );
+
+grant select, insert on member_points to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+
+-- service_role grants for the auto-assign-cutoff Edge Function
+-- (supabase/functions/auto-assign-cutoff). service_role bypasses RLS by
+-- role attribute, but it still needs its own table-level grants, same
+-- as every "authenticated" grant above — bypassing RLS doesn't imply
+-- bypassing GRANT/REVOKE, they're separate Postgres permission layers.
+grant select, update on meetings to service_role;
+grant select, update on meeting_role_assignments to service_role;
+grant select on members to service_role;
+grant select, insert on role_history to service_role;
+grant select on attendance to service_role;
+grant usage, select on all sequences in schema public to service_role;
