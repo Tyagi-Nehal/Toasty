@@ -9,25 +9,28 @@
 -- role open, ready for the VPE to auto-assign/finalize going forward.
 -- Run once, after schema.sql's meetings/meeting_role_assignments exist.
 
--- Meetings 1-13: weekly Wednesdays, March 4 - May 27. No role
+-- Meetings 1-13: real dates transcribed from the club's actual
+-- attendance sheet ("TM Members - Attendance.pdf") -- not evenly
+-- weekly, there are real gaps (e.g. March 17 -> April 2, May 21 -> May
+-- 27) matching the club's actual schedule that year. No role
 -- assignments transcribed for these (unlike 14+ below) -- left with no
 -- meeting_role_assignments rows at all, same as any historical meeting
 -- with no roster data; the app defaults every role to 'open' for those.
 -- A real gap (exam/semester break) separates Meeting 13 from Meeting 14
 -- below -- confirmed by the club, not a data error.
-insert into meetings (label, meeting_date, time, finalized) values ('Meeting 1', '2026-03-04', '5:15 PM', true);
-insert into meetings (label, meeting_date, time, finalized) values ('Meeting 2', '2026-03-11', '5:15 PM', true);
-insert into meetings (label, meeting_date, time, finalized) values ('Meeting 3', '2026-03-18', '5:15 PM', true);
-insert into meetings (label, meeting_date, time, finalized) values ('Meeting 4', '2026-03-25', '5:15 PM', true);
-insert into meetings (label, meeting_date, time, finalized) values ('Meeting 5', '2026-04-01', '5:15 PM', true);
-insert into meetings (label, meeting_date, time, finalized) values ('Meeting 6', '2026-04-08', '5:15 PM', true);
-insert into meetings (label, meeting_date, time, finalized) values ('Meeting 7', '2026-04-15', '5:15 PM', true);
-insert into meetings (label, meeting_date, time, finalized) values ('Meeting 8', '2026-04-22', '5:15 PM', true);
-insert into meetings (label, meeting_date, time, finalized) values ('Meeting 9', '2026-04-29', '5:15 PM', true);
-insert into meetings (label, meeting_date, time, finalized) values ('Meeting 10', '2026-05-06', '5:15 PM', true);
-insert into meetings (label, meeting_date, time, finalized) values ('Meeting 11', '2026-05-13', '5:15 PM', true);
-insert into meetings (label, meeting_date, time, finalized) values ('Meeting 12', '2026-05-20', '5:15 PM', true);
-insert into meetings (label, meeting_date, time, finalized) values ('Meeting 13', '2026-05-27', '5:15 PM', true);
+insert into meetings (label, meeting_date, time, finalized) values ('Meeting 1', '2026-03-03', '5:15 PM', true);
+insert into meetings (label, meeting_date, time, finalized) values ('Meeting 2', '2026-03-17', '5:15 PM', true);
+insert into meetings (label, meeting_date, time, finalized) values ('Meeting 3', '2026-04-02', '5:15 PM', true);
+insert into meetings (label, meeting_date, time, finalized) values ('Meeting 4', '2026-04-15', '5:15 PM', true);
+insert into meetings (label, meeting_date, time, finalized) values ('Meeting 5', '2026-04-22', '5:15 PM', true);
+insert into meetings (label, meeting_date, time, finalized) values ('Meeting 6', '2026-04-29', '5:15 PM', true);
+insert into meetings (label, meeting_date, time, finalized) values ('Meeting 7', '2026-05-16', '5:15 PM', true);
+insert into meetings (label, meeting_date, time, finalized) values ('Meeting 8', '2026-05-21', '5:15 PM', true);
+insert into meetings (label, meeting_date, time, finalized) values ('Meeting 9', '2026-05-27', '5:15 PM', true);
+insert into meetings (label, meeting_date, time, finalized) values ('Meeting 10', '2026-06-03', '5:15 PM', true);
+insert into meetings (label, meeting_date, time, finalized) values ('Meeting 11', '2026-06-10', '5:15 PM', true);
+insert into meetings (label, meeting_date, time, finalized) values ('Meeting 12', '2026-06-17', '5:15 PM', true);
+insert into meetings (label, meeting_date, time, finalized) values ('Meeting 13', '2026-06-24', '5:15 PM', true);
 
 insert into meetings (label, meeting_date, time, finalized) values ('Meeting 14', '2026-07-01', '5:15 PM', true);
 insert into meetings (label, meeting_date, time, finalized) values ('Meeting 15', '2026-07-08', '5:15 PM', true);
