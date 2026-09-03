@@ -19,7 +19,9 @@ export default function AttendancePage() {
   const [nextMeeting, setNextMeeting] = useState(null)
 
   useEffect(() => {
-    getRecentMeetingsForAttendance().then((meetings) => {
+    // No cap — the Secretary can edit attendance all the way back to
+    // Meeting 1, not just the most-recent few.
+    getRecentMeetingsForAttendance(500).then((meetings) => {
       setRecentMeetings(meetings)
       setActiveMeetingId((prev) => prev ?? meetings[0]?.id ?? null)
     })
