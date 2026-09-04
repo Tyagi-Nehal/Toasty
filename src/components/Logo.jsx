@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom'
 
-export default function Logo({ className = '' }) {
+export default function Logo({ className = '', to = '/' }) {
   return (
     <Link
-      to="/"
+      to={to}
       className={`flex items-center gap-2 font-extrabold text-xl text-ink ${className}`}
     >
       <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-cream shadow-sm">

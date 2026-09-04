@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import {
   Bell,
@@ -20,6 +20,7 @@ import { getAccount, hasExcomRole, getDisplayRole } from '../lib/mockAuth.js'
 import { supabase } from '../lib/supabaseClient.js'
 import { getNotifications, markAllRead } from '../lib/mockNotificationsStore.js'
 import { notificationIcons, defaultNotificationIcon } from './notificationMeta.js'
+import { getApprovedClubs } from '../lib/mockClubRegistry.js'
 
 function timeAgo(isoString) {
   const diffMs = Date.now() - new Date(isoString).getTime()
@@ -61,6 +62,17 @@ export default function MemberLayout({ children }) {
   const navigate = useNavigate()
   const location = useLocation()
   const account = getAccount()
+  const [clubHomeLink, setClubHomeLink] = useState('/')
+
+  // Signed-in members belong to this deployment's one club, so the logo
+  // should take them straight back to its page, not the generic
+  // "find your club" landing page. Falls back to '/' while loading or
+  // if for some reason no approved club is found yet.
+  useEffect(() => {
+    getApprovedClubs().then((clubs) => {
+      if (clubs[0]?.id) setClubHomeLink(`/club/${clubs[0].id}`)
+    })
+  }, [])
   const isExcomMember = (account?.excomRoles?.length ?? 0) > 0
   const navLinks = [
     ...baseNavLinks,
@@ -89,7 +101,7 @@ export default function MemberLayout({ children }) {
     <div className="min-h-screen bg-cream">
       <header className="sticky top-0 z-40 border-b border-accent/30 bg-cream/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <Logo />
+          <Logo to={clubHomeLink} />
 
           <nav className="hidden items-center gap-1 md:flex">
             {navLinks.map(({ to, label, icon: Icon }) => {

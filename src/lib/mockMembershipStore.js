@@ -69,9 +69,9 @@ function toStatus(row) {
     // A member who's lapsed into Inactive (didn't get renewed into a new
     // term) shouldn't keep showing "Paid" from whatever term they last
     // paid for — that reads as if they're covered when they're not. This
-    // mirrors the symmetric rule on the way in: renewing into an active
-    // window auto-marks Paid (see autoPaymentStatus in
-    // RenewalManagementPage.jsx); lapsing back out of one auto-reverts it.
+    // mirrors the symmetric rule on the way in: picking a term in
+    // RenewalManagementPage.jsx auto-marks Paid; lapsing back out of an
+    // active window auto-reverts it here.
     paymentStatus: active || row.payment_status !== 'paid' ? row.payment_status : 'pending',
     membershipStart: row.membership_start,
     membershipEnd: row.membership_end,
