@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Wallet, History, CalendarClock } from 'lucide-react'
+import { Wallet, History, CalendarClock, Save } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import Avatar from '../components/Avatar.jsx'
 import {
@@ -63,9 +63,13 @@ export default function RenewalManagementPage() {
   const [members, setMembers] = useState([])
   const [log, setLog] = useState(() => getRenewalLog())
   const [filter, setFilter] = useState('All')
-  // Which row is mid-save, so its two dropdowns can show a brief
-  // "Saving..." state instead of looking like nothing happened.
-  const [savingEmail, setSavingEmail] = useState(null)
+  const [savingChanges, setSavingChanges] = useState(false)
+
+  // Edits are staged here (keyed by email) instead of writing to the
+  // database on every dropdown change — nothing is saved until "Save
+  // Changes" is pressed, so the Treasurer can review a batch of edits
+  // before they take effect.
+  const [drafts, setDrafts] = useState({})
 
   function refresh() {
     getMembersWithStatus().then(setMembers)
@@ -76,34 +80,58 @@ export default function RenewalManagementPage() {
     refresh()
   }, [])
 
+  // The value a row should show right now: its pending draft if it has
+  // one, otherwise its last-saved state.
+  function getEffective(member) {
+    return drafts[member.email] ?? member
+  }
+
+  function updateDraft(member, patch) {
+    setDrafts((prev) => ({
+      ...prev,
+      [member.email]: { ...getEffective(member), ...patch },
+    }))
+  }
+
   // Picking a term sets that member's active window to the term's full
   // range and marks them Paid — renewing into a term is itself the
   // record that they paid, per how this always worked. The Treasurer can
   // still flip the status dropdown to Unpaid right after if that's wrong
-  // for this particular member.
-  async function handleTermChange(member, termLabel) {
+  // for this particular member; nothing writes to the database until Save.
+  function handleTermChange(member, termLabel) {
     const term = TERM_OPTIONS.find((t) => t.label === termLabel)
     if (!term) return
-    setSavingEmail(member.email)
-    await updateMemberRenewal(member.email, member.name, {
+    updateDraft(member, {
       paymentStatus: 'paid',
       membershipStart: term.start,
       membershipEnd: term.end,
       cycleLabel: term.label,
     })
-    setSavingEmail(null)
-    refresh()
   }
 
-  async function handleStatusChange(member, paymentStatus) {
-    setSavingEmail(member.email)
-    await updateMemberRenewal(member.email, member.name, {
-      paymentStatus,
-      membershipStart: member.membershipStart,
-      membershipEnd: member.membershipEnd,
-      cycleLabel: member.cycleLabel,
-    })
-    setSavingEmail(null)
+  function handleStatusChange(member, paymentStatus) {
+    updateDraft(member, { paymentStatus })
+  }
+
+  const pendingEmails = Object.keys(drafts)
+
+  async function handleSaveChanges() {
+    if (pendingEmails.length === 0) return
+    setSavingChanges(true)
+    await Promise.all(
+      pendingEmails.map((email) => {
+        const member = members.find((m) => m.email === email)
+        const draft = drafts[email]
+        return updateMemberRenewal(email, member?.name ?? email, {
+          paymentStatus: draft.paymentStatus,
+          membershipStart: draft.membershipStart,
+          membershipEnd: draft.membershipEnd,
+          cycleLabel: draft.cycleLabel,
+        })
+      }),
+    )
+    setSavingChanges(false)
+    setDrafts({})
     refresh()
   }
 
@@ -133,7 +161,7 @@ export default function RenewalManagementPage() {
         <p className="mt-1 text-sm text-ink/60">
           Every member approved by the VPM, plus everyone on ExCom, shows up here
           automatically as soon as they sign in. Pick a term for each member, then
-          mark whether they've paid — both save immediately.
+          mark whether they've paid, and press Save Changes when you're done.
         </p>
         {currentTerm && (
           <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
@@ -151,6 +179,25 @@ export default function RenewalManagementPage() {
           ))}
         </div>
 
+        {/* Save Changes — commits every staged edit at once; nothing
+            below is written until this is pressed. */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-white px-4 py-3">
+          <span className="text-sm text-ink/60">
+            {pendingEmails.length > 0
+              ? `${pendingEmails.length} member${pendingEmails.length > 1 ? 's' : ''} with unsaved changes`
+              : 'No unsaved changes'}
+          </span>
+          <button
+            type="button"
+            onClick={handleSaveChanges}
+            disabled={pendingEmails.length === 0 || savingChanges}
+            className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-cream shadow-sm shadow-primary/20 transition enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Save size={15} />
+            {savingChanges ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+
         <div className="mt-4 overflow-hidden rounded-2xl border border-accent/30 bg-white">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[520px] text-left text-sm">
@@ -163,10 +210,14 @@ export default function RenewalManagementPage() {
               </thead>
               <tbody>
                 {visible.map((member) => {
-                  const saving = savingEmail === member.email
-                  const memberIsActive = isActive(member.membershipEnd)
+                  const display = getEffective(member)
+                  const hasDraft = Boolean(drafts[member.email])
+                  const memberIsActive = isActive(display.membershipEnd)
                   return (
-                    <tr key={member.email} className="border-b border-accent/10 last:border-0">
+                    <tr
+                      key={member.email}
+                      className={`border-b border-accent/10 last:border-0 ${hasDraft ? 'bg-primary/5' : ''}`}
+                    >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
                           <Avatar name={member.name} size={28} />
@@ -180,6 +231,11 @@ export default function RenewalManagementPage() {
                               >
                                 {memberIsActive ? 'Active' : 'Inactive'}
                               </span>
+                              {hasDraft && (
+                                <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                                  Unsaved
+                                </span>
+                              )}
                             </div>
                             <p className="truncate text-xs text-ink/40">{member.email}</p>
                           </div>
@@ -187,8 +243,7 @@ export default function RenewalManagementPage() {
                       </td>
                       <td className="px-4 py-3">
                         <select
-                          value={member.cycleLabel ?? ''}
-                          disabled={saving}
+                          value={display.cycleLabel ?? ''}
                           onChange={(e) => handleTermChange(member, e.target.value)}
                           className={selectClass}
                         >
@@ -205,8 +260,7 @@ export default function RenewalManagementPage() {
                       </td>
                       <td className="px-4 py-3">
                         <select
-                          value={member.paymentStatus === 'paid' ? 'paid' : 'pending'}
-                          disabled={saving}
+                          value={display.paymentStatus === 'paid' ? 'paid' : 'pending'}
                           onChange={(e) => handleStatusChange(member, e.target.value)}
                           className={selectClass}
                         >
