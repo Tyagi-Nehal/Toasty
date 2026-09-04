@@ -5,6 +5,7 @@ import {
   FileEdit,
   FileText,
   ImagePlus,
+  Inbox,
   ListChecks,
   MessageSquare,
   Star,
@@ -75,6 +76,7 @@ const quickActionsByRole = [
     role: 'President',
     actions: [
       { to: '/register-excom', label: 'Register Your EXCOM', icon: UserCog },
+      { to: '/feedback-inbox', label: 'Feedback Inbox', icon: Inbox },
     ],
   },
   {

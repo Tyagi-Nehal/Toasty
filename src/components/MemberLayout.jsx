@@ -10,7 +10,6 @@ import {
   Images,
   ClipboardCheck,
   BookOpen,
-  Inbox,
   LayoutGrid,
   Vote,
 } from 'lucide-react'
@@ -47,12 +46,11 @@ const baseNavLinks = [
   { to: '/poll', label: 'Voting Poll', icon: Vote },
 ]
 
-// Secretary's Attendance/MOM submit forms and SAA's Poll Editor, and
-// VPM's Approvals, are reachable via the ExCom tab's quick actions (see
-// ExComDashboard.jsx) — not duplicated here as their own top-level tabs.
-const excomNavLinks = [
-  { to: '/feedback-inbox', label: 'Feedback Inbox', icon: Inbox, role: 'President' },
-]
+// Secretary's Attendance/MOM submit forms, SAA's Poll Editor, VPM's
+// Approvals, and President's Feedback Inbox are all reachable via the
+// ExCom tab's quick actions (see ExComDashboard.jsx) — not duplicated
+// here as their own top-level tabs.
+const excomNavLinks = []
 
 export default function MemberLayout({ children }) {
   const [menuOpen, setMenuOpen] = useState(false)
