@@ -98,6 +98,21 @@ export async function getEmailForRole(role) {
   return data?.email ?? null
 }
 
+// Same as getEmailForRole, but returns both name and email — used to
+// auto-fill the per-meeting SAA role slot to whoever actually holds the
+// SAA appointment (see mockRolesStore.js's resolveFixedRoleAssignee),
+// instead of the VPE re-typing a name every meeting.
+export async function getNameForRole(role) {
+  const { data } = await supabase
+    .from('excom_appointments')
+    .select('name, email')
+    .eq('role', role)
+    .order('appointed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return data ? { name: data.name, email: data.email } : null
+}
+
 // Returns every distinct role registered to this email (most-recent
 // first), instead of just the single most-recent one — lets one email
 // hold multiple ExCom roles at once, e.g. for testing several role

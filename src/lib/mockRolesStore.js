@@ -20,6 +20,8 @@ import {
 } from './mockRosterStore.js'
 import { getAttendanceStatsByMember } from './mockAttendanceStore.js'
 import { scoreExternalBooking, scoreVpeFinalize, scoreRoleDecline } from './mockPointsStore.js'
+import { getNameForRole } from './mockExcomRegistry.js'
+import { getApprovedClubs } from './mockClubRegistry.js'
 
 const LOG_KEY = 'toasty_role_notifications'
 const MAX_LOG_ENTRIES = 25
@@ -30,6 +32,23 @@ const MAX_LOG_ENTRIES = 25
 // or auto-assign. Backed by an RLS policy of the same name/intent on
 // meeting_role_assignments, not just this client-side gate.
 export const VPE_ONLY_ROLE_IDS = ['po', 'saa']
+
+// Who a fixed officer role should resolve to right now — SAA is a real
+// appointed ExCom role (excom_appointments), PO isn't a separate
+// appointment at all, it's always whoever's President. Used by
+// fillFixedOfficerRoles below to auto-fill these two slots instead of
+// leaving them for the VPE to type in by hand every meeting (which
+// previously meant the per-meeting "SAA" could silently be someone
+// other than the actual appointed SAA).
+async function resolveFixedRoleAssignee(roleId) {
+  if (roleId === 'saa') return getNameForRole('SAA')
+  if (roleId === 'po') {
+    const clubs = await getApprovedClubs()
+    const club = clubs[0]
+    return club?.presidentName ? { name: club.presidentName, email: club.presidentEmail } : null
+  }
+  return null
+}
 
 // Speaker/evaluator slots depend on real people committing to a specific
 // speech, which often isn't locked in until much closer to the meeting
@@ -226,10 +245,48 @@ async function runDueAutoAssignments(views) {
   return true
 }
 
+// Opportunistic fill for PO/SAA, same shape as the auto-assign catch-up
+// above — no backend/cron, so this runs whenever a VPE/President's
+// session fetches meetings. Only ever touches a slot that's still
+// genuinely 'open' (never overwrites a VPE's deliberate Override for a
+// real exception), and only on upcoming, non-cancelled, non-finalized
+// meetings — never rewrites history on a past or already-locked-in
+// meeting. Self-healing: if the SAA appointment or President changes,
+// every still-open slot on the next fetch picks up the new person.
+async function fillFixedOfficerRoles(views) {
+  const upcoming = views.filter(
+    (m) => !m.cancelled && !m.finalized && (m.hoursUntilMeeting ?? -1) >= 0,
+  )
+  let filledAny = false
+  for (const roleId of VPE_ONLY_ROLE_IDS) {
+    const openOnes = upcoming.filter((m) => m.roles[roleId]?.status === 'open')
+    if (openOnes.length === 0) continue
+    const assignee = await resolveFixedRoleAssignee(roleId)
+    if (!assignee?.name) continue
+    for (const meeting of openOnes) {
+      const { error } = await supabase
+        .from('meeting_role_assignments')
+        .update({
+          status: 'auto',
+          taken_by_name: assignee.name,
+          taken_by_email: assignee.email ?? null,
+        })
+        .eq('meeting_id', meeting.id)
+        .eq('role_id', roleId)
+        .eq('status', 'open')
+      if (!error) filledAny = true
+    }
+  }
+  return filledAny
+}
+
 export async function getMeetings() {
   let views = await fetchRawViews()
-  if (hasExcomRole('VPE') && (await runDueAutoAssignments(views))) {
-    views = await fetchRawViews()
+  // hasExcomRole('VPE') already covers President too (superuser rule).
+  if (hasExcomRole('VPE')) {
+    const ranAutoAssign = await runDueAutoAssignments(views)
+    const filledOfficers = await fillFixedOfficerRoles(views)
+    if (ranAutoAssign || filledOfficers) views = await fetchRawViews()
   }
   return views
 }
@@ -514,14 +571,34 @@ export async function createMeetingForDate(date, time) {
   const meetings = await getMeetings()
   const position = meetings.filter((m) => m.date && m.date < date).length + 1
   const label = `Meeting ${position}`
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('meetings')
     .insert({ label, meeting_date: date, time: time || '5:15 PM', finalized: false })
+    .select('id')
+    .single()
   if (error) {
     console.error('[mockRolesStore] createMeetingForDate failed:', error.message)
     throw new Error('Could not add this meeting.')
   }
   logAction(`Added ${label} for ${formatDateLabel(date)}`)
+
+  // Seed the two fixed-officer rows right away (PO/SAA) — every other
+  // role is left with no row at all, same as always, and just defaults
+  // to 'open' for display (see buildRolesObject); these two get a real
+  // row immediately so they show the current SAA/President from the
+  // start instead of sitting blank until the next opportunistic fill.
+  for (const roleId of VPE_ONLY_ROLE_IDS) {
+    const assignee = await resolveFixedRoleAssignee(roleId)
+    if (!assignee?.name) continue
+    await supabase.from('meeting_role_assignments').insert({
+      meeting_id: data.id,
+      role_id: roleId,
+      status: 'auto',
+      taken_by_name: assignee.name,
+      taken_by_email: assignee.email ?? null,
+    })
+  }
+
   return label
 }
 
