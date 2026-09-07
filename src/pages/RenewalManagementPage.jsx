@@ -6,7 +6,10 @@ import {
   getRosterWithStatus,
   getRosterRenewalLog,
   updateRosterRenewal,
+  ensureRosterMember,
 } from '../lib/mockRosterStore.js'
+import { getExcomAppointments } from '../lib/mockExcomRegistry.js'
+import { getApprovedSignups } from '../lib/mockMemberSignups.js'
 
 const filters = ['All', 'Paid', 'Unpaid']
 
@@ -72,12 +75,32 @@ export default function RenewalManagementPage() {
   const [filter, setFilter] = useState('All')
   const [savingChanges, setSavingChanges] = useState(false)
 
-  // Edits are staged here (keyed by member name — the roster has no
-  // email) instead of writing to the database on every dropdown change —
-  // nothing is saved until "Save Changes" is pressed.
+  // Edits are staged here (keyed by member email) instead of writing to
+  // the database on every dropdown change — nothing is saved until "Save
+  // Changes" is pressed.
   const [drafts, setDrafts] = useState({})
 
-  function refresh() {
+  // Self-healing: an ExCom appointment or an approved signup is supposed
+  // to add its person to the roster automatically (ensureRosterMember,
+  // called from mockExcomRegistry.js / mockMemberSignups.js), but if that
+  // ever silently doesn't happen — e.g. a browser mid-deploy running
+  // slightly stale app code — this catches it every time the Treasurer
+  // opens the page, instead of needing someone to notice and fix it by
+  // hand. ensureRosterMember is a no-op for anyone already on the roster,
+  // so re-running this on every load is harmless.
+  async function reconcileRoster() {
+    const [appointments, signups] = await Promise.all([
+      getExcomAppointments(),
+      getApprovedSignups(),
+    ])
+    await Promise.all([
+      ...appointments.map((a) => ensureRosterMember(a.name, a.email)),
+      ...signups.map((s) => ensureRosterMember(s.name, s.email)),
+    ])
+  }
+
+  async function refresh() {
+    await reconcileRoster()
     getRosterWithStatus().then(setMembers)
     setLog(getRosterRenewalLog())
   }
