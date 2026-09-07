@@ -10,6 +10,7 @@ export default function FeedbackPage() {
   const [message, setMessage] = useState('')
   const [mySubmissions, setMySubmissions] = useState([])
   const [justSubmitted, setJustSubmitted] = useState(false)
+  const [submitError, setSubmitError] = useState(null)
 
   function refresh() {
     getMyFeedback(account?.email).then(setMySubmissions)
@@ -23,11 +24,16 @@ export default function FeedbackPage() {
     e.preventDefault()
     if (!subject.trim() || !message.trim()) return
 
-    await submitFeedback({ subject: subject.trim(), message: message.trim(), authorEmail: account?.email })
-    refresh()
-    setSubject('')
-    setMessage('')
-    setJustSubmitted(true)
+    setSubmitError(null)
+    try {
+      await submitFeedback({ subject: subject.trim(), message: message.trim(), authorEmail: account?.email })
+      refresh()
+      setSubject('')
+      setMessage('')
+      setJustSubmitted(true)
+    } catch (err) {
+      setSubmitError(err.message)
+    }
   }
 
   return (
@@ -53,6 +59,7 @@ export default function FeedbackPage() {
             onChange={(e) => {
               setSubject(e.target.value)
               setJustSubmitted(false)
+              setSubmitError(null)
             }}
             placeholder="e.g. Meeting timing feedback"
             className="mt-1.5 w-full rounded-xl border border-accent/40 bg-cream px-4 py-2.5 text-sm text-ink focus:border-primary focus:outline-none"
@@ -68,6 +75,7 @@ export default function FeedbackPage() {
             onChange={(e) => {
               setMessage(e.target.value)
               setJustSubmitted(false)
+              setSubmitError(null)
             }}
             placeholder="Write your feedback here..."
             className="mt-1.5 w-full resize-none rounded-xl border border-accent/40 bg-cream px-4 py-2.5 text-sm text-ink focus:border-primary focus:outline-none"
@@ -87,6 +95,9 @@ export default function FeedbackPage() {
               <CheckCircle2 size={15} />
               Your feedback has been submitted.
             </p>
+          )}
+          {submitError && (
+            <p className="mt-3 text-sm font-medium text-red-600">{submitError}</p>
           )}
         </form>
 

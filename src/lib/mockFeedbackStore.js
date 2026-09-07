@@ -59,7 +59,10 @@ export async function submitFeedback({ subject, message, authorEmail }) {
     message,
     author_email: normalizeEmail(authorEmail),
   })
-  if (error) console.error('[mockFeedbackStore] submitFeedback failed:', error.message)
+  if (error) {
+    console.error('[mockFeedbackStore] submitFeedback failed:', error.message)
+    throw new Error('Could not submit your feedback — please try again.')
+  }
 }
 
 export async function markRead(id) {
