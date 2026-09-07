@@ -12,6 +12,14 @@
 import { supabase } from './supabaseClient.js'
 import { scoreExcomAppointment } from './mockPointsStore.js'
 
+// Primary roles that have an "Ass. <role>" variant on the Register Your
+// EXCOM form — SAA, President, and Associate roles themselves have no
+// further associate variant. Shared between mockAuth.js (so an
+// associate gets the same page access as their primary role) and
+// mockPointsStore.js (so whichever specific person — primary or
+// associate — actually did the work is who gets credited).
+export const ASSOCIATE_ELIGIBLE_ROLES = ['VPE', 'VPPR', 'VPM', 'Treasurer', 'Secretary']
+
 function normalizeEmail(email) {
   return (email ?? '').trim().toLowerCase()
 }
@@ -42,6 +50,16 @@ export async function getExcomAppointments() {
 export async function registerExcomMember({ role, name, email, appointedByEmail }) {
   const normalizedEmail = normalizeEmail(email)
   const normalizedAppointer = normalizeEmail(appointedByEmail)
+
+  // A primary role (anything not "Ass. X") only ever has one holder at a
+  // time — appointing someone new replaces whoever held it before,
+  // instead of stacking up multiple simultaneous appointments where only
+  // the most-recently-appointed one would ever actually be used by
+  // anything role-specific. Associate roles are exempt on purpose:
+  // multiple people can hold "Ass. VPPR" at once, each individually.
+  if (!role.startsWith('Ass. ')) {
+    await supabase.from('excom_appointments').delete().eq('role', role)
+  }
 
   const { error } = await supabase.from('excom_appointments').insert({
     role,
@@ -96,6 +114,32 @@ export async function getEmailForRole(role) {
     .limit(1)
     .maybeSingle()
   return data?.email ?? null
+}
+
+// Whether `email` currently holds baseRole itself OR its "Ass. baseRole"
+// variant — used by mockPointsStore.js to credit whichever specific
+// person (primary or associate) actually performed an action, instead
+// of always crediting one canonical "the" role holder via
+// getEmailForRole. Returns the exact role string held (e.g. 'VPPR' or
+// 'Ass. VPPR') so the caller can tell which one it was, or null if this
+// email doesn't currently hold either — including the President, who
+// isn't in excom_appointments at all, so acting on a role's behalf
+// correctly earns nobody points (see the isSelfAction design this
+// replaces).
+export async function getHeldRoleForEmailAndBase(email, baseRole) {
+  const normalized = normalizeEmail(email)
+  if (!normalized) return null
+  const candidateRoles = ASSOCIATE_ELIGIBLE_ROLES.includes(baseRole)
+    ? [baseRole, `Ass. ${baseRole}`]
+    : [baseRole]
+  const { data } = await supabase
+    .from('excom_appointments')
+    .select('role')
+    .eq('email', normalized)
+    .in('role', candidateRoles)
+    .limit(1)
+    .maybeSingle()
+  return data?.role ?? null
 }
 
 // Same as getEmailForRole, but returns both name and email — used to

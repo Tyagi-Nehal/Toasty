@@ -127,6 +127,13 @@ export default function ExComDashboard() {
   const [unreadFeedbackCount, setUnreadFeedbackCount] = useState(0)
   const canSeeMembers = hasExcomRole('VPM') || hasExcomRole('Treasurer')
   const displayRole = getDisplayRole(account)
+  // Points are always stored under the base role label ('VPPR'), never
+  // 'Ass. VPPR' — an associate is still credited individually by their
+  // own email, just under the shared role label. Strip the "Ass. "
+  // prefix here so an associate's own dashboard actually finds their
+  // points instead of querying a role label nothing was ever stored
+  // under.
+  const pointsRole = displayRole?.replace(/^Ass\. /, '') ?? null
 
   useEffect(() => {
     if (hasExcomRole('VPM')) {
@@ -142,9 +149,9 @@ export default function ExComDashboard() {
         setPendingRenewalsCount(list.filter((m) => m.paymentStatus !== 'paid').length)
       })
     }
-    if (displayRole && account?.email) {
-      getMonthlyPoints(displayRole, account.email).then(setMonthlyPoints)
-      getMonthlyBreakdown(displayRole, account.email).then(setPointsBreakdown)
+    if (pointsRole && account?.email) {
+      getMonthlyPoints(pointsRole, account.email).then(setMonthlyPoints)
+      getMonthlyBreakdown(pointsRole, account.email).then(setPointsBreakdown)
     }
     if (hasExcomRole('President')) {
       getAllFeedback().then((items) => setUnreadFeedbackCount(items.filter((f) => !f.read).length))

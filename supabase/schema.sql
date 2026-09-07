@@ -215,7 +215,7 @@ create policy "signups vpm or president update" on member_signups
   using (
     exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPM'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPM', 'Ass. VPM')
     )
     or exists (
       select 1 from clubs
@@ -287,12 +287,14 @@ create policy "members authenticated select" on members
 -- also needs write access now that payment status/term/is_active live
 -- directly on this table, not a separate one.
 drop policy if exists "members vpe or president write" on members;
+drop policy if exists "members vpe, treasurer, or president write" on members;
 create policy "members vpe, treasurer, or president write" on members
   for all to authenticated
   using (
     exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPE', 'Treasurer')
+      where lower(email) = lower(auth.jwt() ->> 'email')
+      and role in ('VPE', 'Ass. VPE', 'Treasurer', 'Ass. Treasurer')
     )
     or exists (
       select 1 from clubs
@@ -309,7 +311,7 @@ create policy "role_history vpe or president insert" on role_history
   with check (
     exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPE'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPE', 'Ass. VPE')
     )
     or exists (
       select 1 from clubs
@@ -363,7 +365,7 @@ create policy "meetings vpe or president write" on meetings
   using (
     exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPE'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPE', 'Ass. VPE')
     )
     or exists (
       select 1 from clubs
@@ -381,7 +383,7 @@ create policy "assignments vpe or president insert" on meeting_role_assignments
   with check (
     exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPE'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPE', 'Ass. VPE')
     )
     or exists (
       select 1 from clubs
@@ -414,7 +416,7 @@ create policy "assignments update" on meeting_role_assignments
     or (status = 'auto' and taken_by_email is null and role_id not in ('po', 'saa'))
     or exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPE'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPE', 'Ass. VPE')
     )
     or exists (
       select 1 from clubs
@@ -426,7 +428,7 @@ create policy "assignments update" on meeting_role_assignments
     or (taken_by_email is null and role_id not in ('po', 'saa'))
     or exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPE'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPE', 'Ass. VPE')
     )
     or exists (
       select 1 from clubs
@@ -471,7 +473,7 @@ create policy "agendas vpe or president write" on agendas
   using (
     exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPE'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPE', 'Ass. VPE')
     )
     or exists (
       select 1 from clubs
@@ -521,7 +523,7 @@ create policy "member_renewals treasurer or president write" on member_renewals
   using (
     exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'Treasurer'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('Treasurer', 'Ass. Treasurer')
     )
     or exists (
       select 1 from clubs
@@ -551,7 +553,7 @@ create policy "club-photos vppr or president write" on storage.objects
     and (
       exists (
         select 1 from excom_appointments
-        where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPPR'
+        where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPPR', 'Ass. VPPR')
       )
       or exists (
         select 1 from clubs
@@ -622,7 +624,7 @@ create policy "club_page_photos vppr or president write" on club_page_photos
   using (
     exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPPR'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPPR', 'Ass. VPPR')
     )
     or exists (
       select 1 from clubs
@@ -639,7 +641,7 @@ create policy "excom_profiles vppr or president write" on excom_profiles
   using (
     exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPPR'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPPR', 'Ass. VPPR')
     )
     or exists (
       select 1 from clubs
@@ -657,7 +659,7 @@ create policy "meeting_photos vppr or president write" on meeting_photos
   using (
     exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPPR'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPPR', 'Ass. VPPR')
     )
     or exists (
       select 1 from clubs
@@ -699,7 +701,7 @@ create policy "club_content_blocks vppr or president write" on club_content_bloc
   using (
     exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPPR'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPPR', 'Ass. VPPR')
     )
     or exists (
       select 1 from clubs
@@ -751,7 +753,7 @@ create policy "attendance secretary or president write" on attendance
   using (
     exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'Secretary'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('Secretary', 'Ass. Secretary')
     )
     or exists (
       select 1 from clubs
@@ -761,7 +763,7 @@ create policy "attendance secretary or president write" on attendance
   with check (
     exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'Secretary'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('Secretary', 'Ass. Secretary')
     )
     or exists (
       select 1 from clubs
@@ -806,7 +808,7 @@ create policy "moms secretary or president write" on moms
   using (
     exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'Secretary'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('Secretary', 'Ass. Secretary')
     )
     or exists (
       select 1 from clubs
@@ -816,7 +818,7 @@ create policy "moms secretary or president write" on moms
   with check (
     exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'Secretary'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('Secretary', 'Ass. Secretary')
     )
     or exists (
       select 1 from clubs
@@ -837,7 +839,7 @@ create policy "meetings vppr insert" on meetings
   with check (
     exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPPR'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPPR', 'Ass. VPPR')
     )
   );
 
@@ -849,13 +851,13 @@ create policy "meetings vppr update" on meetings
   using (
     exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPPR'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPPR', 'Ass. VPPR')
     )
   )
   with check (
     exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPPR'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPPR', 'Ass. VPPR')
     )
   );
 
@@ -1026,7 +1028,7 @@ create policy "member_points self or president insert" on member_points
     )
     or exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPM'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPM', 'Ass. VPM')
     )
   );
 

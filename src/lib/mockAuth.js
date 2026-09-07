@@ -1,4 +1,4 @@
-import { getRolesForEmail, getNamesByRoleForEmail } from './mockExcomRegistry.js'
+import { getRolesForEmail, getNamesByRoleForEmail, ASSOCIATE_ELIGIBLE_ROLES } from './mockExcomRegistry.js'
 import { verifyPresident } from './mockClubRegistry.js'
 import { getOrCreateSignupStatus } from './mockMemberSignups.js'
 
@@ -109,13 +109,24 @@ export function getDisplayRole(account) {
   return account?.excomRoles?.[0] ?? null
 }
 
+// An "Ass. <role>" appointee gets the same page access as the primary
+// role (they can actually do the work, which is the point of having an
+// associate) — but their own name/title still displays as "Ass. X"
+// elsewhere (getDisplayRole), and points get attributed to their own
+// email specifically, not folded into the primary holder's (see
+// mockPointsStore.js / getHeldRoleForEmailAndBase).
+function matchesRole(heldRole, wantedRole) {
+  if (heldRole === wantedRole) return true
+  return ASSOCIATE_ELIGIBLE_ROLES.includes(wantedRole) && heldRole === `Ass. ${wantedRole}`
+}
+
 export function hasExcomRole(role) {
   const account = getAccount()
   if (!account) return false
   if (account.excomRoles?.includes('President')) return true
   const override = getActiveRoleOverride()
-  if (override && account.excomRoles?.length > 1) return override === role
-  return account.excomRoles?.includes(role) ?? false
+  if (override && account.excomRoles?.length > 1) return matchesRole(override, role)
+  return account.excomRoles?.some((held) => matchesRole(held, role)) ?? false
 }
 
 export function clearAccount() {

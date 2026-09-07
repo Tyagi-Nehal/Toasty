@@ -3,22 +3,26 @@
 // This is an append-only event log, not a running total, so every point
 // is auditable and a monthly total is just a filtered sum. Points for a
 // role's own routine duty (finalizing, submitting a MOM, uploading
-// photos, approving a signup, a renewal) only go to that role's actual
-// holder, and only when they're the one who performed the action
-// themselves — if the President does someone else's job for them (they
-// can reach every ExCom page via the superuser rule in hasExcomRole),
-// nobody gets credit for it: not the role holder, who didn't do the
-// work, and not the President, who doesn't hold that role. See
-// isSelfAction below. Shared/incidental categories that don't belong to
+// photos, approving a signup, a renewal) only go to whoever actually
+// performed the action themselves, and only if they genuinely hold that
+// role right now — primary or "Ass. <role>" (see
+// getHeldRoleForEmailAndBase). If the President does someone else's job
+// for them (they can reach every ExCom page via the superuser rule in
+// hasExcomRole), nobody gets credit for it: not the role's real holder,
+// who didn't do the work, and not the President, who doesn't hold that
+// role at all. And when a primary role and its associate are both real
+// people, each is credited only for what they themselves did — points
+// are keyed by (role label, their own email), never folded into "the"
+// canonical holder. Shared/incidental categories that don't belong to
 // one specific action-taker (growth_bonus) are unaffected by this and
 // still fire regardless of who triggered them.
 //
-// Discretionary awards (SAA/President scores, Associate awards) and the
-// monthly member poll are later phases — not handled here.
+// Discretionary awards (SAA/President scores) and the monthly member
+// poll are later phases — not handled here.
 
 import { supabase } from './supabaseClient.js'
 import { getAgenda } from './mockAgendaStore.js'
-import { getEmailForRole } from './mockExcomRegistry.js'
+import { getEmailForRole, getHeldRoleForEmailAndBase } from './mockExcomRegistry.js'
 import { getMembers } from './mockRosterStore.js'
 import { getDeclinePenalty } from './points.js'
 import { getAccount } from './mockAuth.js'
@@ -27,13 +31,18 @@ function normalizeEmail(email) {
   return (email ?? '').trim().toLowerCase()
 }
 
-// True only when the currently signed-in account is itself the email
-// holding the role being scored — false when someone else (almost
-// always the President, acting on that role's behalf) performed the
-// action instead.
-function isSelfAction(roleEmail) {
+// The currently signed-in account's own email, but only if they
+// genuinely hold baseRole right now (primary or its "Ass." variant) —
+// null otherwise, including when someone else (typically the
+// President) is acting on that role's behalf. Replaces resolving one
+// canonical "the" role holder via getEmailForRole: each function below
+// now credits whoever's actually doing the work, whether that's the
+// primary role or a specific associate.
+async function getActingEmailForRole(baseRole) {
   const acting = normalizeEmail(getAccount()?.email)
-  return Boolean(acting) && acting === normalizeEmail(roleEmail)
+  if (!acting) return null
+  const held = await getHeldRoleForEmailAndBase(acting, baseRole)
+  return held ? acting : null
 }
 
 function getCurrentMonthRange() {
@@ -245,8 +254,8 @@ export async function getMonthlyBreakdown(role, email) {
 // not required to get there, since VPE can't control whether outside
 // guests actually show up to book.
 export async function scoreVpeFinalize(meeting) {
-  const vpeEmail = await getEmailForRole('VPE')
-  if (!vpeEmail || !meeting || !isSelfAction(vpeEmail)) return
+  const vpeEmail = await getActingEmailForRole('VPE')
+  if (!vpeEmail || !meeting) return
 
   const takenNames = Object.values(meeting.roles ?? {})
     .map((r) => r.takenBy)
@@ -288,8 +297,8 @@ export async function scoreVpeFinalize(meeting) {
 export async function scoreExternalBooking(takenByName) {
   const trimmedName = (takenByName ?? '').trim()
   if (!trimmedName) return
-  const vpeEmail = await getEmailForRole('VPE')
-  if (!vpeEmail || !isSelfAction(vpeEmail)) return
+  const vpeEmail = await getActingEmailForRole('VPE')
+  if (!vpeEmail) return
 
   const members = await getMembers()
   const isRealMember = members.some(
@@ -310,7 +319,7 @@ export async function scoreExternalBooking(takenByName) {
 
 // Secretary: MOM submitted within 24h. SAA: meeting started on time, per
 // the MOM's own reported startTime. Called from saveSubmittedMOM().
-// SAA's award isn't gated by isSelfAction — it's not "SAA's job done by
+// SAA's award isn't gated by who's acting — it's not "SAA's job done by
 // someone else," it's an objective fact about the meeting (it started
 // on time) that's only reported via this form; SAA already did the
 // actual work of running it on time regardless of who typed up the MOM.
@@ -318,8 +327,8 @@ export async function scoreMomSubmission(meeting, mom, submittedAt) {
   if (!meeting) return
   const scheduled = getMeetingDateTime(meeting)
 
-  const secretaryEmail = await getEmailForRole('Secretary')
-  if (secretaryEmail && isSelfAction(secretaryEmail) && isWithin24HoursAfter(submittedAt, scheduled)) {
+  const secretaryEmail = await getActingEmailForRole('Secretary')
+  if (secretaryEmail && isWithin24HoursAfter(submittedAt, scheduled)) {
     await awardPointsOncePerMeeting({
       role: 'Secretary',
       email: secretaryEmail,
@@ -351,8 +360,8 @@ export async function scoreMomSubmission(meeting, mom, submittedAt) {
 // Secretary: attendance marked within 24h. Called from submitAttendance().
 export async function scoreAttendanceSubmission(meeting, submittedAt) {
   if (!meeting) return
-  const secretaryEmail = await getEmailForRole('Secretary')
-  if (!secretaryEmail || !isSelfAction(secretaryEmail)) return
+  const secretaryEmail = await getActingEmailForRole('Secretary')
+  if (!secretaryEmail) return
   const scheduled = getMeetingDateTime(meeting)
   if (!isWithin24HoursAfter(submittedAt, scheduled)) return
   await awardPointsOncePerMeeting({
@@ -373,8 +382,8 @@ export async function scoreAttendanceSubmission(meeting, submittedAt) {
 // top rather than something needed to get there.
 export async function scorePhotosSubmission(meeting, submittedAt) {
   if (!meeting) return
-  const vpprEmail = await getEmailForRole('VPPR')
-  if (!vpprEmail || !isSelfAction(vpprEmail)) return
+  const vpprEmail = await getActingEmailForRole('VPPR')
+  if (!vpprEmail) return
   const scheduled = getMeetingDateTime(meeting)
   if (!isWithin24HoursAfter(submittedAt, scheduled)) return
 
@@ -422,8 +431,8 @@ export async function scorePhotosSubmission(meeting, submittedAt) {
 // parity realistic with any recruitment activity at all, not a lot of
 // it. Then checks the shared growth bonus. Called from approveSignup().
 export async function scoreSignupApproval() {
-  const vpmEmail = await getEmailForRole('VPM')
-  if (vpmEmail && isSelfAction(vpmEmail)) {
+  const vpmEmail = await getActingEmailForRole('VPM')
+  if (vpmEmail) {
     await awardPointsWithMonthlyEventCap({
       role: 'VPM',
       email: vpmEmail,
@@ -575,11 +584,11 @@ export async function awardReferralPoints(memberName, category, points) {
 }
 
 // VPM's own +10 bonus when a referred guest converts — a real ExCom
-// role with a real email via getEmailForRole, no identity gap here, so
-// this goes into excom_points like every other VPM category.
+// role with a real email, no identity gap here, so this goes into
+// excom_points like every other VPM category.
 export async function awardVpmReferralBonus() {
-  const vpmEmail = await getEmailForRole('VPM')
-  if (!vpmEmail || !isSelfAction(vpmEmail)) return
+  const vpmEmail = await getActingEmailForRole('VPM')
+  if (!vpmEmail) return
   await awardPoints({
     role: 'VPM',
     email: vpmEmail,
@@ -591,8 +600,8 @@ export async function awardVpmReferralBonus() {
 }
 
 export async function scoreRenewal(memberEmail, hadExistingRow) {
-  const treasurerEmail = await getEmailForRole('Treasurer')
-  if (!treasurerEmail || !isSelfAction(treasurerEmail)) return
+  const treasurerEmail = await getActingEmailForRole('Treasurer')
+  if (!treasurerEmail) return
   if (hadExistingRow) {
     await awardPointsWithMonthlySubjectCap({
       role: 'Treasurer',
