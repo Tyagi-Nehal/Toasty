@@ -233,7 +233,14 @@ grant usage, select on all sequences in schema public to authenticated;
 create table if not exists members (
   id bigint generated always as identity primary key,
   name text not null unique,
-  attendance_percentage numeric
+  attendance_percentage numeric,
+  -- An inactive member is excluded everywhere this roster feeds: the
+  -- attendance roster and the role auto-assign candidate pool. Separate
+  -- from the Treasurer's renewal-based Active/Inactive concept
+  -- (member_renewals), which only covers people with a real signed-up
+  -- account — this roster has no email at all, so it needs its own flag
+  -- rather than trying to join the two by name.
+  is_active boolean not null default true
 );
 
 create table if not exists role_history (
@@ -244,6 +251,7 @@ create table if not exists role_history (
   submitted_at timestamptz not null default now()
 );
 
+alter table members add column if not exists is_active boolean not null default true;
 alter table members enable row level security;
 alter table role_history enable row level security;
 

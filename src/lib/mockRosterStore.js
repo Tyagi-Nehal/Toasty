@@ -9,13 +9,41 @@
 
 import { supabase } from './supabaseClient.js'
 
+// Active members only — this is the pool attendance rosters and role
+// auto-assign draw from, so an inactive member is excluded everywhere
+// this feeds, not just hidden with a badge.
 export async function getMembers() {
-  const { data, error } = await supabase.from('members').select('*').order('name')
+  const { data, error } = await supabase
+    .from('members')
+    .select('*')
+    .eq('is_active', true)
+    .order('name')
   if (error) console.error('[mockRosterStore] getMembers failed:', error.message)
   return (data ?? []).map((m) => ({
     name: m.name,
     attendancePercentage: m.attendance_percentage,
   }))
+}
+
+// Every roster member regardless of active status, for a management
+// view — getMembers() above deliberately excludes inactive members
+// everywhere else.
+export async function getAllMembers() {
+  const { data, error } = await supabase.from('members').select('*').order('name')
+  if (error) console.error('[mockRosterStore] getAllMembers failed:', error.message)
+  return (data ?? []).map((m) => ({
+    name: m.name,
+    attendancePercentage: m.attendance_percentage,
+    isActive: m.is_active,
+  }))
+}
+
+export async function setMemberActive(name, isActive) {
+  const { error } = await supabase.from('members').update({ is_active: isActive }).eq('name', name)
+  if (error) {
+    console.error('[mockRosterStore] setMemberActive failed:', error.message)
+    throw new Error('Could not update this member.')
+  }
 }
 
 // Most-recent-first, so callers can just take the first match per member.
