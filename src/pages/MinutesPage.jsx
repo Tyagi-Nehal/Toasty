@@ -93,10 +93,17 @@ export default function MinutesPage() {
   }
 
   const { meeting, mom } = active
-  const submittedLabel = new Date(mom.submittedAt).toLocaleString(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  })
+  // Defensive: content is a jsonb blob saved as-is by the Secretary's
+  // form (mockMOMStore.js), not schema-validated -- an incomplete or
+  // stale row (e.g. content reset to {} without deleting the row) must
+  // never crash this page to a blank screen, just render as "nothing
+  // recorded" for whatever's missing.
+  const speakers = mom.speakers ?? []
+  const evaluators = mom.evaluators ?? []
+  const ttSpeakers = mom.ttSpeakers ?? []
+  const submittedLabel = mom.submittedAt
+    ? new Date(mom.submittedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+    : null
 
   return (
     <MemberLayout>
@@ -107,10 +114,12 @@ export default function MinutesPage() {
         </div>
         <h1 className="mt-1 text-2xl font-extrabold text-ink sm:text-3xl">{meeting.dateLabel}</h1>
         {mom.theme && <p className="text-sm text-ink/60">Theme: {mom.theme}</p>}
-        <p className="mt-2 flex items-center gap-1.5 text-xs text-ink/50">
-          <Clock size={13} />
-          Published {submittedLabel}
-        </p>
+        {submittedLabel && (
+          <p className="mt-2 flex items-center gap-1.5 text-xs text-ink/50">
+            <Clock size={13} />
+            Published {submittedLabel}
+          </p>
+        )}
 
         {published.length > 1 && (
           <div className="mt-4 flex gap-2 overflow-x-auto">
@@ -160,8 +169,8 @@ export default function MinutesPage() {
         </Section>
 
         <Section icon={Mic} title="Speakers">
-          {mom.speakers.length === 0 && <p className="text-sm text-ink/50">No speakers recorded.</p>}
-          {mom.speakers.map((speaker, i) => (
+          {speakers.length === 0 && <p className="text-sm text-ink/50">No speakers recorded.</p>}
+          {speakers.map((speaker, i) => (
             <div key={speaker.key ?? i} className="rounded-2xl bg-cream/60 p-4">
               <p className="text-sm font-semibold text-ink">{speaker.name || '—'}</p>
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
@@ -173,10 +182,10 @@ export default function MinutesPage() {
         </Section>
 
         <Section icon={MessageSquare} title="Evaluators">
-          {mom.evaluators.length === 0 && (
+          {evaluators.length === 0 && (
             <p className="text-sm text-ink/50">No evaluators recorded.</p>
           )}
-          {mom.evaluators.map((evaluator, i) => (
+          {evaluators.map((evaluator, i) => (
             <div key={evaluator.key ?? i} className="rounded-2xl bg-cream/60 p-4">
               <p className="text-sm font-semibold text-ink">
                 {evaluator.name || '—'}{' '}
@@ -197,10 +206,10 @@ export default function MinutesPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <RoleField label="TT Master" value={mom.ttMaster} />
           </div>
-          {mom.ttSpeakers.length === 0 ? (
+          {ttSpeakers.length === 0 ? (
             <p className="text-sm text-ink/50">No table topic speakers recorded.</p>
           ) : (
-            mom.ttSpeakers.map((speaker, i) => (
+            ttSpeakers.map((speaker, i) => (
               <div key={speaker.key ?? i} className="rounded-2xl bg-cream/60 p-4">
                 <p className="text-sm font-semibold text-ink">{speaker.name || '—'}</p>
                 <div className="mt-2">
