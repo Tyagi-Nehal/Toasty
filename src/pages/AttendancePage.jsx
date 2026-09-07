@@ -35,19 +35,20 @@ export default function AttendancePage() {
     setLoading(true)
     setSubmitted(false)
     getAttendanceForMeeting(activeMeetingId).then(({ roster, alreadySubmitted: already }) => {
-      setAttendance(new Map(roster.map((m) => [m.name, m.present])))
+      setAttendance(new Map(roster.map((m) => [m.email, { name: m.name, present: m.present }])))
       setAlreadySubmitted(already)
       setLoading(false)
     })
   }, [activeMeetingId])
 
   const activeMeeting = recentMeetings.find((m) => m.id === activeMeetingId)
-  const presentCount = [...attendance.values()].filter(Boolean).length
+  const presentCount = [...attendance.values()].filter((v) => v.present).length
 
-  function togglePresent(name) {
+  function togglePresent(email) {
     setAttendance((prev) => {
       const next = new Map(prev)
-      next.set(name, !next.get(name))
+      const current = next.get(email)
+      next.set(email, { ...current, present: !current.present })
       return next
     })
   }
@@ -55,7 +56,8 @@ export default function AttendancePage() {
   async function handleSubmit() {
     setSubmitting(true)
     try {
-      await submitAttendance(activeMeetingId, Object.fromEntries(attendance), activeMeeting)
+      const entries = [...attendance].map(([email, v]) => ({ email, name: v.name, present: v.present }))
+      await submitAttendance(activeMeetingId, entries, activeMeeting)
       setSubmitted(true)
       setAlreadySubmitted(true)
     } catch (err) {
@@ -149,13 +151,12 @@ export default function AttendancePage() {
                 </p>
               </div>
               <ul className="mt-3 divide-y divide-accent/15">
-                {[...attendance.keys()].map((name) => {
-                  const present = attendance.get(name)
+                {[...attendance.entries()].map(([email, { name, present }]) => {
                   return (
-                    <li key={name}>
+                    <li key={email}>
                       <button
                         type="button"
-                        onClick={() => togglePresent(name)}
+                        onClick={() => togglePresent(email)}
                         className="flex w-full items-center justify-between py-3 text-left"
                       >
                         <span className="text-sm text-ink">{name}</span>

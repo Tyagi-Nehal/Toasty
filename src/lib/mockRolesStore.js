@@ -407,7 +407,7 @@ async function runAutoAssign(meetingId, trigger) {
         score: scoreMemberForRole(member, roleId, roleHistory, attendanceStats),
       }))
       .sort((a, b) => b.score - a.score)
-    newAssignments.push({ name: best.member.name, roleId })
+    newAssignments.push({ name: best.member.name, email: best.member.email, roleId })
     usedNames.add(best.member.name)
     filledCount += 1
   }
@@ -415,10 +415,14 @@ async function runAutoAssign(meetingId, trigger) {
   for (const assignment of newAssignments) {
     await supabase
       .from('meeting_role_assignments')
-      .update({ status: 'auto', taken_by_name: assignment.name, taken_by_email: null })
+      .update({
+        status: 'auto',
+        taken_by_name: assignment.name,
+        taken_by_email: assignment.email ?? null,
+      })
       .eq('meeting_id', meetingId)
       .eq('role_id', assignment.roleId)
-    await recordRoleAssignment(assignment.name, assignment.roleId)
+    await recordRoleAssignment(assignment.name, assignment.email, assignment.roleId)
   }
 
   logAction(

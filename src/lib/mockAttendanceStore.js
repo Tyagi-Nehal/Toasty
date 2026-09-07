@@ -33,12 +33,13 @@ export async function getAttendanceForMeeting(meetingId) {
     getMembers(),
     supabase.from('attendance').select('*').eq('meeting_id', meetingId),
   ])
-  const byName = new Map((rows ?? []).map((r) => [r.member_name, r.present]))
+  const byEmail = new Map((rows ?? []).map((r) => [r.member_email, r.present]))
   return {
     alreadySubmitted: (rows?.length ?? 0) > 0,
     roster: members.map((m) => ({
       name: m.name,
-      present: byName.has(m.name) ? byName.get(m.name) : true,
+      email: m.email,
+      present: byEmail.has(m.email) ? byEmail.get(m.email) : true,
     })),
   }
 }
@@ -49,20 +50,24 @@ export async function getAttendanceForMeeting(meetingId) {
 // already-loaded meeting view (has .date/.time/.dateLabel), passed in
 // rather than re-fetched here to avoid a circular import with
 // mockRolesStore.js (which already imports this file for attendance
-// stats) — only used for on-time points scoring.
-export async function submitAttendance(meetingId, presentByName, meeting) {
+// stats) — only used for on-time points scoring. `entries` is
+// [{ email, name, present }] — keyed by email (the roster's real
+// identity), name carried along only to denormalize onto the row for
+// display without a join.
+export async function submitAttendance(meetingId, entries, meeting) {
   const account = getAccount()
   const submittedAt = new Date().toISOString()
-  const rows = Object.entries(presentByName).map(([member_name, present]) => ({
+  const rows = entries.map(({ email, name, present }) => ({
     meeting_id: meetingId,
-    member_name,
+    member_email: email,
+    member_name: name,
     present,
     submitted_by_email: account?.email ?? null,
     updated_at: submittedAt,
   }))
   const { error } = await supabase
     .from('attendance')
-    .upsert(rows, { onConflict: 'meeting_id,member_name' })
+    .upsert(rows, { onConflict: 'meeting_id,member_email' })
   if (error) {
     console.error('[mockAttendanceStore] submitAttendance failed:', error.message)
     throw new Error('Could not save attendance — check your Secretary permissions and try again.')
@@ -70,17 +75,17 @@ export async function submitAttendance(meetingId, presentByName, meeting) {
   if (meeting) await scoreAttendanceSubmission(meeting, submittedAt)
 }
 
-// { [memberName]: { present, total } } across every recorded meeting — the
+// { [memberEmail]: { present, total } } across every recorded meeting — the
 // shape mockRosterStore.scoreMemberForRole's attendanceStats param expects.
 export async function getAttendanceStatsByMember() {
-  const { data, error } = await supabase.from('attendance').select('member_name, present')
+  const { data, error } = await supabase.from('attendance').select('member_email, present')
   if (error) {
     console.error('[mockAttendanceStore] getAttendanceStatsByMember failed:', error.message)
     return {}
   }
   const stats = {}
   for (const row of data ?? []) {
-    const s = (stats[row.member_name] ??= { present: 0, total: 0 })
+    const s = (stats[row.member_email] ??= { present: 0, total: 0 })
     s.total += 1
     if (row.present) s.present += 1
   }

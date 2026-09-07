@@ -44,24 +44,31 @@ export async function getMembers() {
   if (error) console.error('[mockRosterStore] getMembers failed:', error.message)
   return (data ?? []).map((m) => ({
     name: m.name,
+    email: m.email,
     attendancePercentage: m.attendance_percentage,
   }))
 }
 
-// Makes sure `name` exists as a roster row — nothing else in the app
-// could otherwise ever add a new person to this table (it was only ever
-// seeded once via SQL from the original attendance sheet). Called from
+// Makes sure `email` exists as a roster row — nothing else in the app
+// could otherwise ever add a new person to this table. Called from
 // wherever a real person becomes real in the app: an ExCom appointment
 // (mockExcomRegistry.js) or an approved member signup
-// (mockMemberSignups.js). A no-op if that name is already on the
-// roster — never resets an existing member's active/payment status,
-// only ever adds the row so the Treasurer has someone to activate.
-export async function ensureRosterMember(name) {
-  const trimmed = (name ?? '').trim()
-  if (!trimmed) return
+// (mockMemberSignups.js). Keyed by email, not name — a real person's
+// true identity, since two different real people can share a name and
+// one real person's name can be spelled differently across a
+// re-appointment or a typo. A no-op if that email is already on the
+// roster — never resets an existing member's active/payment status or
+// name, only ever adds the row so the Treasurer has someone to activate.
+export async function ensureRosterMember(name, email) {
+  const trimmedName = (name ?? '').trim()
+  const normalizedEmail = (email ?? '').trim().toLowerCase()
+  if (!trimmedName || !normalizedEmail) return
   const { error } = await supabase
     .from('members')
-    .upsert({ name: trimmed }, { onConflict: 'name', ignoreDuplicates: true })
+    .upsert(
+      { name: trimmedName, email: normalizedEmail },
+      { onConflict: 'email', ignoreDuplicates: true },
+    )
   if (error) console.error('[mockRosterStore] ensureRosterMember failed:', error.message)
 }
 
@@ -76,6 +83,7 @@ export async function getRosterWithStatus() {
   }
   return (data ?? []).map((m) => ({
     name: m.name,
+    email: m.email,
     attendancePercentage: m.attendance_percentage,
     isActive: m.is_active,
     paymentStatus: m.payment_status,
@@ -88,8 +96,14 @@ export async function getRosterWithStatus() {
 // Payment/term tracking lives directly on the roster (see schema.sql) —
 // marking a member Paid is what makes them active, which is what then
 // makes them eligible for attendance/role auto-assign via getMembers()
-// above. Called from RenewalManagementPage.jsx.
-export async function updateRosterRenewal(name, { paymentStatus, membershipStart, membershipEnd, cycleLabel }) {
+// above. Called from RenewalManagementPage.jsx. Keyed by email (the
+// roster's real identity) — `name` is passed through only for the
+// activity-log message, not used to find the row.
+export async function updateRosterRenewal(
+  email,
+  name,
+  { paymentStatus, membershipStart, membershipEnd, cycleLabel },
+) {
   const { error } = await supabase
     .from('members')
     .update({
@@ -99,7 +113,7 @@ export async function updateRosterRenewal(name, { paymentStatus, membershipStart
       cycle_label: cycleLabel || null,
       is_active: paymentStatus === 'paid',
     })
-    .eq('name', name)
+    .eq('email', email)
   if (error) {
     console.error('[mockRosterStore] updateRosterRenewal failed:', error.message)
     throw new Error('Could not update this member.')
@@ -120,14 +134,16 @@ export async function getRoleHistory() {
   if (error) console.error('[mockRosterStore] getRoleHistory failed:', error.message)
   return (data ?? []).map((r) => ({
     memberName: r.member_name,
+    memberEmail: r.member_email,
     roleId: r.role_id,
     meetingDate: r.meeting_date,
   }))
 }
 
-export async function recordRoleAssignment(memberName, roleId) {
+export async function recordRoleAssignment(memberName, memberEmail, roleId) {
   const { error } = await supabase.from('role_history').insert({
     member_name: memberName,
+    member_email: memberEmail,
     role_id: roleId,
     meeting_date: new Date().toISOString().slice(0, 10),
   })
@@ -153,26 +169,26 @@ export const scoringWeights = {
 // exact role before (rotation — never-done-it scores highest), and how
 // recently they've had any role at all (fairness/turn-taking).
 //
-// attendanceStats (optional): { [memberName]: { present, total } } from
+// attendanceStats (optional): { [memberEmail]: { present, total } } from
 // mockAttendanceStore.getAttendanceStatsByMember() — real per-meeting
 // attendance recorded by the Secretary. A member with at least one real
 // recorded meeting uses their real present/total ratio; a member with no
 // real rows yet falls back to the static seeded members.attendance_percentage
 // column, so historical seed data isn't discarded on day one.
 export function scoreMemberForRole(member, roleId, roleHistory, attendanceStats = {}) {
-  const stats = attendanceStats[member.name]
+  const stats = attendanceStats[member.email]
   const attendanceScore =
     stats && stats.total > 0
       ? stats.present / stats.total
       : (member.attendancePercentage ?? 0) / 100
 
   const thisRoleHistory = roleHistory.filter(
-    (r) => r.memberName === member.name && r.roleId === roleId,
+    (r) => r.memberEmail === member.email && r.roleId === roleId,
   )
   const roleRecencyScore =
     thisRoleHistory.length === 0 ? 1 : daysSinceScore(thisRoleHistory[0].meetingDate)
 
-  const anyRoleHistory = roleHistory.filter((r) => r.memberName === member.name)
+  const anyRoleHistory = roleHistory.filter((r) => r.memberEmail === member.email)
   const frequencyScore =
     anyRoleHistory.length === 0 ? 1 : daysSinceScore(anyRoleHistory[0].meetingDate)
 

@@ -243,13 +243,11 @@ create table if not exists members (
   -- getMembers() without a join on every read.
   is_active boolean not null default false,
   -- Payment/term tracking lives directly on the roster, not on the
-  -- separate email-keyed member_renewals table — this roster has no
-  -- email at all (seeded from the attendance sheet, not a signup), so
-  -- there's no reliable way to join it to that system by anything other
-  -- than a fragile name match. One consistent, name-keyed system for
-  -- attendance/roles/payment status instead. member_renewals is
-  -- untouched and still serves the small number of people with a real
-  -- signed-up account (a member's own "membership active until" view).
+  -- separate email-keyed member_renewals table — one consistent,
+  -- email-keyed system for attendance/roles/payment status instead.
+  -- member_renewals is untouched and still serves the small number of
+  -- people with a real signed-up account (a member's own "membership
+  -- active until" view).
   payment_status text not null default 'pending' check (payment_status in ('paid', 'pending')),
   membership_start date,
   membership_end date,
@@ -272,6 +270,21 @@ alter table members add constraint members_payment_status_check check (payment_s
 alter table members add column if not exists membership_start date;
 alter table members add column if not exists membership_end date;
 alter table members add column if not exists cycle_label text;
+-- A member's true identity is their email, not their name — two real
+-- people can share a name, and one real person's name can be spelled
+-- differently across a re-appointment or a typo. Every path that adds a
+-- roster row (ensureRosterMember in mockRosterStore.js, called from an
+-- ExCom appointment or an approved signup) always has a real email
+-- available, so email is the dedup/join key everywhere (attendance,
+-- role_history, renewal), and name is kept purely for display. The old
+-- unique constraint on name is dropped since two distinct real people
+-- with the same name are now legitimately two different rows.
+alter table members add column if not exists email text;
+alter table members drop constraint if exists members_name_key;
+alter table members drop constraint if exists members_email_key;
+alter table members add constraint members_email_key unique (email);
+alter table members alter column email set not null;
+alter table role_history add column if not exists member_email text;
 alter table members enable row level security;
 alter table role_history enable row level security;
 
@@ -740,6 +753,15 @@ create table if not exists attendance (
   updated_at timestamptz not null default now(),
   unique (meeting_id, member_name)
 );
+
+-- Same email-as-identity change as members above — attendance is keyed
+-- by whoever the roster row actually is, not by the name string, so a
+-- name collision or re-spelling can't merge/fragment two real people's
+-- attendance record.
+alter table attendance add column if not exists member_email text;
+alter table attendance drop constraint if exists attendance_meeting_id_member_name_key;
+alter table attendance drop constraint if exists attendance_meeting_id_member_email_key;
+alter table attendance add constraint attendance_meeting_id_member_email_key unique (meeting_id, member_email);
 
 alter table attendance enable row level security;
 

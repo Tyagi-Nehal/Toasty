@@ -79,15 +79,16 @@ export default function RenewalManagementPage() {
   }, [])
 
   // The value a row should show right now: its pending draft if it has
-  // one, otherwise its last-saved state.
+  // one, otherwise its last-saved state. Keyed by email — the roster's
+  // real identity — not name, so two members can't collide.
   function getEffective(member) {
-    return drafts[member.name] ?? member
+    return drafts[member.email] ?? member
   }
 
   function updateDraft(member, patch) {
     setDrafts((prev) => ({
       ...prev,
-      [member.name]: { ...getEffective(member), ...patch },
+      [member.email]: { ...getEffective(member), ...patch },
     }))
   }
 
@@ -112,15 +113,15 @@ export default function RenewalManagementPage() {
     updateDraft(member, { paymentStatus })
   }
 
-  const pendingNames = Object.keys(drafts)
+  const pendingEmails = Object.keys(drafts)
 
   async function handleSaveChanges() {
-    if (pendingNames.length === 0) return
+    if (pendingEmails.length === 0) return
     setSavingChanges(true)
     await Promise.all(
-      pendingNames.map((name) => {
-        const draft = drafts[name]
-        return updateRosterRenewal(name, {
+      pendingEmails.map((email) => {
+        const draft = drafts[email]
+        return updateRosterRenewal(email, draft.name, {
           paymentStatus: draft.paymentStatus,
           membershipStart: draft.membershipStart,
           membershipEnd: draft.membershipEnd,
@@ -179,14 +180,14 @@ export default function RenewalManagementPage() {
             below is written until this is pressed. */}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-white px-4 py-3">
           <span className="text-sm text-ink/60">
-            {pendingNames.length > 0
-              ? `${pendingNames.length} member${pendingNames.length > 1 ? 's' : ''} with unsaved changes`
+            {pendingEmails.length > 0
+              ? `${pendingEmails.length} member${pendingEmails.length > 1 ? 's' : ''} with unsaved changes`
               : 'No unsaved changes'}
           </span>
           <button
             type="button"
             onClick={handleSaveChanges}
-            disabled={pendingNames.length === 0 || savingChanges}
+            disabled={pendingEmails.length === 0 || savingChanges}
             className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-cream shadow-sm shadow-primary/20 transition enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Save size={15} />
@@ -207,13 +208,13 @@ export default function RenewalManagementPage() {
               <tbody>
                 {visible.map((member) => {
                   const display = getEffective(member)
-                  const hasDraft = Boolean(drafts[member.name])
+                  const hasDraft = Boolean(drafts[member.email])
                   // isActive reflects the last-saved value (member.isActive),
                   // not the unsaved draft — it only becomes real once Saved.
                   const memberIsActive = member.isActive
                   return (
                     <tr
-                      key={member.name}
+                      key={member.email}
                       className={`border-b border-accent/10 last:border-0 ${hasDraft ? 'bg-primary/5' : ''}`}
                     >
                       <td className="px-4 py-3">

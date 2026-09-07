@@ -96,7 +96,7 @@ export default function AttendanceLogPage() {
               </div>
               <ul className="mt-3 divide-y divide-accent/15">
                 {roster.map((m) => (
-                  <li key={m.name} className="flex items-center justify-between py-3">
+                  <li key={m.email} className="flex items-center justify-between py-3">
                     <span className="text-sm text-ink">{m.name}</span>
                     <span
                       className={`flex items-center gap-1.5 text-sm font-medium ${

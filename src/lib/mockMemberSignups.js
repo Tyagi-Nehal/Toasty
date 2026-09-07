@@ -72,12 +72,12 @@ export async function approveSignup(id) {
     .from('member_signups')
     .update({ status: 'approved', approved_at: new Date().toISOString() })
     .eq('id', id)
-    .select('name')
+    .select('name, email')
     .single()
   // A newly approved member is real now — make sure they exist on the
   // roster, or the Treasurer would have nobody to mark them Paid/active
   // for (see ensureRosterMember).
-  if (data?.name) await ensureRosterMember(data.name)
+  if (data?.name && data?.email) await ensureRosterMember(data.name, data.email)
   await scoreSignupApproval()
 }
 

@@ -73,7 +73,7 @@ export async function registerExcomMember({ role, name, email, appointedByEmail 
   // An ExCom appointee is a real active person in the club — make sure
   // they actually exist on the roster, or the Treasurer would have
   // nobody to mark them Paid/active for (see ensureRosterMember).
-  await ensureRosterMember(name)
+  await ensureRosterMember(name, normalizedEmail)
   await scoreExcomAppointment()
 
   return {
