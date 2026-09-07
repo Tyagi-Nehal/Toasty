@@ -235,12 +235,25 @@ create table if not exists members (
   name text not null unique,
   attendance_percentage numeric,
   -- An inactive member is excluded everywhere this roster feeds: the
-  -- attendance roster and the role auto-assign candidate pool. Separate
-  -- from the Treasurer's renewal-based Active/Inactive concept
-  -- (member_renewals), which only covers people with a real signed-up
-  -- account — this roster has no email at all, so it needs its own flag
-  -- rather than trying to join the two by name.
-  is_active boolean not null default true
+  -- attendance roster and the role auto-assign candidate pool. Defaults
+  -- to false — a roster member only becomes active once the Treasurer
+  -- marks them Paid for a term (payment_status below), not merely by
+  -- existing in the roster. Kept as a real stored column (not derived
+  -- live from payment_status) so it's a single fast filter for
+  -- getMembers() without a join on every read.
+  is_active boolean not null default false,
+  -- Payment/term tracking lives directly on the roster, not on the
+  -- separate email-keyed member_renewals table — this roster has no
+  -- email at all (seeded from the attendance sheet, not a signup), so
+  -- there's no reliable way to join it to that system by anything other
+  -- than a fragile name match. One consistent, name-keyed system for
+  -- attendance/roles/payment status instead. member_renewals is
+  -- untouched and still serves the small number of people with a real
+  -- signed-up account (a member's own "membership active until" view).
+  payment_status text not null default 'pending' check (payment_status in ('paid', 'pending')),
+  membership_start date,
+  membership_end date,
+  cycle_label text
 );
 
 create table if not exists role_history (
@@ -251,7 +264,14 @@ create table if not exists role_history (
   submitted_at timestamptz not null default now()
 );
 
-alter table members add column if not exists is_active boolean not null default true;
+alter table members add column if not exists is_active boolean not null default false;
+alter table members alter column is_active set default false;
+alter table members add column if not exists payment_status text not null default 'pending';
+alter table members drop constraint if exists members_payment_status_check;
+alter table members add constraint members_payment_status_check check (payment_status in ('paid', 'pending'));
+alter table members add column if not exists membership_start date;
+alter table members add column if not exists membership_end date;
+alter table members add column if not exists cycle_label text;
 alter table members enable row level security;
 alter table role_history enable row level security;
 
@@ -263,13 +283,16 @@ alter table role_history enable row level security;
 drop policy if exists "members authenticated select" on members;
 create policy "members authenticated select" on members
   for select to authenticated using (true);
+-- VPE manages the roster itself (adding/removing members); Treasurer
+-- also needs write access now that payment status/term/is_active live
+-- directly on this table, not a separate one.
 drop policy if exists "members vpe or president write" on members;
-create policy "members vpe or president write" on members
+create policy "members vpe, treasurer, or president write" on members
   for all to authenticated
   using (
     exists (
       select 1 from excom_appointments
-      where lower(email) = lower(auth.jwt() ->> 'email') and role = 'VPE'
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPE', 'Treasurer')
     )
     or exists (
       select 1 from clubs

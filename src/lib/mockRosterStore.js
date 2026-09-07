@@ -9,6 +9,29 @@
 
 import { supabase } from './supabaseClient.js'
 
+const RENEWAL_LOG_KEY = 'toasty_roster_renewal_log'
+const MAX_LOG_ENTRIES = 25
+
+function logRenewalAction(message) {
+  const entry = { id: crypto.randomUUID(), message, time: new Date().toISOString() }
+  try {
+    const raw = localStorage.getItem(RENEWAL_LOG_KEY)
+    const existing = raw ? JSON.parse(raw) : []
+    localStorage.setItem(RENEWAL_LOG_KEY, JSON.stringify([entry, ...existing].slice(0, MAX_LOG_ENTRIES)))
+  } catch {
+    localStorage.setItem(RENEWAL_LOG_KEY, JSON.stringify([entry]))
+  }
+}
+
+export function getRosterRenewalLog() {
+  try {
+    const raw = localStorage.getItem(RENEWAL_LOG_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
 // Active members only — this is the pool attendance rosters and role
 // auto-assign draw from, so an inactive member is excluded everywhere
 // this feeds, not just hidden with a badge.
@@ -25,25 +48,50 @@ export async function getMembers() {
   }))
 }
 
-// Every roster member regardless of active status, for a management
-// view — getMembers() above deliberately excludes inactive members
-// everywhere else.
-export async function getAllMembers() {
+// Every roster member regardless of active status, with their payment/
+// term info — for the Treasurer's Renewal Management page. getMembers()
+// above deliberately excludes inactive members everywhere else.
+export async function getRosterWithStatus() {
   const { data, error } = await supabase.from('members').select('*').order('name')
-  if (error) console.error('[mockRosterStore] getAllMembers failed:', error.message)
+  if (error) {
+    console.error('[mockRosterStore] getRosterWithStatus failed:', error.message)
+    return []
+  }
   return (data ?? []).map((m) => ({
     name: m.name,
     attendancePercentage: m.attendance_percentage,
     isActive: m.is_active,
+    paymentStatus: m.payment_status,
+    membershipStart: m.membership_start,
+    membershipEnd: m.membership_end,
+    cycleLabel: m.cycle_label,
   }))
 }
 
-export async function setMemberActive(name, isActive) {
-  const { error } = await supabase.from('members').update({ is_active: isActive }).eq('name', name)
+// Payment/term tracking lives directly on the roster (see schema.sql) —
+// marking a member Paid is what makes them active, which is what then
+// makes them eligible for attendance/role auto-assign via getMembers()
+// above. Called from RenewalManagementPage.jsx.
+export async function updateRosterRenewal(name, { paymentStatus, membershipStart, membershipEnd, cycleLabel }) {
+  const { error } = await supabase
+    .from('members')
+    .update({
+      payment_status: paymentStatus,
+      membership_start: membershipStart || null,
+      membership_end: membershipEnd || null,
+      cycle_label: cycleLabel || null,
+      is_active: paymentStatus === 'paid',
+    })
+    .eq('name', name)
   if (error) {
-    console.error('[mockRosterStore] setMemberActive failed:', error.message)
+    console.error('[mockRosterStore] updateRosterRenewal failed:', error.message)
     throw new Error('Could not update this member.')
   }
+  logRenewalAction(
+    paymentStatus === 'paid'
+      ? `Treasurer marked ${name} as Paid${cycleLabel ? ` for ${cycleLabel}` : ''}`
+      : `Treasurer marked ${name} as Unpaid`,
+  )
 }
 
 // Most-recent-first, so callers can just take the first match per member.

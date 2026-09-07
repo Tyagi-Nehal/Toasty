@@ -3,11 +3,10 @@ import { Wallet, History, CalendarClock, Save } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import Avatar from '../components/Avatar.jsx'
 import {
-  getMembersWithStatus,
-  getRenewalLog,
-  isActive,
-  updateMemberRenewal,
-} from '../lib/mockMembershipStore.js'
+  getRosterWithStatus,
+  getRosterRenewalLog,
+  updateRosterRenewal,
+} from '../lib/mockRosterStore.js'
 
 const filters = ['All', 'Paid', 'Unpaid']
 
@@ -61,19 +60,18 @@ export default function RenewalManagementPage() {
   const currentTerm = getCurrentTerm()
 
   const [members, setMembers] = useState([])
-  const [log, setLog] = useState(() => getRenewalLog())
+  const [log, setLog] = useState(() => getRosterRenewalLog())
   const [filter, setFilter] = useState('All')
   const [savingChanges, setSavingChanges] = useState(false)
 
-  // Edits are staged here (keyed by email) instead of writing to the
-  // database on every dropdown change — nothing is saved until "Save
-  // Changes" is pressed, so the Treasurer can review a batch of edits
-  // before they take effect.
+  // Edits are staged here (keyed by member name — the roster has no
+  // email) instead of writing to the database on every dropdown change —
+  // nothing is saved until "Save Changes" is pressed.
   const [drafts, setDrafts] = useState({})
 
   function refresh() {
-    getMembersWithStatus().then(setMembers)
-    setLog(getRenewalLog())
+    getRosterWithStatus().then(setMembers)
+    setLog(getRosterRenewalLog())
   }
 
   useEffect(() => {
@@ -83,21 +81,22 @@ export default function RenewalManagementPage() {
   // The value a row should show right now: its pending draft if it has
   // one, otherwise its last-saved state.
   function getEffective(member) {
-    return drafts[member.email] ?? member
+    return drafts[member.name] ?? member
   }
 
   function updateDraft(member, patch) {
     setDrafts((prev) => ({
       ...prev,
-      [member.email]: { ...getEffective(member), ...patch },
+      [member.name]: { ...getEffective(member), ...patch },
     }))
   }
 
   // Picking a term sets that member's active window to the term's full
-  // range and marks them Paid — renewing into a term is itself the
-  // record that they paid, per how this always worked. The Treasurer can
-  // still flip the status dropdown to Unpaid right after if that's wrong
-  // for this particular member; nothing writes to the database until Save.
+  // range and marks them Paid — which is also what makes them active for
+  // attendance/role auto-assign (see mockRosterStore.js). The Treasurer
+  // can still flip the status dropdown to Unpaid right after if that's
+  // wrong for this particular member; nothing writes to the database
+  // until Save.
   function handleTermChange(member, termLabel) {
     const term = TERM_OPTIONS.find((t) => t.label === termLabel)
     if (!term) return
@@ -113,16 +112,15 @@ export default function RenewalManagementPage() {
     updateDraft(member, { paymentStatus })
   }
 
-  const pendingEmails = Object.keys(drafts)
+  const pendingNames = Object.keys(drafts)
 
   async function handleSaveChanges() {
-    if (pendingEmails.length === 0) return
+    if (pendingNames.length === 0) return
     setSavingChanges(true)
     await Promise.all(
-      pendingEmails.map((email) => {
-        const member = members.find((m) => m.email === email)
-        const draft = drafts[email]
-        return updateMemberRenewal(email, member?.name ?? email, {
+      pendingNames.map((name) => {
+        const draft = drafts[name]
+        return updateRosterRenewal(name, {
           paymentStatus: draft.paymentStatus,
           membershipStart: draft.membershipStart,
           membershipEnd: draft.membershipEnd,
@@ -135,10 +133,8 @@ export default function RenewalManagementPage() {
     refresh()
   }
 
-  // Most urgent first: never set up at all, then soonest-to-expire —
-  // exactly who the Treasurer needs to chase, in order. "Unpaid" filter
-  // covers everyone not marked paid (pending or overdue from before this
-  // page only offered Paid/Unpaid).
+  // Most urgent first: never renewed at all, then soonest-to-expire —
+  // exactly who the Treasurer needs to chase, in order.
   const visible = (
     filter === 'All'
       ? members
@@ -159,9 +155,9 @@ export default function RenewalManagementPage() {
           </h1>
         </div>
         <p className="mt-1 text-sm text-ink/60">
-          Every member approved by the VPM, plus everyone on ExCom, shows up here
-          automatically as soon as they sign in. Pick a term for each member, then
-          mark whether they've paid, and press Save Changes when you're done.
+          Every real club member shows up here. A member only counts as active for
+          attendance and role assignment once you mark them Paid for a term — pick
+          a term, set their status, and press Save Changes when you're done.
         </p>
         {currentTerm && (
           <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
@@ -183,14 +179,14 @@ export default function RenewalManagementPage() {
             below is written until this is pressed. */}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-white px-4 py-3">
           <span className="text-sm text-ink/60">
-            {pendingEmails.length > 0
-              ? `${pendingEmails.length} member${pendingEmails.length > 1 ? 's' : ''} with unsaved changes`
+            {pendingNames.length > 0
+              ? `${pendingNames.length} member${pendingNames.length > 1 ? 's' : ''} with unsaved changes`
               : 'No unsaved changes'}
           </span>
           <button
             type="button"
             onClick={handleSaveChanges}
-            disabled={pendingEmails.length === 0 || savingChanges}
+            disabled={pendingNames.length === 0 || savingChanges}
             className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-cream shadow-sm shadow-primary/20 transition enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Save size={15} />
@@ -211,11 +207,13 @@ export default function RenewalManagementPage() {
               <tbody>
                 {visible.map((member) => {
                   const display = getEffective(member)
-                  const hasDraft = Boolean(drafts[member.email])
-                  const memberIsActive = isActive(display.membershipEnd)
+                  const hasDraft = Boolean(drafts[member.name])
+                  // isActive reflects the last-saved value (member.isActive),
+                  // not the unsaved draft — it only becomes real once Saved.
+                  const memberIsActive = member.isActive
                   return (
                     <tr
-                      key={member.email}
+                      key={member.name}
                       className={`border-b border-accent/10 last:border-0 ${hasDraft ? 'bg-primary/5' : ''}`}
                     >
                       <td className="px-4 py-3">
@@ -237,7 +235,6 @@ export default function RenewalManagementPage() {
                                 </span>
                               )}
                             </div>
-                            <p className="truncate text-xs text-ink/40">{member.email}</p>
                           </div>
                         </div>
                       </td>
@@ -275,7 +272,7 @@ export default function RenewalManagementPage() {
                   <tr>
                     <td colSpan={3} className="px-4 py-8 text-center text-sm text-ink/50">
                       {members.length === 0
-                        ? 'No approved members yet — they appear here once the VPM approves their signup, or once they’re added to ExCom.'
+                        ? 'No members on the roster yet.'
                         : 'No members with this status.'}
                     </td>
                   </tr>
