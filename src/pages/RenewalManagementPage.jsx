@@ -35,6 +35,14 @@ function generateTerms() {
 }
 const TERM_OPTIONS = generateTerms()
 
+function findTermByStart(start) {
+  return TERM_OPTIONS.find((t) => t.start === start) ?? null
+}
+
+function findTermByEnd(end) {
+  return TERM_OPTIONS.find((t) => t.end === end) ?? null
+}
+
 function todayISO() {
   return new Date().toISOString().slice(0, 10)
 }
@@ -92,21 +100,41 @@ export default function RenewalManagementPage() {
     }))
   }
 
-  // Picking a term sets that member's active window to the term's full
-  // range and marks them Paid — which is also what makes them active for
-  // attendance/role auto-assign (see mockRosterStore.js). The Treasurer
-  // can still flip the status dropdown to Unpaid right after if that's
-  // wrong for this particular member; nothing writes to the database
-  // until Save.
-  function handleTermChange(member, termLabel) {
-    const term = TERM_OPTIONS.find((t) => t.label === termLabel)
-    if (!term) return
+  // Picking a From/To term range sets that member's active window to span
+  // every cycle in between (not just one) and marks them Paid — which is
+  // also what makes them active for attendance/role auto-assign (see
+  // mockRosterStore.js). The Treasurer can still flip the status dropdown
+  // to Unpaid right after if that's wrong for this particular member;
+  // nothing writes to the database until Save.
+  function applyRange(member, fromTerm, toTerm) {
     updateDraft(member, {
       paymentStatus: 'paid',
-      membershipStart: term.start,
-      membershipEnd: term.end,
-      cycleLabel: term.label,
+      membershipStart: fromTerm.start,
+      membershipEnd: toTerm.end,
+      cycleLabel: fromTerm.label === toTerm.label ? fromTerm.label : `${fromTerm.label} through ${toTerm.label}`,
     })
+  }
+
+  // Changing "From" keeps the current "To" if it's still on/after the new
+  // start, otherwise collapses the range back down to a single cycle.
+  function handleFromChange(member, termLabel) {
+    const term = TERM_OPTIONS.find((t) => t.label === termLabel)
+    if (!term) return
+    const current = getEffective(member)
+    const currentToTerm = findTermByEnd(current.membershipEnd)
+    const toTerm =
+      currentToTerm && TERM_OPTIONS.indexOf(currentToTerm) >= TERM_OPTIONS.indexOf(term)
+        ? currentToTerm
+        : term
+    applyRange(member, term, toTerm)
+  }
+
+  function handleToChange(member, termLabel) {
+    const term = TERM_OPTIONS.find((t) => t.label === termLabel)
+    if (!term) return
+    const current = getEffective(member)
+    const fromTerm = findTermByStart(current.membershipStart) ?? term
+    applyRange(member, fromTerm, term)
   }
 
   function handleStatusChange(member, paymentStatus) {
@@ -158,7 +186,9 @@ export default function RenewalManagementPage() {
         <p className="mt-1 text-sm text-ink/60">
           Every real club member shows up here. A member only counts as active for
           attendance and role assignment once you mark them Paid for a term — pick
-          a term, set their status, and press Save Changes when you're done.
+          a From and To term (the same term for both renews just one cycle; a later
+          To covers multiple cycles at once), set their status, and press Save
+          Changes when you're done.
         </p>
         {currentTerm && (
           <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
@@ -209,6 +239,11 @@ export default function RenewalManagementPage() {
                 {visible.map((member) => {
                   const display = getEffective(member)
                   const hasDraft = Boolean(drafts[member.email])
+                  const fromTerm = findTermByStart(display.membershipStart)
+                  const toTerm = findTermByEnd(display.membershipEnd)
+                  const toOptions = fromTerm
+                    ? TERM_OPTIONS.slice(TERM_OPTIONS.indexOf(fromTerm))
+                    : TERM_OPTIONS
                   // isActive reflects the last-saved value (member.isActive),
                   // not the unsaved draft — it only becomes real once Saved.
                   const memberIsActive = member.isActive
@@ -240,21 +275,54 @@ export default function RenewalManagementPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <select
-                          value={display.cycleLabel ?? ''}
-                          onChange={(e) => handleTermChange(member, e.target.value)}
-                          className={selectClass}
-                        >
-                          <option value="" disabled>
-                            Select a term
-                          </option>
-                          {TERM_OPTIONS.map((t) => (
-                            <option key={t.label} value={t.label}>
-                              {t.label}
-                              {t.label === currentTerm?.label ? ' (current)' : ''}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex flex-col gap-1.5">
+                          <div>
+                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-ink/40">
+                              From
+                            </label>
+                            <select
+                              value={fromTerm?.label ?? ''}
+                              onChange={(e) => handleFromChange(member, e.target.value)}
+                              className={selectClass}
+                            >
+                              <option value="" disabled>
+                                Select a term
+                              </option>
+                              {TERM_OPTIONS.map((t) => (
+                                <option key={t.label} value={t.label}>
+                                  {t.label}
+                                  {t.label === currentTerm?.label ? ' (current)' : ''}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-ink/40">
+                              To
+                            </label>
+                            <select
+                              value={toTerm?.label ?? ''}
+                              onChange={(e) => handleToChange(member, e.target.value)}
+                              className={selectClass}
+                              disabled={!fromTerm}
+                            >
+                              <option value="" disabled>
+                                Select a term
+                              </option>
+                              {toOptions.map((t) => (
+                                <option key={t.label} value={t.label}>
+                                  {t.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          {fromTerm && toTerm && fromTerm.label !== toTerm.label && (
+                            <p className="text-[11px] font-medium text-primary">
+                              {TERM_OPTIONS.indexOf(toTerm) - TERM_OPTIONS.indexOf(fromTerm) + 1} cycles
+                              — active through {toTerm.end}
+                            </p>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <select
