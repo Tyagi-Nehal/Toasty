@@ -1,62 +1,81 @@
-// Anonymous feedback, shared between the member Feedback Page (submit +
-// view own past submissions) and the President's Feedback Inbox.
+// Anonymous feedback (supabase/schema.sql: feedback), shared between the
+// member Feedback Page (submit + view own past submissions) and the
+// President's Feedback Inbox — was localStorage-only, invisible to the
+// President signed in on a different device than whoever submitted it.
 //
-// `authorEmail` is stored so a member can filter to "their" submissions,
+// author_email is stored so a member can filter to "their" submissions,
 // but the President-facing inbox view must never read or display it —
 // that's what keeps submissions anonymous to the President, per spec.
 
-const STORAGE_KEY = 'toasty_feedback'
+import { supabase } from './supabaseClient.js'
 
-function readAll() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
+function normalizeEmail(email) {
+  return (email ?? '').trim().toLowerCase()
+}
+
+function toFeedback(row) {
+  return {
+    id: row.id,
+    subject: row.subject,
+    message: row.message,
+    authorEmail: row.author_email,
+    submittedAt: row.submitted_at,
+    read: row.read,
+    resolved: row.resolved,
+    presidentNote: row.president_note ?? '',
+  }
+}
+
+export async function getAllFeedback() {
+  const { data, error } = await supabase
+    .from('feedback')
+    .select('*')
+    .order('submitted_at', { ascending: false })
+  if (error) {
+    console.error('[mockFeedbackStore] getAllFeedback failed:', error.message)
     return []
   }
+  return (data ?? []).map(toFeedback)
 }
 
-function writeAll(items) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
+export async function getMyFeedback(authorEmail) {
+  const normalized = normalizeEmail(authorEmail)
+  if (!normalized) return []
+  const { data, error } = await supabase
+    .from('feedback')
+    .select('*')
+    .eq('author_email', normalized)
+    .order('submitted_at', { ascending: false })
+  if (error) {
+    console.error('[mockFeedbackStore] getMyFeedback failed:', error.message)
+    return []
+  }
+  return (data ?? []).map(toFeedback)
 }
 
-export function getAllFeedback() {
-  return readAll().sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))
-}
-
-export function getMyFeedback(authorEmail) {
-  return getAllFeedback().filter((item) => item.authorEmail === authorEmail)
-}
-
-export function submitFeedback({ subject, message, authorEmail }) {
-  const item = {
-    id: crypto.randomUUID(),
+export async function submitFeedback({ subject, message, authorEmail }) {
+  const { error } = await supabase.from('feedback').insert({
     subject,
     message,
-    authorEmail,
-    submittedAt: new Date().toISOString(),
-    read: false,
-    resolved: false,
-    presidentNote: '',
-  }
-  writeAll([...readAll(), item])
-  return item
+    author_email: normalizeEmail(authorEmail),
+  })
+  if (error) console.error('[mockFeedbackStore] submitFeedback failed:', error.message)
 }
 
-export function markRead(id) {
-  writeAll(readAll().map((item) => (item.id === id ? { ...item, read: true } : item)))
+export async function markRead(id) {
+  const { error } = await supabase.from('feedback').update({ read: true }).eq('id', id)
+  if (error) console.error('[mockFeedbackStore] markRead failed:', error.message)
 }
 
-export function toggleResolved(id) {
-  writeAll(
-    readAll().map((item) =>
-      item.id === id ? { ...item, resolved: !item.resolved } : item,
-    ),
-  )
+export async function toggleResolved(id, currentlyResolved) {
+  const { error } = await supabase
+    .from('feedback')
+    .update({ resolved: !currentlyResolved })
+    .eq('id', id)
+  if (error) console.error('[mockFeedbackStore] toggleResolved failed:', error.message)
 }
 
-export function setPresidentNote(id, note) {
-  writeAll(
-    readAll().map((item) => (item.id === id ? { ...item, presidentNote: note } : item)),
-  )
+export async function setPresidentNote(id, note) {
+  const { error } = await supabase.from('feedback').update({ president_note: note }).eq('id', id)
+  if (error) console.error('[mockFeedbackStore] setPresidentNote failed:', error.message)
 }

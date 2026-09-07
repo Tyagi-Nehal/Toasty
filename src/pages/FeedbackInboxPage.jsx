@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Circle, CheckCircle2, ChevronDown, Inbox, StickyNote } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import {
@@ -9,28 +9,36 @@ import {
 } from '../lib/mockFeedbackStore.js'
 
 export default function FeedbackInboxPage() {
-  const [items, setItems] = useState(() => getAllFeedback())
+  const [items, setItems] = useState([])
   const [openId, setOpenId] = useState(null)
+
+  function refresh() {
+    getAllFeedback().then(setItems)
+  }
+
+  useEffect(() => {
+    refresh()
+  }, [])
 
   const unreadCount = items.filter((item) => !item.read).length
 
-  function handleToggleOpen(item) {
+  async function handleToggleOpen(item) {
     const nowOpen = openId === item.id ? null : item.id
     setOpenId(nowOpen)
     if (nowOpen && !item.read) {
-      markRead(item.id)
-      setItems(getAllFeedback())
+      await markRead(item.id)
+      refresh()
     }
   }
 
-  function handleToggleResolved(id) {
-    toggleResolved(id)
-    setItems(getAllFeedback())
+  async function handleToggleResolved(item) {
+    await toggleResolved(item.id, item.resolved)
+    refresh()
   }
 
-  function handleNoteChange(id, note) {
-    setPresidentNote(id, note)
-    setItems(getAllFeedback())
+  async function handleNoteChange(id, note) {
+    await setPresidentNote(id, note)
+    refresh()
   }
 
   return (
@@ -110,7 +118,7 @@ export default function FeedbackInboxPage() {
 
                       <button
                         type="button"
-                        onClick={() => handleToggleResolved(item.id)}
+                        onClick={() => handleToggleResolved(item)}
                         className={`mt-3 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
                           item.resolved
                             ? 'border border-accent/40 text-ink/60 hover:bg-cream'

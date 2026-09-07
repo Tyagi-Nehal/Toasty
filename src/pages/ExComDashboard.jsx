@@ -124,6 +124,7 @@ export default function ExComDashboard() {
   const [pendingRenewalsCount, setPendingRenewalsCount] = useState(0)
   const [monthlyPoints, setMonthlyPoints] = useState(0)
   const [pointsBreakdown, setPointsBreakdown] = useState([])
+  const [unreadFeedbackCount, setUnreadFeedbackCount] = useState(0)
   const canSeeMembers = hasExcomRole('VPM') || hasExcomRole('Treasurer')
   const displayRole = getDisplayRole(account)
 
@@ -145,6 +146,9 @@ export default function ExComDashboard() {
       getMonthlyPoints(displayRole, account.email).then(setMonthlyPoints)
       getMonthlyBreakdown(displayRole, account.email).then(setPointsBreakdown)
     }
+    if (hasExcomRole('President')) {
+      getAllFeedback().then((items) => setUnreadFeedbackCount(items.filter((f) => !f.read).length))
+    }
   }, [])
 
   if (!account?.excomRoles?.length) {
@@ -156,8 +160,6 @@ export default function ExComDashboard() {
   const roleEntries = upcomingMeeting ? Object.values(upcomingMeeting.roles) : []
   const filledRoles = roleEntries.filter((r) => r.status !== 'open').length
   const totalRoles = roleEntries.length
-
-  const unreadFeedbackCount = getAllFeedback().filter((f) => !f.read).length
 
   const overviewCards = [
     {

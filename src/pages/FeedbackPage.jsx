@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CheckCircle2, MessageSquare, Send } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import { getAccount } from '../lib/mockAuth.js'
@@ -8,17 +8,23 @@ export default function FeedbackPage() {
   const account = getAccount()
   const [subject, setSubject] = useState('')
   const [message, setMessage] = useState('')
-  const [mySubmissions, setMySubmissions] = useState(() =>
-    getMyFeedback(account?.email),
-  )
+  const [mySubmissions, setMySubmissions] = useState([])
   const [justSubmitted, setJustSubmitted] = useState(false)
 
-  function handleSubmit(e) {
+  function refresh() {
+    getMyFeedback(account?.email).then(setMySubmissions)
+  }
+
+  useEffect(() => {
+    refresh()
+  }, [])
+
+  async function handleSubmit(e) {
     e.preventDefault()
     if (!subject.trim() || !message.trim()) return
 
-    submitFeedback({ subject: subject.trim(), message: message.trim(), authorEmail: account?.email })
-    setMySubmissions(getMyFeedback(account?.email))
+    await submitFeedback({ subject: subject.trim(), message: message.trim(), authorEmail: account?.email })
+    refresh()
     setSubject('')
     setMessage('')
     setJustSubmitted(true)

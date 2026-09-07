@@ -1044,3 +1044,59 @@ grant select on members to service_role;
 grant select, insert on role_history to service_role;
 grant select on attendance to service_role;
 grant usage, select on all sequences in schema public to service_role;
+
+-- Anonymous feedback (was localStorage-only, mockFeedbackStore.js) — a
+-- member submitting feedback on their own device was invisible to the
+-- President signed in on theirs, same cross-device gap every other
+-- localStorage-only system in this app had before being moved here.
+-- author_email is stored so a member can see their own past
+-- submissions, but the President-facing inbox must never display it —
+-- that's enforced client-side (FeedbackInboxPage.jsx never reads or
+-- renders it), same trust model the original implementation already
+-- used; RLS here only controls who can query rows at all, not which
+-- columns of an authorized row they render.
+create table if not exists feedback (
+  id bigint generated always as identity primary key,
+  subject text not null,
+  message text not null,
+  author_email text not null,
+  submitted_at timestamptz not null default now(),
+  read boolean not null default false,
+  resolved boolean not null default false,
+  president_note text not null default ''
+);
+
+alter table feedback enable row level security;
+
+-- A member can read back their own submissions (My Past Submissions);
+-- the President can read every submission (the Inbox).
+drop policy if exists "feedback self or president select" on feedback;
+create policy "feedback self or president select" on feedback
+  for select to authenticated
+  using (
+    lower(author_email) = lower(auth.jwt() ->> 'email')
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
+drop policy if exists "feedback self insert" on feedback;
+create policy "feedback self insert" on feedback
+  for insert to authenticated
+  with check (lower(author_email) = lower(auth.jwt() ->> 'email'));
+
+-- Only the President marks things read/resolved or leaves a private
+-- note — a member's own past submissions are read-only to them.
+drop policy if exists "feedback president update" on feedback;
+create policy "feedback president update" on feedback
+  for update to authenticated
+  using (
+    exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
+grant select, insert, update on feedback to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
