@@ -48,6 +48,23 @@ export async function getMembers() {
   }))
 }
 
+// Makes sure `name` exists as a roster row — nothing else in the app
+// could otherwise ever add a new person to this table (it was only ever
+// seeded once via SQL from the original attendance sheet). Called from
+// wherever a real person becomes real in the app: an ExCom appointment
+// (mockExcomRegistry.js) or an approved member signup
+// (mockMemberSignups.js). A no-op if that name is already on the
+// roster — never resets an existing member's active/payment status,
+// only ever adds the row so the Treasurer has someone to activate.
+export async function ensureRosterMember(name) {
+  const trimmed = (name ?? '').trim()
+  if (!trimmed) return
+  const { error } = await supabase
+    .from('members')
+    .upsert({ name: trimmed }, { onConflict: 'name', ignoreDuplicates: true })
+  if (error) console.error('[mockRosterStore] ensureRosterMember failed:', error.message)
+}
+
 // Every roster member regardless of active status, with their payment/
 // term info — for the Treasurer's Renewal Management page. getMembers()
 // above deliberately excludes inactive members everywhere else.

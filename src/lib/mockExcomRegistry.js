@@ -11,6 +11,7 @@
 
 import { supabase } from './supabaseClient.js'
 import { scoreExcomAppointment } from './mockPointsStore.js'
+import { ensureRosterMember } from './mockRosterStore.js'
 
 // Primary roles that have an "Ass. <role>" variant on the Register Your
 // EXCOM form — SAA, President, and Associate roles themselves have no
@@ -69,6 +70,10 @@ export async function registerExcomMember({ role, name, email, appointedByEmail 
   })
   if (error) return { error: error.message ?? 'Something went wrong. Please try again.' }
 
+  // An ExCom appointee is a real active person in the club — make sure
+  // they actually exist on the roster, or the Treasurer would have
+  // nobody to mark them Paid/active for (see ensureRosterMember).
+  await ensureRosterMember(name)
   await scoreExcomAppointment()
 
   return {

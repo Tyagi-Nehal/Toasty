@@ -6,6 +6,7 @@
 
 import { supabase } from './supabaseClient.js'
 import { scoreSignupApproval } from './mockPointsStore.js'
+import { ensureRosterMember } from './mockRosterStore.js'
 
 function normalizeEmail(email) {
   return (email ?? '').trim().toLowerCase()
@@ -67,10 +68,16 @@ export async function getApprovedSignups() {
 }
 
 export async function approveSignup(id) {
-  await supabase
+  const { data } = await supabase
     .from('member_signups')
     .update({ status: 'approved', approved_at: new Date().toISOString() })
     .eq('id', id)
+    .select('name')
+    .single()
+  // A newly approved member is real now — make sure they exist on the
+  // roster, or the Treasurer would have nobody to mark them Paid/active
+  // for (see ensureRosterMember).
+  if (data?.name) await ensureRosterMember(data.name)
   await scoreSignupApproval()
 }
 
