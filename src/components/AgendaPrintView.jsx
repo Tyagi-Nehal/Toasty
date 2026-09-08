@@ -80,6 +80,12 @@ export default function AgendaPrintView({ agenda, meeting }) {
         </div>
       </div>
 
+      {agenda.others?.trim() && (
+        <p className="mt-1 text-xs">
+          <span className="font-bold">Others:</span> {agenda.others}
+        </p>
+      )}
+
       <table className="mt-2 w-full table-fixed border-collapse text-[11px]">
         <colgroup>
           <col style={{ width: '13%' }} />

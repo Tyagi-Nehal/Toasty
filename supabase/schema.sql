@@ -560,6 +560,11 @@ create table if not exists agendas (
   sent_snapshot jsonb
 );
 
+-- Free-text catch-all for anything that doesn't fit the role-based row
+-- structure — a fun/game session, a special announcement, etc. Shown
+-- alongside Theme/Word of the Day/Venue, not tied to any role.
+alter table agendas add column if not exists others text;
+
 alter table agendas enable row level security;
 
 drop policy if exists "agendas authenticated select" on agendas;

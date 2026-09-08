@@ -98,6 +98,11 @@ export default function AgendaPage() {
               <InfoField label="Meaning" value={agenda.meaning} />
             </div>
           )}
+          {agenda.others && (
+            <div className="sm:col-span-2">
+              <InfoField label="Others" value={agenda.others} />
+            </div>
+          )}
           <InfoField
             label="Venue"
             value={agenda.venue ? `${agenda.venue}` : ''}

@@ -510,6 +510,17 @@ export default function AgendaEditorPage() {
                       className={headerInputClass}
                     />
                   </div>
+                  <div className="sm:col-span-2">
+                    <label className={headerLabelClass}>Others</label>
+                    <input
+                      type="text"
+                      disabled={isPast}
+                      value={agenda.others}
+                      onChange={(e) => handleHeaderChange('others', e.target.value)}
+                      placeholder="Anything outside the usual roles — a game, a special announcement, etc."
+                      className={headerInputClass}
+                    />
+                  </div>
                   <div>
                     <label className={headerLabelClass}>Venue</label>
                     <input
