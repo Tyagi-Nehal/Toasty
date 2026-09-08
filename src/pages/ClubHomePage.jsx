@@ -172,17 +172,6 @@ export default function ClubHomePage() {
   const details = getClubDetails(club)
   const [heroPhoto, ...extraHeroPhotos] = heroPhotos
 
-  // Real ExCom contact info for this specific club — not shown on other
-  // clubs' pages, since a President/VPM's contact details are specific
-  // to their own club, not universal to every club Toasty might serve.
-  const clubContacts =
-    club.id === 'mahe-bengaluru-toastmasters-club'
-      ? {
-          president: { name: 'Sarvajit Srivatsa', email: 'sarvajit607@gmail.com' },
-          vpm: { name: 'Navaankur Deka', email: 'nick@gmail.com' },
-        }
-      : null
-
   const infoTiles = [
     { icon: MapPin, label: 'Location', value: club.location },
     club.foundedYear && { icon: CalendarDays, label: 'Founded', value: club.foundedYear },
@@ -301,7 +290,7 @@ export default function ClubHomePage() {
         />
       </div>
 
-      <Footer clubContacts={clubContacts} />
+      <Footer />
 
       {isJoinOpen && (
         <JoinClubModal club={club} onClose={() => setIsJoinOpen(false)} />
