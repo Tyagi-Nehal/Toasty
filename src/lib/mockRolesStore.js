@@ -350,14 +350,14 @@ export async function acceptAutoAssignedRole(meetingId) {
 // means it's now auto-assigned (whether the system or the VPE put it
 // there), no name means it's reopened. Only a member's own self-select
 // (selectRole, above) ever produces 'taken'.
-export async function overrideRole(meetingId, roleId, { takenBy }) {
+export async function overrideRole(meetingId, roleId, { takenBy, takenByEmail }) {
   const meeting = await getMeeting(meetingId)
   const { error } = await supabase
     .from('meeting_role_assignments')
     .update({
       status: takenBy ? 'auto' : 'open',
       taken_by_name: takenBy || null,
-      taken_by_email: null,
+      taken_by_email: takenBy ? takenByEmail || null : null,
       accepted_at: null,
     })
     .eq('meeting_id', meetingId)
@@ -371,7 +371,7 @@ export async function overrideRole(meetingId, roleId, { takenBy }) {
       ? `VPE manually assigned ${roleName(roleId)} to ${takenBy} for ${meeting.dateLabel}`
       : `VPE reopened ${roleName(roleId)} for ${meeting.dateLabel}`,
   )
-  if (takenBy) await scoreExternalBooking(takenBy)
+  if (takenBy) await scoreExternalBooking(takenBy, takenByEmail)
 }
 
 // Picks the best-fit real member (by attendance + role rotation/fairness

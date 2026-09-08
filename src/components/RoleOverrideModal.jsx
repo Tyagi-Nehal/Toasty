@@ -1,12 +1,29 @@
 import { useState } from 'react'
 import { UserCog, X } from 'lucide-react'
 
-export default function RoleOverrideModal({ roleName, currentAssignee, onClose, onConfirm }) {
-  const [name, setName] = useState(currentAssignee ?? '')
+const OTHER_VALUE = '__other__'
+
+// roster: [{ name, email }] — the real club roster, so the VPE picks a
+// name Toasty already knows instead of typing one that might not match
+// anyone (a typo, a slightly different spelling) and would otherwise
+// leave taken_by_email empty — nobody actually tied to the assignment,
+// silently unnotifiable. "Other" is the deliberate escape hatch for a
+// real non-member guest, where there's genuinely no email to attach.
+export default function RoleOverrideModal({ roleName, currentAssignee, roster, onClose, onConfirm }) {
+  const currentMember = roster?.find((m) => m.name === currentAssignee)
+  const [selected, setSelected] = useState(currentMember ? currentMember.email : currentAssignee ? OTHER_VALUE : '')
+  const [guestName, setGuestName] = useState(currentMember ? '' : (currentAssignee ?? ''))
+
+  const isOther = selected === OTHER_VALUE
 
   function handleConfirm() {
-    const trimmed = name.trim()
-    onConfirm({ takenBy: trimmed || null })
+    if (isOther) {
+      const trimmed = guestName.trim()
+      onConfirm({ takenBy: trimmed || null, takenByEmail: null })
+      return
+    }
+    const member = roster?.find((m) => m.email === selected)
+    onConfirm({ takenBy: member?.name ?? null, takenByEmail: member?.email ?? null })
   }
 
   return (
@@ -34,21 +51,38 @@ export default function RoleOverrideModal({ roleName, currentAssignee, onClose, 
         </div>
         <p className="mt-1 text-sm text-ink/60">{roleName}</p>
 
-        <label htmlFor="override-name" className="mt-5 block text-sm font-medium text-ink">
+        <label htmlFor="override-select" className="mt-5 block text-sm font-medium text-ink">
           Assign to
         </label>
-        <input
-          id="override-name"
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Leave blank to reopen this role"
+        <select
+          id="override-select"
+          value={selected}
+          onChange={(e) => setSelected(e.target.value)}
           className="mt-1.5 w-full rounded-xl border border-accent/40 bg-cream px-4 py-2.5 text-sm text-ink focus:border-primary focus:outline-none"
-        />
+        >
+          <option value="">Leave blank to reopen this role</option>
+          {roster?.map((member) => (
+            <option key={member.email} value={member.email}>
+              {member.name}
+            </option>
+          ))}
+          <option value={OTHER_VALUE}>Other (guest)…</option>
+        </select>
 
-        {name.trim() && (
+        {isOther && (
+          <input
+            type="text"
+            autoFocus
+            value={guestName}
+            onChange={(e) => setGuestName(e.target.value)}
+            placeholder="Guest's name"
+            className="mt-2 w-full rounded-xl border border-accent/40 bg-cream px-4 py-2.5 text-sm text-ink focus:border-primary focus:outline-none"
+          />
+        )}
+
+        {(selected || (isOther && guestName.trim())) && (
           <p className="mt-3 text-xs text-ink/50">
-            Assigning a name here always marks the role as auto-assigned — only a
+            Assigning someone here always marks the role as auto-assigned — only a
             member picking it themselves counts as self-selected.
           </p>
         )}

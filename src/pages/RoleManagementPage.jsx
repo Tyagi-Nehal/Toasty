@@ -32,7 +32,7 @@ import {
   uncancelMeeting,
   unfinalizeMeeting,
 } from '../lib/mockRolesStore.js'
-import { scoringWeights } from '../lib/mockRosterStore.js'
+import { getMembers, scoringWeights } from '../lib/mockRosterStore.js'
 
 const statusLabels = {
   open: { text: 'Open', className: 'bg-accent/15 text-primary' },
@@ -72,6 +72,7 @@ export default function RoleManagementPage() {
   const [meetings, setMeetings] = useState([])
   const [activeMeetingId, setActiveMeetingId] = useState(null)
   const [notifications, setNotifications] = useState(() => getNotifications())
+  const [roster, setRoster] = useState([])
   const [overrideTarget, setOverrideTarget] = useState(null)
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false)
   const [showAllNotifications, setShowAllNotifications] = useState(false)
@@ -97,6 +98,7 @@ export default function RoleManagementPage() {
 
   useEffect(() => {
     refresh()
+    getMembers().then(setRoster)
   }, [])
 
   async function handleAutoAssign() {
@@ -129,9 +131,9 @@ export default function RoleManagementPage() {
     refresh()
   }
 
-  async function handleOverrideConfirm({ takenBy }) {
+  async function handleOverrideConfirm({ takenBy, takenByEmail }) {
     try {
-      await overrideRole(activeMeetingId, overrideTarget.id, { takenBy })
+      await overrideRole(activeMeetingId, overrideTarget.id, { takenBy, takenByEmail })
       setOverrideTarget(null)
       refresh()
     } catch (err) {
@@ -511,6 +513,7 @@ export default function RoleManagementPage() {
         <RoleOverrideModal
           roleName={overrideTarget.name}
           currentAssignee={activeMeeting.roles[overrideTarget.id].takenBy}
+          roster={roster}
           onClose={() => setOverrideTarget(null)}
           onConfirm={handleOverrideConfirm}
         />

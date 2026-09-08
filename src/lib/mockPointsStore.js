@@ -23,7 +23,6 @@
 import { supabase } from './supabaseClient.js'
 import { getAgenda } from './mockAgendaStore.js'
 import { getEmailForRole, getHeldRoleForEmailAndBase } from './mockExcomRegistry.js'
-import { getMembers } from './mockRosterStore.js'
 import { getDeclinePenalty } from './points.js'
 import { getAccount } from './mockAuth.js'
 
@@ -289,22 +288,17 @@ export async function scoreVpeFinalize(meeting) {
 
 // VPE: booking an external (non-member) guest into a role via Override —
 // capped 4/month, deduped per external person per month so re-editing the
-// same override doesn't burn multiple capped slots. "External" just means
-// the assigned name doesn't match anyone in the real member roster
-// (members table) — that's the only source of truth this app has for who
-// actually belongs to the club. Called from overrideRole() whenever the
-// VPE types in a name.
-export async function scoreExternalBooking(takenByName) {
+// same override doesn't burn multiple capped slots. "External" means
+// takenByEmail is empty — the Override modal now only leaves email blank
+// when the VPE explicitly used the "Other (guest)" field, not when
+// picking a real member from the roster dropdown, so this no longer
+// needs to fuzzy-match the typed name against the roster itself. Called
+// from overrideRole() whenever the VPE assigns someone via Override.
+export async function scoreExternalBooking(takenByName, takenByEmail) {
   const trimmedName = (takenByName ?? '').trim()
-  if (!trimmedName) return
+  if (!trimmedName || takenByEmail) return
   const vpeEmail = await getActingEmailForRole('VPE')
   if (!vpeEmail) return
-
-  const members = await getMembers()
-  const isRealMember = members.some(
-    (m) => m.name.trim().toLowerCase() === trimmedName.toLowerCase(),
-  )
-  if (isRealMember) return
 
   await awardPointsWithMonthlySubjectCap({
     role: 'VPE',
