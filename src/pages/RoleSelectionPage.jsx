@@ -220,9 +220,13 @@ export default function RoleSelectionPage() {
           </div>
         )}
 
-        {/* Role list */}
+        {/* Role list — only roles actually on this meeting (Role
+            Management can add/remove per meeting, e.g. no Table Topics
+            this week), in roleCatalog's usual order. */}
         <div className="mt-6 space-y-3">
-          {roleCatalog.map((role) => {
+          {roleCatalog
+            .filter((role) => role.id in activeMeeting.roles)
+            .map((role) => {
             const entry = activeMeeting.roles[role.id]
             const isVpeOnly = VPE_ONLY_ROLE_IDS.includes(role.id)
             const canSelect =

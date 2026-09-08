@@ -32,6 +32,7 @@ const SCORING_WEIGHTS = { attendance: 0.4, roleRecency: 0.3, frequency: 0.3 }
 
 interface Member {
   name: string
+  email: string | null
   attendance_percentage: number | null
 }
 
@@ -182,7 +183,7 @@ Deno.serve(async (req) => {
   }
 
   let filledCount = 0
-  const newAssignments: { name: string; roleId: string }[] = []
+  const newAssignments: { name: string; email: string | null; roleId: string }[] = []
   for (const role of openRoles) {
     const available = (members ?? []).filter((m: Member) => !usedNames.has(m.name))
     if (available.length === 0) break
@@ -192,7 +193,7 @@ Deno.serve(async (req) => {
         score: scoreMemberForRole(member, role.role_id, roleHistory ?? [], attendanceStats),
       }))
       .sort((a, b) => b.score - a.score)
-    newAssignments.push({ name: best.member.name, roleId: role.role_id })
+    newAssignments.push({ name: best.member.name, email: best.member.email ?? null, roleId: role.role_id })
     usedNames.add(best.member.name)
     filledCount += 1
   }
@@ -200,11 +201,12 @@ Deno.serve(async (req) => {
   for (const assignment of newAssignments) {
     await supabase
       .from('meeting_role_assignments')
-      .update({ status: 'auto', taken_by_name: assignment.name, taken_by_email: null })
+      .update({ status: 'auto', taken_by_name: assignment.name, taken_by_email: assignment.email })
       .eq('meeting_id', next!.id)
       .eq('role_id', assignment.roleId)
     await supabase.from('role_history').insert({
       member_name: assignment.name,
+      member_email: assignment.email,
       role_id: assignment.roleId,
       meeting_date: next!.meeting_date,
     })

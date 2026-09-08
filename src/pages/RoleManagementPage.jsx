@@ -7,7 +7,9 @@ import {
   CheckCircle2,
   LockOpen,
   PencilLine,
+  Plus,
   SlidersHorizontal,
+  Trash2,
   Zap,
 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
@@ -19,6 +21,7 @@ import CancelledMeetingNotice from '../components/CancelledMeetingNotice.jsx'
 import { roleCatalog } from '../data/roleCatalog.js'
 import {
   VPE_ONLY_ROLE_IDS,
+  addMeetingRole,
   autoAssignMeeting,
   cancelMeeting,
   canFinalizeMeeting,
@@ -28,6 +31,7 @@ import {
   getNotifications,
   getRoleFillSummary,
   overrideRole,
+  removeMeetingRole,
   rescheduleMeeting,
   uncancelMeeting,
   unfinalizeMeeting,
@@ -78,6 +82,7 @@ export default function RoleManagementPage() {
   const [showAllNotifications, setShowAllNotifications] = useState(false)
   const [showCancelMeeting, setShowCancelMeeting] = useState(false)
   const [showReschedule, setShowReschedule] = useState(false)
+  const [roleToAdd, setRoleToAdd] = useState('')
 
   const activeMeeting = meetings.find((m) => m.id === activeMeetingId)
 
@@ -135,6 +140,36 @@ export default function RoleManagementPage() {
     try {
       await overrideRole(activeMeetingId, overrideTarget.id, { takenBy, takenByEmail })
       setOverrideTarget(null)
+      refresh()
+    } catch (err) {
+      window.alert(err.message)
+    }
+  }
+
+  async function handleAddRole() {
+    if (!roleToAdd) return
+    try {
+      await addMeetingRole(activeMeetingId, roleToAdd)
+      setRoleToAdd('')
+      refresh()
+    } catch (err) {
+      window.alert(err.message)
+    }
+  }
+
+  async function handleRemoveRole(role) {
+    const entry = activeMeeting.roles[role.id]
+    // Only ask for confirmation if removing this would actually discard
+    // a real assignment — an already-open, nobody-assigned role is
+    // harmless to remove outright.
+    if (
+      entry.status !== 'open' &&
+      !window.confirm(`Remove ${role.name}? ${entry.takenBy ? `${entry.takenBy}'s assignment will be lost.` : ''}`)
+    ) {
+      return
+    }
+    try {
+      await removeMeetingRole(activeMeetingId, role.id)
       refresh()
     } catch (err) {
       window.alert(err.message)
@@ -384,7 +419,9 @@ export default function RoleManagementPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {roleCatalog.map((role) => {
+                    {roleCatalog
+                      .filter((role) => role.id in activeMeeting.roles)
+                      .map((role) => {
                       const entry = activeMeeting.roles[role.id]
                       const badge = statusLabels[entry.status]
                       return (
@@ -409,15 +446,26 @@ export default function RoleManagementPage() {
                             </span>
                           </td>
                           <td className="px-4 py-2.5 text-right">
-                            <button
-                              type="button"
-                              onClick={() => setOverrideTarget(role)}
-                              disabled={activeMeeting.finalized}
-                              className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                              <PencilLine size={12} />
-                              Override
-                            </button>
+                            <div className="flex items-center justify-end gap-3">
+                              <button
+                                type="button"
+                                onClick={() => setOverrideTarget(role)}
+                                disabled={activeMeeting.finalized}
+                                className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                <PencilLine size={12} />
+                                Override
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveRole(role)}
+                                disabled={activeMeeting.finalized}
+                                aria-label={`Remove ${role.name}`}
+                                className="text-ink/30 transition hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       )
@@ -428,7 +476,9 @@ export default function RoleManagementPage() {
 
               {/* Mobile cards */}
               <div className="mt-4 space-y-2.5 sm:hidden">
-                {roleCatalog.map((role) => {
+                {roleCatalog
+                  .filter((role) => role.id in activeMeeting.roles)
+                  .map((role) => {
                   const entry = activeMeeting.roles[role.id]
                   const badge = statusLabels[entry.status]
                   return (
@@ -453,19 +503,61 @@ export default function RoleManagementPage() {
                       </div>
                       <div className="mt-1.5 flex items-center justify-between">
                         <p className="text-sm text-ink/60">{entry.takenBy ?? 'Unassigned'}</p>
-                        <button
-                          type="button"
-                          onClick={() => setOverrideTarget(role)}
-                          disabled={activeMeeting.finalized}
-                          className="flex items-center gap-1 text-xs font-semibold text-primary disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <PencilLine size={12} />
-                          Override
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setOverrideTarget(role)}
+                            disabled={activeMeeting.finalized}
+                            className="flex items-center gap-1 text-xs font-semibold text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            <PencilLine size={12} />
+                            Override
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveRole(role)}
+                            disabled={activeMeeting.finalized}
+                            aria-label={`Remove ${role.name}`}
+                            className="text-ink/30 transition hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )
                 })}
+              </div>
+
+              {/* Add a role — any roleCatalog id not already on this
+                  meeting (e.g. a 4th+ speaker/evaluator pair for a
+                  speech-marathon meeting). Per-meeting only; every other
+                  meeting is unaffected. */}
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <select
+                  value={roleToAdd}
+                  onChange={(e) => setRoleToAdd(e.target.value)}
+                  disabled={activeMeeting.finalized}
+                  className="rounded-lg border border-accent/40 bg-cream px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <option value="">Add a role…</option>
+                  {roleCatalog
+                    .filter((role) => !(role.id in activeMeeting.roles))
+                    .map((role) => (
+                      <option key={role.id} value={role.id}>
+                        {role.name}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleAddRole}
+                  disabled={!roleToAdd || activeMeeting.finalized}
+                  className="flex items-center gap-1.5 rounded-lg border border-dashed border-accent/50 px-3 py-2 text-sm font-semibold text-ink/60 transition enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Plus size={14} />
+                  Add
+                </button>
               </div>
             </div>
           </div>

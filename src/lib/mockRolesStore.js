@@ -8,7 +8,7 @@
 //
 // Function names are unchanged from the old localStorage-backed version.
 
-import { roleCatalog } from '../data/roleCatalog.js'
+import { roleCatalog, DEFAULT_ROLE_IDS } from '../data/roleCatalog.js'
 import { pushNotification } from './mockNotificationsStore.js'
 import { getAccount, hasExcomRole } from './mockAuth.js'
 import { supabase } from './supabaseClient.js'
@@ -53,15 +53,13 @@ async function resolveFixedRoleAssignee(roleId) {
 // Speaker/evaluator slots depend on real people committing to a specific
 // speech, which often isn't locked in until much closer to the meeting
 // than every other role — so finalizing shouldn't be blocked on these
-// specifically, unlike every other role.
-export const OPTIONAL_FOR_FINALIZE_ROLE_IDS = [
-  'speaker-1',
-  'speaker-2',
-  'speaker-3',
-  'evaluator-1',
-  'evaluator-2',
-  'evaluator-3',
-]
+// specifically, unlike every other role. Prefix-based (not a fixed
+// speaker-1/2/3 list) so this still holds for any speaker/evaluator
+// slot added via Role Management, not just the default 3 — e.g. a
+// speech-marathon meeting with speaker-4 through speaker-6.
+export function isOptionalForFinalize(roleId) {
+  return roleId.startsWith('speaker-') || roleId.startsWith('evaluator-')
+}
 
 function logAction(message) {
   const entry = { id: crypto.randomUUID(), message, time: new Date().toISOString() }
@@ -140,13 +138,16 @@ function formatCutoffLabel(cutoff) {
 }
 
 // Builds the { roleId: { status, takenBy, acceptedAt } } shape every page
-// expects, filling in any role from roleCatalog that has no row yet as
-// 'open'.
+// expects — one entry per real meeting_role_assignments row, no more.
+// Used to always synthesize every roleCatalog entry as 'open' regardless
+// of whether a row backed it, which both hid a real bug (a role with no
+// row silently failed every write — see createMeetingForDate) and made
+// "this meeting doesn't have Table Topics" impossible to express: a role
+// simply not being on a meeting is now itself the way to remove it (see
+// addMeetingRole/removeMeetingRole below), not something the read side
+// papers over.
 function buildRolesObject(assignments) {
   const roles = {}
-  for (const role of roleCatalog) {
-    roles[role.id] = { status: 'open' }
-  }
   for (const a of assignments) {
     roles[a.role_id] = {
       status: a.status,
@@ -406,6 +407,43 @@ export async function overrideRole(meetingId, roleId, { takenBy, takenByEmail })
   if (takenBy) await scoreExternalBooking(takenBy, takenByEmail)
 }
 
+// Lets the VPE add a role that isn't currently on this meeting at all —
+// e.g. a 4th+ speaker/evaluator pair for a speech-marathon meeting. Any
+// id from roleCatalog is valid; ignoreDuplicates so accidentally
+// re-adding an already-present role is a no-op, not an error.
+export async function addMeetingRole(meetingId, roleId) {
+  const meeting = await getMeeting(meetingId)
+  const { error } = await supabase
+    .from('meeting_role_assignments')
+    .upsert(
+      { meeting_id: meetingId, role_id: roleId, status: 'open' },
+      { onConflict: 'meeting_id,role_id', ignoreDuplicates: true },
+    )
+  if (error) {
+    console.error('[mockRolesStore] addMeetingRole failed:', error.message)
+    throw new Error('Could not add this role — check your VPE permissions and try again.')
+  }
+  logAction(`VPE added ${roleName(roleId)} to ${meeting.dateLabel}`)
+}
+
+// Removes a role from this meeting entirely — e.g. no Table Topics this
+// week. Unlike overrideRole (which reopens a role but keeps it on the
+// board), this deletes the row, so it stops showing up at all: on
+// Role Selection, on the Agenda's auto-generate, everywhere.
+export async function removeMeetingRole(meetingId, roleId) {
+  const meeting = await getMeeting(meetingId)
+  const { error } = await supabase
+    .from('meeting_role_assignments')
+    .delete()
+    .eq('meeting_id', meetingId)
+    .eq('role_id', roleId)
+  if (error) {
+    console.error('[mockRolesStore] removeMeetingRole failed:', error.message)
+    throw new Error('Could not remove this role — check your VPE permissions and try again.')
+  }
+  logAction(`VPE removed ${roleName(roleId)} from ${meeting.dateLabel}`)
+}
+
 // Picks the best-fit real member (by attendance + role rotation/fairness
 // — see mockRosterStore.js) for each still-open role in the meeting,
 // instead of the old random-placeholder-name shift. Every successful
@@ -548,7 +586,7 @@ export function getRoleFillSummary(meeting) {
   const filled = entries.filter((r) => r.status !== 'open').length
   const open = entries.length - filled
   const requiredOpen = Object.entries(meeting.roles).filter(
-    ([roleId, r]) => r.status === 'open' && !OPTIONAL_FOR_FINALIZE_ROLE_IDS.includes(roleId),
+    ([roleId, r]) => r.status === 'open' && !isOptionalForFinalize(roleId),
   ).length
   const phase = meeting.finalized
     ? requiredOpen > 0
@@ -640,30 +678,31 @@ export async function createMeetingForDate(date, time) {
   }
   logAction(`Added ${label} for ${formatDateLabel(date)}`)
 
-  // Every role in roleCatalog gets a real row from the start — not just
-  // PO/SAA. buildRolesObject's "no row = open" fallback only covers
-  // *display*; every write path (selectRole, overrideRole, runAutoAssign)
-  // uses .update(), which requires an existing row to touch — against a
-  // role with no row at all it silently matches zero rows and does
-  // nothing (not an error, so nothing surfaces either), which is exactly
-  // the bug behind Override/Auto-Assign appearing to do nothing for a
-  // meeting missing rows. PO/SAA still get their real assignee filled in
-  // immediately; every other role is inserted 'open'.
+  // Every role in DEFAULT_ROLE_IDS gets a real row from the start — not
+  // just PO/SAA, and buildRolesObject no longer synthesizes an 'open'
+  // entry for a role with no row (that used to paper over a role
+  // missing a row entirely, which broke every write path — selectRole,
+  // overrideRole, runAutoAssign all use .update(), which silently
+  // matches zero rows and does nothing against a role with no backing
+  // row at all). The VPE customizes from this starter set per meeting
+  // via addMeetingRole/removeMeetingRole (Role Management). PO/SAA get
+  // their real current assignee filled in immediately; every other
+  // default role is inserted 'open'.
   const fixedAssignees = {}
   for (const roleId of VPE_ONLY_ROLE_IDS) {
     fixedAssignees[roleId] = await resolveFixedRoleAssignee(roleId)
   }
-  const rows = roleCatalog.map((role) => {
-    const assignee = fixedAssignees[role.id]
+  const rows = DEFAULT_ROLE_IDS.map((roleId) => {
+    const assignee = fixedAssignees[roleId]
     return assignee?.name
       ? {
           meeting_id: data.id,
-          role_id: role.id,
+          role_id: roleId,
           status: 'auto',
           taken_by_name: assignee.name,
           taken_by_email: assignee.email ?? null,
         }
-      : { meeting_id: data.id, role_id: role.id, status: 'open' }
+      : { meeting_id: data.id, role_id: roleId, status: 'open' }
   })
   const { error: rowsError } = await supabase.from('meeting_role_assignments').insert(rows)
   if (rowsError) {

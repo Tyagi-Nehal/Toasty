@@ -148,20 +148,30 @@ export async function persistAgenda(meetingId, agenda) {
   return agenda
 }
 
-// Builds the agenda's row list matching the club's real weekly format
-// (Networking / SAA / PO / TMOD+GE intro / GE+TAGL intro / per-speaker
-// blocks / Table Topics / General Evaluation / closing). One speaker
-// block is generated per speaker/evaluator pair that already has a real
-// assignment on the role board — the VPE adds more via "+ Add Speaker"
-// for meetings with a different speaker count. Preserves any header
-// fields (theme/word of day/meaning/venue) already set by the VPE.
+const TAGL_LABELS = {
+  ge: 'GE',
+  timer: 'TIMER',
+  'ah-counter': 'AH COUNTER',
+  grammarian: 'GRAMMARIAN',
+  listener: 'LISTENER',
+}
+
+// Builds the agenda's row list from whatever roles actually exist on
+// this meeting (meeting.roles, from Role Management's add/remove) —
+// not a fixed template. A role not on the meeting (e.g. Table Topics
+// removed entirely for a speech-marathon week) contributes no rows at
+// all; a speaker/evaluator pair block is generated for every speaker-N
+// that exists, so a meeting with 6 speakers gets 6 blocks and one with
+// 2 gets 2. Preserves any header fields (theme/word of day/meaning/
+// venue) already set by the VPE.
 export async function generateAgenda(meetingId, existingAgenda) {
   const meeting = await getMeeting(meetingId)
+  const has = (roleId) => roleId in meeting.roles
   const named = (roleId) => {
     const takenBy = meeting.roles[roleId]?.takenBy
     return takenBy ? `TM ${shortenName(takenBy)}` : ''
   }
-  const tmod = named('tmod')
+  const tmod = has('tmod') ? named('tmod') : ''
 
   const items = []
   let cursor = timeToMinutes('05:00 PM')
@@ -179,46 +189,58 @@ export async function generateAgenda(meetingId, existingAgenda) {
     })
   }
   function addSpeakerRows(n) {
-    addRow(`Toastmaster of the Day + Evaluator ${n} Introduction`, 'TMOD', tmod, 1, ['tmod'])
-    addRow('Speech Guidelines', 'Evaluator', named(`evaluator-${n}`), 1, [`evaluator-${n}`])
-    addRow('Toastmaster of the Day + Speaker Introduction', 'TMOD', tmod, 1, ['tmod'])
+    if (has('tmod')) {
+      addRow(`Toastmaster of the Day + Evaluator ${n} Introduction`, 'TMOD', tmod, 1, ['tmod'])
+    }
+    if (has(`evaluator-${n}`)) {
+      addRow('Speech Guidelines', 'Evaluator', named(`evaluator-${n}`), 1, [`evaluator-${n}`])
+    }
+    if (has('tmod')) {
+      addRow('Toastmaster of the Day + Speaker Introduction', 'TMOD', tmod, 1, ['tmod'])
+    }
     addRow('Speech Delivery', 'Speaker', named(`speaker-${n}`), 15, [`speaker-${n}`])
   }
 
   addRow('Networking', 'All', 'All', 15)
-  addRow('Sergeant At Arms Address', 'SAA', DEFAULT_SAA_NAME, 3)
-  addRow('Presiding Officer Address', 'PO', DEFAULT_PO_NAME, 4)
-  addRow(
-    'Toastmaster of the Day Address + General Evaluator Introduction',
-    'TMOD',
-    tmod,
-    4,
-    ['tmod'],
-  )
-  const taglRoleIds = ['ge', 'timer', 'ah-counter', 'grammarian', 'listener']
-  addRow(
-    'General Evaluator + TAGL Team Introduction',
-    'GE\nTIMER\nAH COUNTER\nGRAMMARIAN\nLISTENER',
-    taglRoleIds.map(named).join('\n'),
-    6,
-    taglRoleIds,
-  )
+  if (has('saa')) addRow('Sergeant At Arms Address', 'SAA', DEFAULT_SAA_NAME, 3)
+  if (has('po')) addRow('Presiding Officer Address', 'PO', DEFAULT_PO_NAME, 4)
+  if (has('tmod')) {
+    addRow(
+      'Toastmaster of the Day Address + General Evaluator Introduction',
+      'TMOD',
+      tmod,
+      4,
+      ['tmod'],
+    )
+  }
 
-  // Always generate all 3 speaker/evaluator pairs, same as every other
-  // segment (Networking, SAA, PO, TAGL, etc.) — they used to be skipped
-  // entirely unless that speaker slot already had a real assignment,
-  // which meant Auto-Generate/Reset produced a blank-looking agenda with
-  // no speaker rows at all for any meeting whose roles hadn't been
-  // filled in yet. Unfilled slots just render with an empty Name, same
-  // as every other not-yet-assigned row.
-  for (const n of ['1', '2', '3']) addSpeakerRows(n)
+  const taglRoleIds = ['ge', 'timer', 'ah-counter', 'grammarian', 'listener'].filter(has)
+  if (taglRoleIds.length > 0) {
+    addRow(
+      'General Evaluator + TAGL Team Introduction',
+      taglRoleIds.map((id) => TAGL_LABELS[id]).join('\n'),
+      taglRoleIds.map(named).join('\n'),
+      6,
+      taglRoleIds,
+    )
+  }
 
-  addRow('Table Topic Master Introduction by TMOD', 'TMOD', tmod, 1, ['tmod'])
-  addRow('Table Topics Session', 'TTM', named('ttm'), 15, ['ttm'])
-  addRow('Toastmaster Of The Day + GE Introduction', 'TMOD', tmod, 6, ['tmod'])
-  addRow('General Evaluation Session', 'GE', named('ge'), 28, ['ge'])
-  addRow('Toastmaster of the Day', 'TMOD', tmod, 5, ['tmod'])
-  addRow('Presiding Officer Address + Poll Session', 'PO', DEFAULT_PO_NAME, 10)
+  const speakerNumbers = Object.keys(meeting.roles)
+    .filter((id) => id.startsWith('speaker-'))
+    .map((id) => id.slice('speaker-'.length))
+    .sort((a, b) => Number(a) - Number(b))
+  for (const n of speakerNumbers) addSpeakerRows(n)
+
+  if (has('ttm')) {
+    if (has('tmod')) addRow('Table Topic Master Introduction by TMOD', 'TMOD', tmod, 1, ['tmod'])
+    addRow('Table Topics Session', 'TTM', named('ttm'), 15, ['ttm'])
+  }
+  if (has('tmod') && has('ge')) {
+    addRow('Toastmaster Of The Day + GE Introduction', 'TMOD', tmod, 6, ['tmod'])
+  }
+  if (has('ge')) addRow('General Evaluation Session', 'GE', named('ge'), 28, ['ge'])
+  if (has('tmod')) addRow('Toastmaster of the Day', 'TMOD', tmod, 5, ['tmod'])
+  if (has('po')) addRow('Presiding Officer Address + Poll Session', 'PO', DEFAULT_PO_NAME, 10)
   const overallStartTime = minutesToTime(timeToMinutes('05:00 PM'))
   addRow('Networking', 'All', 'All', 10)
   const overallEndTime = minutesToTime(cursor)

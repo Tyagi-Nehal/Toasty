@@ -518,8 +518,24 @@ create policy "assignments update" on meeting_role_assignments
     )
   );
 
+-- Removing a role from a meeting entirely (e.g. no Table Topics this
+-- week) is VPE/President only — same as adding one via insert above.
+drop policy if exists "assignments vpe or president delete" on meeting_role_assignments;
+create policy "assignments vpe or president delete" on meeting_role_assignments
+  for delete to authenticated
+  using (
+    exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPE', 'Ass. VPE')
+    )
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
 grant select, insert, update on meetings to authenticated;
-grant select, insert, update on meeting_role_assignments to authenticated;
+grant select, insert, update, delete on meeting_role_assignments to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
 
 -- Per-meeting agenda (was localStorage-only, mockAgendaStore.js) — a VPE
