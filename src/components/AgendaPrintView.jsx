@@ -26,7 +26,7 @@ function formatOrdinalDate(dateStr) {
   return `${day}${suffix} ${month}, ${date.getFullYear()}`
 }
 
-const cellClass = 'border border-ink/25 px-3 py-2 align-top'
+const cellClass = 'border border-ink/25 px-1.5 py-0.5 align-top'
 
 export default function AgendaPrintView({ agenda, meeting }) {
   if (!agenda || !meeting) return null
@@ -38,20 +38,25 @@ export default function AgendaPrintView({ agenda, meeting }) {
       : ''
 
   return (
-    <div className="p-10 text-ink" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+    <div className="p-5 text-ink" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+      {/* Tighter than the browser's own default print margins allow —
+          @page here overrides them so the compact padding above actually
+          has an effect instead of being swallowed by ~0.5-1in of
+          browser-default margin on every side. Verified against a full
+          24-row generated agenda (see generateAgenda) that it fits one
+          page at this size. */}
+      <style>{'@media print { @page { margin: 0.3in; } }'}</style>
       <div className="text-center">
-        <h1 className="text-2xl font-extrabold tracking-wide">
+        <h1 className="text-lg font-extrabold tracking-wide">
           MANIPAL ACADEMY OF HIGHER EDUCATION
         </h1>
-        <p className="mt-1 text-sm font-semibold tracking-wide">TOASTMASTERS SESSION</p>
-        <p className="mt-1 text-3xl font-extrabold tracking-wide">AGENDA</p>
-        {meetingNumber && (
-          <p className="mt-1 text-sm font-semibold">MEETING – {meetingNumber}</p>
-        )}
+        <p className="text-xs font-semibold tracking-wide">TOASTMASTERS SESSION</p>
+        <p className="text-xl font-extrabold tracking-wide">AGENDA</p>
+        {meetingNumber && <p className="text-xs font-semibold">MEETING – {meetingNumber}</p>}
       </div>
 
-      <div className="mt-8 grid grid-cols-2 gap-6 text-sm">
-        <div className="space-y-1.5">
+      <div className="mt-2 grid grid-cols-2 gap-4 text-xs">
+        <div className="space-y-0.5">
           <p>
             <span className="font-bold">Theme:</span> {agenda.theme || '—'}
           </p>
@@ -62,7 +67,7 @@ export default function AgendaPrintView({ agenda, meeting }) {
             <span className="font-bold">Meaning:</span> {agenda.meaning || '—'}
           </p>
         </div>
-        <div className="space-y-1.5 text-right">
+        <div className="space-y-0.5 text-right">
           <p>
             <span className="font-bold">Date:</span> {formatOrdinalDate(meeting.date)}
           </p>
@@ -75,7 +80,7 @@ export default function AgendaPrintView({ agenda, meeting }) {
         </div>
       </div>
 
-      <table className="mt-8 w-full table-fixed border-collapse text-sm">
+      <table className="mt-2 w-full table-fixed border-collapse text-[11px]">
         <colgroup>
           <col style={{ width: '13%' }} />
           <col style={{ width: '13%' }} />
@@ -98,8 +103,10 @@ export default function AgendaPrintView({ agenda, meeting }) {
               <td className={`${cellClass} whitespace-nowrap`}>{item.startTime}</td>
               <td className={`${cellClass} whitespace-nowrap`}>{item.endTime}</td>
               <td className={cellClass}>{item.segment}</td>
-              <td className={`${cellClass} whitespace-pre-line`}>{item.rolePlayer}</td>
-              <td className={`${cellClass} whitespace-pre-line`}>{item.name || 'Unassigned'}</td>
+              <td className={`${cellClass} whitespace-pre-line leading-tight`}>{item.rolePlayer}</td>
+              <td className={`${cellClass} whitespace-pre-line leading-tight`}>
+                {item.name || 'Unassigned'}
+              </td>
             </tr>
           ))}
         </tbody>

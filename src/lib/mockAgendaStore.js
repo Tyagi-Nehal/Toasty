@@ -190,11 +190,14 @@ export async function generateAgenda(meetingId, existingAgenda) {
     taglRoleIds,
   )
 
-  const speakerNumbers = ['1', '2', '3'].filter((n) => {
-    const status = meeting.roles[`speaker-${n}`]?.status
-    return status && status !== 'open'
-  })
-  for (const n of speakerNumbers) addSpeakerRows(n)
+  // Always generate all 3 speaker/evaluator pairs, same as every other
+  // segment (Networking, SAA, PO, TAGL, etc.) — they used to be skipped
+  // entirely unless that speaker slot already had a real assignment,
+  // which meant Auto-Generate/Reset produced a blank-looking agenda with
+  // no speaker rows at all for any meeting whose roles hadn't been
+  // filled in yet. Unfilled slots just render with an empty Name, same
+  // as every other not-yet-assigned row.
+  for (const n of ['1', '2', '3']) addSpeakerRows(n)
 
   addRow('Table Topic Master Introduction by TMOD', 'TMOD', tmod, 1, ['tmod'])
   addRow('Table Topics Session', 'TTM', named('ttm'), 15, ['ttm'])
