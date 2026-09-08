@@ -97,7 +97,7 @@ export default function MemberLayout({ children }) {
 
   return (
     <div className="min-h-screen bg-cream">
-      <header className="sticky top-0 z-40 border-b border-accent/30 bg-cream/90 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-accent/30 bg-cream/90 backdrop-blur print:hidden">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Logo to={clubHomeLink} />
 

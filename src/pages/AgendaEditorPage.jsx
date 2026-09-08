@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Clock, History, Lock, Megaphone, Plus, RotateCcw, Send, Sparkles, Trash2, X } from 'lucide-react'
+import { Clock, History, Lock, Megaphone, Plus, Printer, RotateCcw, Send, Sparkles, Trash2, X } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import CancelledMeetingNotice from '../components/CancelledMeetingNotice.jsx'
+import AgendaPrintView from '../components/AgendaPrintView.jsx'
 import {
   addAgendaRow,
   generateAgenda,
@@ -248,7 +249,10 @@ export default function AgendaEditorPage() {
 
   return (
     <MemberLayout>
-      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
+      <div className="hidden print:block">
+        <AgendaPrintView agenda={agenda} meeting={activeMeeting} />
+      </div>
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10 print:hidden">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">
@@ -301,6 +305,20 @@ export default function AgendaEditorPage() {
             >
               <Send size={16} />
               Send to Members
+            </button>
+            <button
+              type="button"
+              disabled={!agenda || !agenda.theme?.trim() || !agenda.wordOfDay?.trim()}
+              onClick={() => window.print()}
+              title={
+                agenda && (!agenda.theme?.trim() || !agenda.wordOfDay?.trim())
+                  ? 'Fill in the Theme and Word of the Day before printing'
+                  : undefined
+              }
+              className="flex items-center gap-2 rounded-xl border border-accent/40 px-4 py-2.5 text-sm font-semibold text-ink/70 transition enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Printer size={16} />
+              Print to PDF
             </button>
           </div>
         </div>
