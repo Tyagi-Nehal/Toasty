@@ -11,7 +11,7 @@ import {
 import MemberLayout from '../components/MemberLayout.jsx'
 import Avatar from '../components/Avatar.jsx'
 import { getAccount } from '../lib/mockAuth.js'
-import { getMyMembershipStatus } from '../lib/mockMembershipStore.js'
+import { getRosterStatusForEmail } from '../lib/mockRosterStore.js'
 import { roleHistory, pointsBreakdown } from '../data/mockProfileData.js'
 import { mentors } from '../data/mentors.js'
 
@@ -29,7 +29,7 @@ export default function MemberProfilePage() {
   const myMentor = mentors[0] ?? null
 
   useEffect(() => {
-    getMyMembershipStatus().then(setRenewal)
+    if (account?.email) getRosterStatusForEmail(account.email).then(setRenewal)
   }, [])
 
   return (

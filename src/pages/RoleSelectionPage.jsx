@@ -11,7 +11,8 @@ import {
   getMeetings,
   selectRole,
 } from '../lib/mockRolesStore.js'
-import { getMyMembershipStatus } from '../lib/mockMembershipStore.js'
+import { getAccount } from '../lib/mockAuth.js'
+import { getRosterStatusForEmail } from '../lib/mockRosterStore.js'
 
 function StatusBadge({ role, roleId, isMine }) {
   if (isMine) {
@@ -74,7 +75,8 @@ export default function RoleSelectionPage() {
 
   useEffect(() => {
     refresh()
-    getMyMembershipStatus().then(setMembership)
+    const email = getAccount()?.email
+    if (email) getRosterStatusForEmail(email).then(setMembership)
   }, [])
 
   const isActiveMember = membership?.isActive === true

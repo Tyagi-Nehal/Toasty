@@ -26,7 +26,7 @@ import {
   getNotifications as getRoleNotifications,
 } from '../lib/mockRolesStore.js'
 import { getPendingSignups } from '../lib/mockMemberSignups.js'
-import { getMembersWithStatus } from '../lib/mockMembershipStore.js'
+import { getRosterWithStatus } from '../lib/mockRosterStore.js'
 import { getAgendaHistory } from '../lib/mockAgendaStore.js'
 import { getVisitRequestsLog } from '../lib/mockVisitRequests.js'
 import { getAllFeedback } from '../lib/mockFeedbackStore.js'
@@ -144,7 +144,7 @@ export default function ExComDashboard() {
       setUpcomingMeeting(upcoming ?? meetings[meetings.length - 1] ?? null)
     })
     if (canSeeMembers) {
-      getMembersWithStatus().then((list) => {
+      getRosterWithStatus().then((list) => {
         setMembers(list)
         setPendingRenewalsCount(list.filter((m) => m.paymentStatus !== 'paid').length)
       })
@@ -329,7 +329,7 @@ export default function ExComDashboard() {
               <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                 {members.map((m) => (
                   <div
-                    key={m.name}
+                    key={m.email}
                     className="flex items-center gap-2.5 rounded-2xl border border-accent/20 p-3"
                   >
                     <Avatar name={m.name} size={28} />

@@ -93,6 +93,47 @@ export async function getRosterWithStatus() {
   }))
 }
 
+// One member's own roster status, by email — used by MemberDashboard.jsx/
+// RoleSelectionPage.jsx/MemberProfilePage.jsx to show a member their own
+// active/paid status. Always returns an object (never null), even for an
+// email with no roster row yet, so callers can render a real "no
+// membership on file" state instead of getting stuck showing "Loading".
+export async function getRosterStatusForEmail(email) {
+  const normalized = (email ?? '').trim().toLowerCase()
+  const empty = {
+    name: null,
+    email: normalized,
+    attendancePercentage: null,
+    isActive: false,
+    paymentStatus: 'pending',
+    membershipStart: null,
+    membershipEnd: null,
+    cycleLabel: null,
+  }
+  if (!normalized) return empty
+
+  const { data, error } = await supabase
+    .from('members')
+    .select('*')
+    .eq('email', normalized)
+    .maybeSingle()
+  if (error) {
+    console.error('[mockRosterStore] getRosterStatusForEmail failed:', error.message)
+    return empty
+  }
+  if (!data) return empty
+  return {
+    name: data.name,
+    email: data.email,
+    attendancePercentage: data.attendance_percentage,
+    isActive: data.is_active,
+    paymentStatus: data.payment_status,
+    membershipStart: data.membership_start,
+    membershipEnd: data.membership_end,
+    cycleLabel: data.cycle_label,
+  }
+}
+
 // Payment/term tracking lives directly on the roster (see schema.sql) —
 // marking a member Paid is what makes them active, which is what then
 // makes them eligible for attendance/role auto-assign via getMembers()

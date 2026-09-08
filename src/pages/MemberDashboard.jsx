@@ -20,7 +20,7 @@ import {
   findNextActiveMeeting,
   getMeetings,
 } from '../lib/mockRolesStore.js'
-import { getMyMembershipStatus } from '../lib/mockMembershipStore.js'
+import { getRosterStatusForEmail } from '../lib/mockRosterStore.js'
 import { getMemberMonthlyPoints } from '../lib/mockPointsStore.js'
 import { getNotifications, markAllRead } from '../lib/mockNotificationsStore.js'
 import { notificationIcons, defaultNotificationIcon } from '../components/notificationMeta.js'
@@ -67,7 +67,7 @@ export default function MemberDashboard() {
 
   useEffect(() => {
     refresh()
-    getMyMembershipStatus().then(setMembership)
+    if (account?.email) getRosterStatusForEmail(account.email).then(setMembership)
   }, [])
 
   useEffect(() => {
