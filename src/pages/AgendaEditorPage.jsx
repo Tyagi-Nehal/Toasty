@@ -221,6 +221,28 @@ export default function AgendaEditorPage() {
     })
   }
 
+  // A role-mapped row (roleIds non-empty) gets its Name re-synced from
+  // the live role board on every load (syncAgendaWithRoleBoard, called
+  // right after getAgenda above) — that's what lets a Role Management
+  // change show up here without a manual re-generate. But it means a
+  // manual pick from AgendaNameCell would otherwise get silently
+  // reverted back to the role board's value the next time this page (or
+  // meeting tab) is opened. Clearing roleIds here is what makes a
+  // deliberate manual choice actually stick — the row stops being
+  // auto-synced, same as a manually-added row already behaves.
+  function handleNameChange(itemId, value) {
+    setAgenda((prev) => {
+      const next = {
+        ...prev,
+        items: prev.items.map((item) =>
+          item.id === itemId ? { ...item, name: value, roleIds: [] } : item,
+        ),
+      }
+      scheduleSave(activeMeetingId, next)
+      return next
+    })
+  }
+
   async function handleAddRow() {
     refresh(await addAgendaRow(activeMeetingId, agenda))
   }
@@ -552,7 +574,7 @@ export default function AgendaEditorPage() {
                                 value={item.name}
                                 roster={roster}
                                 disabled={isPast}
-                                onChange={(value) => handleFieldChange(item.id, 'name', value)}
+                                onChange={(value) => handleNameChange(item.id, value)}
                               />
                             </td>
                             <td className="px-2 py-2 align-top">

@@ -444,8 +444,15 @@ async function runAutoAssign(meetingId, trigger) {
     filledCount += 1
   }
 
+  let actuallyFilledCount = 0
   for (const assignment of newAssignments) {
-    await supabase
+    // .select() so a role with no backing row (or one RLS otherwise
+    // refuses) is detectable — an update matching zero rows isn't an
+    // error in Postgres, so without checking this, a gap like the one
+    // found in createMeetingForDate (some roles missing a row entirely)
+    // would make auto-assign silently "fill" roles that never actually
+    // changed in the database.
+    const { data, error } = await supabase
       .from('meeting_role_assignments')
       .update({
         status: 'auto',
@@ -454,8 +461,23 @@ async function runAutoAssign(meetingId, trigger) {
       })
       .eq('meeting_id', meetingId)
       .eq('role_id', assignment.roleId)
+      .select()
+    if (error) {
+      console.error('[mockRolesStore] runAutoAssign failed for', assignment.roleId, error.message)
+      continue
+    }
+    if (!data || data.length === 0) {
+      console.error(
+        '[mockRolesStore] runAutoAssign matched no row for',
+        assignment.roleId,
+        '— it may be missing from meeting_role_assignments entirely',
+      )
+      continue
+    }
+    actuallyFilledCount += 1
     await recordRoleAssignment(assignment.name, assignment.email, assignment.roleId)
   }
+  filledCount = actuallyFilledCount
 
   logAction(
     filledCount > 0
@@ -618,21 +640,34 @@ export async function createMeetingForDate(date, time) {
   }
   logAction(`Added ${label} for ${formatDateLabel(date)}`)
 
-  // Seed the two fixed-officer rows right away (PO/SAA) — every other
-  // role is left with no row at all, same as always, and just defaults
-  // to 'open' for display (see buildRolesObject); these two get a real
-  // row immediately so they show the current SAA/President from the
-  // start instead of sitting blank until the next opportunistic fill.
+  // Every role in roleCatalog gets a real row from the start — not just
+  // PO/SAA. buildRolesObject's "no row = open" fallback only covers
+  // *display*; every write path (selectRole, overrideRole, runAutoAssign)
+  // uses .update(), which requires an existing row to touch — against a
+  // role with no row at all it silently matches zero rows and does
+  // nothing (not an error, so nothing surfaces either), which is exactly
+  // the bug behind Override/Auto-Assign appearing to do nothing for a
+  // meeting missing rows. PO/SAA still get their real assignee filled in
+  // immediately; every other role is inserted 'open'.
+  const fixedAssignees = {}
   for (const roleId of VPE_ONLY_ROLE_IDS) {
-    const assignee = await resolveFixedRoleAssignee(roleId)
-    if (!assignee?.name) continue
-    await supabase.from('meeting_role_assignments').insert({
-      meeting_id: data.id,
-      role_id: roleId,
-      status: 'auto',
-      taken_by_name: assignee.name,
-      taken_by_email: assignee.email ?? null,
-    })
+    fixedAssignees[roleId] = await resolveFixedRoleAssignee(roleId)
+  }
+  const rows = roleCatalog.map((role) => {
+    const assignee = fixedAssignees[role.id]
+    return assignee?.name
+      ? {
+          meeting_id: data.id,
+          role_id: role.id,
+          status: 'auto',
+          taken_by_name: assignee.name,
+          taken_by_email: assignee.email ?? null,
+        }
+      : { meeting_id: data.id, role_id: role.id, status: 'open' }
+  })
+  const { error: rowsError } = await supabase.from('meeting_role_assignments').insert(rows)
+  if (rowsError) {
+    console.error('[mockRolesStore] createMeetingForDate role rows failed:', rowsError.message)
   }
 
   return label
