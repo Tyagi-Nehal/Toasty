@@ -57,18 +57,8 @@ cp .env.example .env.local   # fill in your Supabase project URL/anon key
 npm run dev
 ```
 
-The database schema (tables, RLS policies) lives in
-[`supabase/schema.sql`](supabase/schema.sql) — apply it to a Supabase
-project with the Supabase CLI:
-
-```bash
-supabase link --project-ref <your-project-ref>
-supabase db query --linked --file supabase/schema.sql
-```
-
-`schema.sql` is written to be safely re-run any time (every statement is
-`create ... if not exists` / `drop policy if exists` + recreate), so it
-doubles as the running migration history for the project.
+You'll also need a Supabase project of your own connected via the env
+vars above.
 
 ## Other scripts
 
