@@ -302,11 +302,27 @@ export async function selectRole(meetingId, roleId) {
   }
   const account = getAccount()
   const meeting = await getMeeting(meetingId)
-  await supabase
+  // .eq('status', 'open') + .select() aren't just belt-and-braces here —
+  // without them a role someone else just claimed (or that RLS silently
+  // refuses because it's no longer 'open') updates zero rows with NO
+  // error at all: Postgres doesn't treat "your WHERE matched nothing" as
+  // a failure, so the old code that didn't check the result looked
+  // exactly like success while doing nothing (the real bug behind
+  // "Select this Role does nothing, no console error").
+  const { data, error } = await supabase
     .from('meeting_role_assignments')
     .update({ status: 'taken', taken_by_name: account?.name, taken_by_email: account?.email })
     .eq('meeting_id', meetingId)
     .eq('role_id', roleId)
+    .eq('status', 'open')
+    .select()
+  if (error) {
+    console.error('[mockRolesStore] selectRole failed:', error.message)
+    throw new Error('Could not select this role — check your permissions and try again.')
+  }
+  if (!data || data.length === 0) {
+    throw new Error('This role was just taken by someone else — refresh and try another.')
+  }
   logAction(`You self-selected ${roleName(roleId)} for ${meeting.dateLabel}`)
 }
 
@@ -319,11 +335,19 @@ export async function declineMyRole(meetingId) {
     throw new Error('This role is managed by the VPE — ask them to reassign it.')
   }
 
-  await supabase
+  const { data, error } = await supabase
     .from('meeting_role_assignments')
     .update({ status: 'open', taken_by_name: null, taken_by_email: null, accepted_at: null })
     .eq('meeting_id', meetingId)
     .eq('role_id', myRoleId)
+    .select()
+  if (error) {
+    console.error('[mockRolesStore] declineMyRole failed:', error.message)
+    throw new Error('Could not decline this role — check your permissions and try again.')
+  }
+  if (!data || data.length === 0) {
+    throw new Error('Could not find your role for this meeting — try refreshing.')
+  }
   await scoreRoleDecline(meeting, account)
   logAction(`You declined ${roleName(myRoleId)} for ${meeting.dateLabel}`)
 }
@@ -338,11 +362,19 @@ export async function acceptAutoAssignedRole(meetingId) {
   const myRoleId = meeting?.myRoleId
   if (!myRoleId) return
 
-  await supabase
+  const { data, error } = await supabase
     .from('meeting_role_assignments')
     .update({ accepted_at: new Date().toISOString(), taken_by_email: account?.email })
     .eq('meeting_id', meetingId)
     .eq('role_id', myRoleId)
+    .select()
+  if (error) {
+    console.error('[mockRolesStore] acceptAutoAssignedRole failed:', error.message)
+    throw new Error('Could not accept this role — check your permissions and try again.')
+  }
+  if (!data || data.length === 0) {
+    throw new Error('Could not find your role for this meeting — try refreshing.')
+  }
   logAction(`You accepted your auto-assigned ${roleName(myRoleId)} for ${meeting.dateLabel}`)
 }
 
