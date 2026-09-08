@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react'
 import {
   UserCheck2,
+  UserPlus,
   Check,
   X,
   Inbox,
+  Plus,
+  Trash2,
+  AlertCircle,
   Users,
   Gift,
   History,
@@ -26,6 +30,7 @@ import {
   getApprovedSignups,
   approveSignup,
   rejectSignup,
+  preregisterMember,
 } from '../lib/mockMemberSignups.js'
 import { acknowledgeVisitRequest, getVisitRequests } from '../lib/mockVisitRequests.js'
 import { getClubById } from '../lib/mockClubRegistry.js'
@@ -42,6 +47,10 @@ function timeAgo(isoString) {
   return `${days} day${days > 1 ? 's' : ''} ago`
 }
 
+function emptyPreregisterRow() {
+  return { key: crypto.randomUUID(), name: '', email: '' }
+}
+
 export default function NewMemberApprovalsPage() {
   const [pending, setPending] = useState([])
   const [approved, setApproved] = useState([])
@@ -50,6 +59,9 @@ export default function NewMemberApprovalsPage() {
   const [referralMembers, setReferralMembers] = useState([])
   const [referralMember, setReferralMember] = useState('')
   const [referralFeedback, setReferralFeedback] = useState(null)
+  const [preregisterRows, setPreregisterRows] = useState([])
+  const [preregisterError, setPreregisterError] = useState(null)
+  const [preregisterSaved, setPreregisterSaved] = useState(false)
 
   function refresh() {
     getPendingSignups().then(setPending)
@@ -86,6 +98,35 @@ export default function NewMemberApprovalsPage() {
     refresh()
   }
 
+  function addPreregisterRow() {
+    setPreregisterRows((prev) => [...prev, emptyPreregisterRow()])
+  }
+
+  function updatePreregisterRow(key, field, value) {
+    setPreregisterRows((prev) => prev.map((r) => (r.key === key ? { ...r, [field]: value } : r)))
+  }
+
+  function removePreregisterRow(key) {
+    setPreregisterRows((prev) => prev.filter((r) => r.key !== key))
+  }
+
+  async function handlePreregisterSubmit(e) {
+    e.preventDefault()
+    setPreregisterError(null)
+    setPreregisterSaved(false)
+    const validRows = preregisterRows.filter((r) => r.name.trim() && r.email.trim())
+    for (const row of validRows) {
+      const result = await preregisterMember({ name: row.name, email: row.email })
+      if (result?.error) {
+        setPreregisterError(result.error)
+        return
+      }
+    }
+    setPreregisterRows([])
+    refresh()
+    setPreregisterSaved(true)
+  }
+
   async function handleGuestAttended() {
     await recordGuestAttended(referralMember)
     setReferralFeedback(`${referralMember} awarded +6 points for their guest attending.`)
@@ -113,6 +154,85 @@ export default function NewMemberApprovalsPage() {
           Review pending signup requests, visit requests, and manage
           referral points.
         </p>
+
+        {/* Pre-register — for someone who can't create their own account.
+            Added already approved, so they land straight in the club the
+            moment they do sign in — no separate approval step needed. */}
+        <div className="mt-7">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+            <UserPlus size={16} className="text-primary" />
+            Pre-register a Member
+          </h2>
+          <p className="mt-1 text-xs text-ink/50">
+            For someone who can't create their own Toasty account. Adds them
+            as an approved member right away.
+          </p>
+
+          <form onSubmit={handlePreregisterSubmit} className="mt-3 space-y-3">
+            {preregisterRows.map((row) => (
+              <div
+                key={row.key}
+                className="flex flex-wrap items-center gap-2 rounded-2xl border border-accent/30 bg-white p-3"
+              >
+                <input
+                  type="text"
+                  required
+                  value={row.name}
+                  onChange={(e) => updatePreregisterRow(row.key, 'name', e.target.value)}
+                  placeholder="Name"
+                  className="min-w-0 flex-1 rounded-lg border border-accent/40 bg-cream px-3 py-2 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
+                />
+                <input
+                  type="email"
+                  required
+                  value={row.email}
+                  onChange={(e) => updatePreregisterRow(row.key, 'email', e.target.value)}
+                  placeholder="Email"
+                  className="min-w-0 flex-1 rounded-lg border border-accent/40 bg-cream px-3 py-2 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => removePreregisterRow(row.key)}
+                  aria-label="Remove row"
+                  className="shrink-0 rounded-lg p-2 text-ink/40 transition hover:bg-red-50 hover:text-red-600"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={addPreregisterRow}
+              className="flex items-center gap-1.5 rounded-xl border border-dashed border-accent/50 px-4 py-2.5 text-sm font-semibold text-ink/60 transition hover:border-primary hover:text-primary"
+            >
+              <Plus size={15} />
+              Add member
+            </button>
+
+            {preregisterRows.length > 0 && (
+              <button
+                type="submit"
+                className="w-full rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark sm:w-auto"
+              >
+                Save
+              </button>
+            )}
+          </form>
+
+          {preregisterError && (
+            <p className="mt-3 flex items-center gap-1.5 text-sm font-medium text-red-700">
+              <AlertCircle size={15} />
+              {preregisterError}
+            </p>
+          )}
+          {preregisterSaved && (
+            <p className="mt-3 flex items-center gap-1.5 text-sm font-medium text-primary">
+              <Check size={15} />
+              Added.
+            </p>
+          )}
+        </div>
 
         {/* Visit requests */}
         <div className="mt-7">

@@ -84,3 +84,35 @@ export async function approveSignup(id) {
 export async function rejectSignup(id) {
   await supabase.from('member_signups').update({ status: 'rejected' }).eq('id', id)
 }
+
+// VPM/President direct pre-registration — for someone who can't create
+// their own account (no Google account, technical trouble, etc.).
+// Mirrors registerExcomMember()'s "add them directly, no separate
+// approval needed" flow: the row is inserted already approved, so when
+// that email eventually does sign in, getOrCreateSignupStatus's upsert
+// finds it pre-existing and returns status 'approved' immediately — no
+// waiting on anyone to review it after the fact. Upsert (not a plain
+// insert) so re-registering an email that already has a stale
+// pending/rejected row from a half-finished signup attempt just
+// promotes that same row to approved instead of failing on the unique
+// email constraint.
+export async function preregisterMember({ name, email }) {
+  const trimmedName = (name ?? '').trim()
+  const normalizedEmail = normalizeEmail(email)
+  if (!trimmedName || !normalizedEmail) return { error: 'Name and email are required.' }
+
+  const { error } = await supabase.from('member_signups').upsert(
+    {
+      name: trimmedName,
+      email: normalizedEmail,
+      status: 'approved',
+      approved_at: new Date().toISOString(),
+    },
+    { onConflict: 'email' },
+  )
+  if (error) return { error: error.message ?? 'Something went wrong. Please try again.' }
+
+  await ensureRosterMember(trimmedName, normalizedEmail)
+  await scoreSignupApproval()
+  return { name: trimmedName, email: normalizedEmail }
+}

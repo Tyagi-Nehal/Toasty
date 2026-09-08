@@ -209,6 +209,29 @@ drop policy if exists "signups self insert" on member_signups;
 create policy "signups self insert" on member_signups
   for insert to authenticated
   with check (lower(auth.jwt() ->> 'email') = lower(email) and status = 'pending');
+-- A second, separate insert policy (permissive — either one passing is
+-- enough) for the VPM/President to pre-register someone who can't create
+-- their own account, mirroring Register ExCom's "add them directly, no
+-- separate approval needed" flow. Unlike the self-insert policy above,
+-- this one can target any email, but only ever with status already
+-- 'approved' — there's no scenario where the VPM needs to insert someone
+-- else's row as merely 'pending'.
+drop policy if exists "signups vpm or president preregister insert" on member_signups;
+create policy "signups vpm or president preregister insert" on member_signups
+  for insert to authenticated
+  with check (
+    status = 'approved'
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPM', 'Ass. VPM')
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+      )
+    )
+  );
 drop policy if exists "signups vpm or president update" on member_signups;
 create policy "signups vpm or president update" on member_signups
   for update to authenticated
