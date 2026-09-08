@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Clock, History, Lock, Megaphone, Plus, Send, Sparkles, Trash2, X } from 'lucide-react'
+import { Clock, History, Lock, Megaphone, Plus, RotateCcw, Send, Sparkles, Trash2, X } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import CancelledMeetingNotice from '../components/CancelledMeetingNotice.jsx'
 import {
@@ -189,6 +189,18 @@ export default function AgendaEditorPage() {
     refresh(await generateAgenda(activeMeetingId, agenda))
   }
 
+  // Unlike Auto-Generate (which preserves the Theme/Word of Day/Meaning/
+  // Venue you've already typed, since it's meant to be safely re-clicked
+  // to pull in role-board changes), Reset throws those away too and
+  // rebuilds everything from scratch — passing no existing agenda is
+  // what makes generateAgenda fall back to blank/default header values.
+  async function handleReset() {
+    if (!window.confirm('Reset this agenda to its default structure? Every edit you\'ve made — including Theme, Word of the Day, and Venue — will be lost.')) {
+      return
+    }
+    refresh(await generateAgenda(activeMeetingId, null))
+  }
+
   function handleHeaderChange(field, value) {
     setAgenda((prev) => {
       const next = { ...prev, [field]: value }
@@ -256,6 +268,17 @@ export default function AgendaEditorPage() {
               <Sparkles size={16} />
               Auto-Generate Agenda
             </button>
+            {agenda && (
+              <button
+                type="button"
+                onClick={handleReset}
+                disabled={isPast || activeMeeting.cancelled}
+                className="flex items-center gap-2 rounded-xl border border-accent/40 px-4 py-2.5 text-sm font-semibold text-ink/60 transition enabled:hover:border-red-300 enabled:hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <RotateCcw size={16} />
+                Reset
+              </button>
+            )}
             <button
               type="button"
               disabled={
