@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout.jsx'
 import GoogleButton from '../components/GoogleButton.jsx'
@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabaseClient.js'
 import { isFounderEmail } from '../lib/mockFounderAuth.js'
 
 export default function SignUpPage() {
+  const [appliedForExcom, setAppliedForExcom] = useState(false)
   const { account } = useAuth()
   const navigate = useNavigate()
 
@@ -20,6 +21,7 @@ export default function SignUpPage() {
   }, [account, navigate])
 
   function handleGoogleSignUp() {
+    if (appliedForExcom) sessionStorage.setItem('toasty_applied_for_excom', 'true')
     supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -43,13 +45,23 @@ export default function SignUpPage() {
             Toasty.
           </p>
 
-          <div className="mt-5">
+          <div className="mt-5 space-y-4">
+            <label className="flex items-start gap-2.5 rounded-xl border border-accent/30 bg-cream px-4 py-3 text-sm text-ink/70">
+              <input
+                type="checkbox"
+                checked={appliedForExcom}
+                onChange={(e) => setAppliedForExcom(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+              />
+              I'm applying for an ExCom position
+            </label>
+
             <GoogleButton onClick={handleGoogleSignUp}>Continue with Google</GoogleButton>
           </div>
 
           <p className="mt-4 text-center text-xs text-ink/40">
-            Your request is reviewed by the VPM. ExCom officers are
-            appointed separately by the President.
+            ExCom requests are approved by the President; other member
+            requests are approved by the VPM.
           </p>
 
           <p className="mt-6 text-center text-sm text-ink/60">
