@@ -27,6 +27,7 @@ import {
   canFinalizeMeeting,
   finalizeMeeting,
   findNextActiveMeeting,
+  getMeetingRoleEntries,
   getMeetings,
   getNotifications,
   getRoleFillSummary,
@@ -37,6 +38,8 @@ import {
   unfinalizeMeeting,
 } from '../lib/mockRolesStore.js'
 import { getMembers, scoringWeights } from '../lib/mockRosterStore.js'
+
+const OTHER_ROLE_VALUE = '__other__'
 
 const statusLabels = {
   open: { text: 'Open', className: 'bg-accent/15 text-primary' },
@@ -83,6 +86,7 @@ export default function RoleManagementPage() {
   const [showCancelMeeting, setShowCancelMeeting] = useState(false)
   const [showReschedule, setShowReschedule] = useState(false)
   const [roleToAdd, setRoleToAdd] = useState('')
+  const [customRoleName, setCustomRoleName] = useState('')
 
   const activeMeeting = meetings.find((m) => m.id === activeMeetingId)
 
@@ -147,10 +151,15 @@ export default function RoleManagementPage() {
   }
 
   async function handleAddRole() {
-    if (!roleToAdd) return
+    // A custom role's "id" is just the typed text itself — there's no
+    // catalog entry to reference (see getMeetingRoleEntries), so the
+    // display name and the role_id are the same string.
+    const roleIdToAdd = roleToAdd === OTHER_ROLE_VALUE ? customRoleName.trim() : roleToAdd
+    if (!roleIdToAdd) return
     try {
-      await addMeetingRole(activeMeetingId, roleToAdd)
+      await addMeetingRole(activeMeetingId, roleIdToAdd)
       setRoleToAdd('')
+      setCustomRoleName('')
       refresh()
     } catch (err) {
       window.alert(err.message)
@@ -419,9 +428,7 @@ export default function RoleManagementPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {roleCatalog
-                      .filter((role) => role.id in activeMeeting.roles)
-                      .map((role) => {
+                    {getMeetingRoleEntries(activeMeeting.roles).map((role) => {
                       const entry = activeMeeting.roles[role.id]
                       const badge = statusLabels[entry.status]
                       return (
@@ -476,9 +483,7 @@ export default function RoleManagementPage() {
 
               {/* Mobile cards */}
               <div className="mt-4 space-y-2.5 sm:hidden">
-                {roleCatalog
-                  .filter((role) => role.id in activeMeeting.roles)
-                  .map((role) => {
+                {getMeetingRoleEntries(activeMeeting.roles).map((role) => {
                   const entry = activeMeeting.roles[role.id]
                   const badge = statusLabels[entry.status]
                   return (
@@ -531,7 +536,10 @@ export default function RoleManagementPage() {
 
               {/* Add a role — any roleCatalog id not already on this
                   meeting (e.g. a 4th+ speaker/evaluator pair for a
-                  speech-marathon meeting). Per-meeting only; every other
+                  speech-marathon meeting), or "Other…" for a one-off role
+                  the catalog doesn't cover at all (a game/photo booth/
+                  whatever) — the typed text becomes the role itself, no
+                  catalog entry needed. Per-meeting only; every other
                   meeting is unaffected. */}
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <select
@@ -548,11 +556,26 @@ export default function RoleManagementPage() {
                         {role.name}
                       </option>
                     ))}
+                  <option value={OTHER_ROLE_VALUE}>Other…</option>
                 </select>
+                {roleToAdd === OTHER_ROLE_VALUE && (
+                  <input
+                    type="text"
+                    autoFocus
+                    value={customRoleName}
+                    onChange={(e) => setCustomRoleName(e.target.value)}
+                    placeholder="Role name"
+                    disabled={activeMeeting.finalized}
+                    className="rounded-lg border border-accent/40 bg-cream px-3 py-2 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                  />
+                )}
                 <button
                   type="button"
                   onClick={handleAddRole}
-                  disabled={!roleToAdd || activeMeeting.finalized}
+                  disabled={
+                    (roleToAdd === OTHER_ROLE_VALUE ? !customRoleName.trim() : !roleToAdd) ||
+                    activeMeeting.finalized
+                  }
                   className="flex items-center gap-1.5 rounded-lg border border-dashed border-accent/50 px-3 py-2 text-sm font-semibold text-ink/60 transition enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Plus size={14} />

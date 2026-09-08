@@ -12,12 +12,12 @@ import {
 import MemberLayout from '../components/MemberLayout.jsx'
 import DeclineRoleModal from '../components/DeclineRoleModal.jsx'
 import { getAccount } from '../lib/mockAuth.js'
-import { roleCatalog } from '../data/roleCatalog.js'
 import {
   VPE_ONLY_ROLE_IDS,
   acceptAutoAssignedRole,
   declineMyRole,
   findNextActiveMeeting,
+  getMeetingRoleEntries,
   getMeetings,
 } from '../lib/mockRolesStore.js'
 import { getRosterStatusForEmail } from '../lib/mockRosterStore.js'
@@ -82,7 +82,9 @@ export default function MemberDashboard() {
   }
 
   const upcoming = findNextActiveMeeting(meetings)
-  const myRole = upcoming?.myRoleId ? roleCatalog.find((r) => r.id === upcoming.myRoleId) : null
+  const myRole = upcoming?.myRoleId
+    ? getMeetingRoleEntries(upcoming.roles).find((r) => r.id === upcoming.myRoleId)
+    : null
   const myRoleEntry = upcoming?.myRoleId ? upcoming.roles[upcoming.myRoleId] : null
   const isVpeOnlyRole = upcoming?.myRoleId ? VPE_ONLY_ROLE_IDS.includes(upcoming.myRoleId) : false
 

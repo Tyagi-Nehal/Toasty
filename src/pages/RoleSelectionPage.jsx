@@ -3,11 +3,11 @@ import { CheckCircle2, X, Lock, CircleDot, ShieldCheck } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import DeclineRoleModal from '../components/DeclineRoleModal.jsx'
 import CancelledMeetingNotice from '../components/CancelledMeetingNotice.jsx'
-import { roleCatalog } from '../data/roleCatalog.js'
 import {
   VPE_ONLY_ROLE_IDS,
   declineMyRole,
   findNextActiveMeeting,
+  getMeetingRoleEntries,
   getMeetings,
   selectRole,
 } from '../lib/mockRolesStore.js'
@@ -104,7 +104,7 @@ export default function RoleSelectionPage() {
   }
 
   const myRole = activeMeeting.myRoleId
-    ? roleCatalog.find((r) => r.id === activeMeeting.myRoleId)
+    ? getMeetingRoleEntries(activeMeeting.roles).find((r) => r.id === activeMeeting.myRoleId)
     : null
   const myRoleEntry = activeMeeting.myRoleId
     ? activeMeeting.roles[activeMeeting.myRoleId]
@@ -222,11 +222,9 @@ export default function RoleSelectionPage() {
 
         {/* Role list — only roles actually on this meeting (Role
             Management can add/remove per meeting, e.g. no Table Topics
-            this week), in roleCatalog's usual order. */}
+            this week, or a one-off custom role), catalog roles first. */}
         <div className="mt-6 space-y-3">
-          {roleCatalog
-            .filter((role) => role.id in activeMeeting.roles)
-            .map((role) => {
+          {getMeetingRoleEntries(activeMeeting.roles).map((role) => {
             const entry = activeMeeting.roles[role.id]
             const isVpeOnly = VPE_ONLY_ROLE_IDS.includes(role.id)
             const canSelect =

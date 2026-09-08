@@ -88,6 +88,26 @@ function roleName(roleId) {
   return roleCatalog.find((r) => r.id === roleId)?.name ?? roleId
 }
 
+// Every role actually on this meeting, resolved to a display
+// { id, name, description } — known roleCatalog entries first (in
+// catalog order), then any one-off custom role the VPE typed in via
+// Role Management's "Other…" add option. A custom role was never added
+// to roleCatalog, so there's nothing to look up for it — its role_id
+// *is* the typed display text (same fallback roleName() above already
+// relies on), which is why it's safe to use directly as `name` here.
+// Used instead of filtering roleCatalog directly so a custom role
+// actually shows up (a plain roleCatalog.filter(...) would never see
+// it, since it's not in that list at all).
+export function getMeetingRoleEntries(meetingRoles) {
+  const presentIds = Object.keys(meetingRoles ?? {})
+  const known = roleCatalog.filter((role) => presentIds.includes(role.id))
+  const knownIds = new Set(known.map((r) => r.id))
+  const custom = presentIds
+    .filter((id) => !knownIds.has(id))
+    .map((id) => ({ id, name: id, description: 'Custom role' }))
+  return [...known, ...custom]
+}
+
 function formatDateLabel(meetingDate) {
   if (!meetingDate) return ''
   return new Date(`${meetingDate}T00:00:00`).toLocaleDateString(undefined, {
