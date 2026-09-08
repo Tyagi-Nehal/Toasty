@@ -416,14 +416,22 @@ export default function RoleManagementPage() {
                 </p>
               </details>
 
-              {/* Desktop table */}
-              <div className="mt-4 hidden overflow-hidden rounded-2xl border border-accent/20 sm:block">
-                <table className="w-full text-left text-sm">
+              {/* Desktop table. overflow-x-auto on the wrapper + a fixed
+                  layout with a capped/truncated Assigned To column — a
+                  long name used to wrap onto a second line and grow
+                  that row's height out of sync with every other row's
+                  single-line height in the same table (and threw off
+                  the mobile card layout the same way). Truncating with
+                  an ellipsis keeps every row the same height; the
+                  scrollable wrapper is the fallback for anything still
+                  too wide on a narrow screen. */}
+              <div className="mt-4 hidden overflow-x-auto rounded-2xl border border-accent/20 sm:block">
+                <table className="w-full table-fixed text-left text-sm">
                   <thead>
                     <tr className="border-b border-accent/20 bg-cream/60 text-xs uppercase tracking-wide text-ink/50">
-                      <th className="px-4 py-2.5 font-semibold">Role</th>
-                      <th className="px-4 py-2.5 font-semibold">Assigned To</th>
-                      <th className="px-4 py-2.5 font-semibold">Status</th>
+                      <th className="w-[30%] px-4 py-2.5 font-semibold">Role</th>
+                      <th className="w-[26%] px-4 py-2.5 font-semibold">Assigned To</th>
+                      <th className="w-[20%] px-4 py-2.5 font-semibold">Status</th>
                       <th className="px-4 py-2.5 font-semibold" />
                     </tr>
                   </thead>
@@ -438,7 +446,7 @@ export default function RoleManagementPage() {
                             entry.status === 'open' ? 'bg-accent/5' : ''
                           }`}
                         >
-                          <td className="px-4 py-2.5 font-medium text-ink">
+                          <td className="truncate px-4 py-2.5 font-medium text-ink" title={role.name}>
                             {role.name}
                             {VPE_ONLY_ROLE_IDS.includes(role.id) && (
                               <span className="ml-1.5 rounded-full bg-ink/10 px-1.5 py-0.5 text-[10px] font-semibold text-ink/50">
@@ -446,7 +454,9 @@ export default function RoleManagementPage() {
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-2.5 text-ink/70">{entry.takenBy ?? '—'}</td>
+                          <td className="truncate px-4 py-2.5 text-ink/70" title={entry.takenBy ?? undefined}>
+                            {entry.takenBy ?? '—'}
+                          </td>
                           <td className="px-4 py-2.5">
                             <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${badge.className}`}>
                               {badge.text}
