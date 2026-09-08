@@ -1,32 +1,31 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertCircle, CheckCircle2, Plus, Trash2, UserCog } from 'lucide-react'
+import { AlertCircle, Check, CheckCircle2, Inbox, Plus, Trash2, UserCog, X } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import { getAccount } from '../lib/mockAuth.js'
-import { getExcomAppointments, registerExcomMember, removeExcomMember } from '../lib/mockExcomRegistry.js'
-
-const excomRoles = [
-  'VPE', 'Ass. VPE',
-  'VPPR', 'Ass. VPPR',
-  'VPM', 'Ass. VPM',
-  'Treasurer', 'Ass. Treasurer',
-  'Secretary', 'Ass. Secretary',
-  'SAA',
-]
+import {
+  getExcomAppointments,
+  registerExcomMember,
+  removeExcomMember,
+  EXCOM_ROLES,
+} from '../lib/mockExcomRegistry.js'
+import { getPendingExcomApplications, decideExcomApplication } from '../lib/mockExcomApplications.js'
 
 function emptyRow() {
-  return { key: crypto.randomUUID(), role: excomRoles[0], name: '', email: '' }
+  return { key: crypto.randomUUID(), role: EXCOM_ROLES[0], name: '', email: '' }
 }
 
 export default function RegisterExcomPage() {
   const account = getAccount()
   const [rows, setRows] = useState([])
   const [appointments, setAppointments] = useState([])
+  const [applications, setApplications] = useState([])
   const [justSaved, setJustSaved] = useState(false)
   const [error, setError] = useState(null)
 
   function refresh() {
     getExcomAppointments().then(setAppointments)
+    getPendingExcomApplications().then(setApplications)
   }
 
   useEffect(() => {
@@ -71,6 +70,32 @@ export default function RegisterExcomPage() {
     refresh()
   }
 
+  // Approving grants the role (registerExcomMember — the same function
+  // the manual form above uses, so a single-holder role still replaces
+  // whoever currently holds it) and only then marks the application
+  // decided, so a failed appointment (e.g. role name typo'd somehow)
+  // doesn't get silently marked approved anyway.
+  async function handleApproveApplication(app) {
+    setError(null)
+    const result = await registerExcomMember({
+      role: app.role,
+      name: app.name,
+      email: app.email,
+      appointedByEmail: account?.email,
+    })
+    if (result?.error) {
+      setError(result.error)
+      return
+    }
+    await decideExcomApplication(app.id, 'approved', account?.email)
+    refresh()
+  }
+
+  async function handleRejectApplication(app) {
+    await decideExcomApplication(app.id, 'rejected', account?.email)
+    refresh()
+  }
+
   return (
     <MemberLayout>
       <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
@@ -86,6 +111,54 @@ export default function RegisterExcomPage() {
           dashboard — no separate approval needed.
         </p>
 
+        {/* Applications — people who applied for a role themselves from
+            Sign Up, waiting on your decision. */}
+        <div className="mt-6">
+          <h2 className="text-sm font-semibold text-ink">
+            Pending Applications {applications.length > 0 && `(${applications.length})`}
+          </h2>
+          {applications.length > 0 ? (
+            <div className="mt-3 space-y-2">
+              {applications.map((app) => (
+                <div
+                  key={app.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-white p-4"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-ink">
+                      {app.name} <span className="font-normal text-ink/50">— {app.role}</span>
+                    </p>
+                    <p className="truncate text-xs text-ink/50">{app.email}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleRejectApplication(app)}
+                      className="flex items-center gap-1.5 rounded-full border border-accent/40 px-4 py-2 text-sm font-semibold text-ink/70 transition hover:bg-cream"
+                    >
+                      <X size={14} />
+                      Reject
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApproveApplication(app)}
+                      className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
+                    >
+                      <Check size={14} />
+                      Approve
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-3 flex flex-col items-center gap-2 rounded-2xl border border-dashed border-accent/40 bg-white p-6 text-center">
+              <Inbox size={22} className="text-ink/30" />
+              <p className="text-sm text-ink/50">No pending applications.</p>
+            </div>
+          )}
+        </div>
+
         <form onSubmit={handleSubmit} className="mt-6 space-y-3">
           {rows.map((row) => (
             <div
@@ -97,7 +170,7 @@ export default function RegisterExcomPage() {
                 onChange={(e) => updateRow(row.key, 'role', e.target.value)}
                 className="rounded-lg border border-accent/40 bg-cream px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
               >
-                {excomRoles.map((role) => (
+                {EXCOM_ROLES.map((role) => (
                   <option key={role} value={role}>
                     {role}
                   </option>

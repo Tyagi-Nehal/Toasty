@@ -226,6 +226,52 @@ create policy "signups vpm or president update" on member_signups
 grant select, insert, update on member_signups to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
 
+-- Self-service ExCom applications (/signup, "I'm applying for an ExCom
+-- position" -> pick a role). Separate from excom_appointments (the real,
+-- current holder of a role) — an application only becomes a real
+-- appointment once the President approves it (registerExcomMember is
+-- called from the approval action, same function the President's manual
+-- Register ExCom flow already uses). Runs alongside that manual flow,
+-- not instead of it — a President who already knows who they want can
+-- still register them directly without waiting on an application.
+create table if not exists excom_applications (
+  id bigint generated always as identity primary key,
+  role text not null,
+  name text not null,
+  email text not null,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  submitted_at timestamptz not null default now(),
+  decided_at timestamptz,
+  decided_by_email text
+);
+
+alter table excom_applications enable row level security;
+
+-- Same shape as member_signups' policies: open select (low sensitivity,
+-- matches "who's applying for ExCom" being fine for any signed-in member
+-- to see), self-service insert of your own still-pending row, and
+-- decide (approve/reject) restricted to an approved President only —
+-- unlike member_signups, the VPM has no say here.
+drop policy if exists "excom_applications authenticated select" on excom_applications;
+create policy "excom_applications authenticated select" on excom_applications
+  for select to authenticated using (true);
+drop policy if exists "excom_applications self insert" on excom_applications;
+create policy "excom_applications self insert" on excom_applications
+  for insert to authenticated
+  with check (lower(auth.jwt() ->> 'email') = lower(email) and status = 'pending');
+drop policy if exists "excom_applications president decide" on excom_applications;
+create policy "excom_applications president decide" on excom_applications
+  for update to authenticated
+  using (
+    exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
+grant select, insert, update on excom_applications to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+
 -- Real club roster + role history, for attendance/rotation-based role
 -- auto-assignment (replaces a random-placeholder-name shift). Seeded
 -- once from the club's real attendance sheet and meeting roster (see

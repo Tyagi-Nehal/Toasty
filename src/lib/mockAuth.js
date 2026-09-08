@@ -1,9 +1,12 @@
 import { getRolesForEmail, getNamesByRoleForEmail, ASSOCIATE_ELIGIBLE_ROLES } from './mockExcomRegistry.js'
 import { verifyPresident } from './mockClubRegistry.js'
 import { getOrCreateSignupStatus } from './mockMemberSignups.js'
+import { submitExcomApplication } from './mockExcomApplications.js'
 
 const STORAGE_KEY = 'toasty_mock_account'
 const APPLIED_FOR_EXCOM_KEY = 'toasty_applied_for_excom'
+const SIGNUP_NAME_KEY = 'toasty_signup_name'
+const REQUESTED_EXCOM_ROLE_KEY = 'toasty_requested_excom_role'
 const ROLE_OVERRIDE_KEY = 'toasty_active_role_override'
 
 export function getAccount() {
@@ -23,8 +26,12 @@ export function getAccount() {
 // until VPM approves).
 //
 // Called from AuthContext.jsx whenever a real Supabase session resolves
-// (initial load or right after the Google OAuth redirect completes) — the
-// name/email come from the real Google identity, not a typed form.
+// (initial load or right after the Google OAuth redirect completes) —
+// the email is always the real, Google-verified identity (that's what
+// every RLS policy trusts), but the display name can come from a typed
+// Sign Up form instead of whatever name Google has on file, via
+// SIGNUP_NAME_KEY (set once, right before the OAuth redirect, and
+// consumed here exactly once — same pattern as APPLIED_FOR_EXCOM_KEY).
 export async function syncAccountFromSupabaseUser(user) {
   const email = (user.email ?? '').trim().toLowerCase()
   const googleName = user.user_metadata?.full_name || user.user_metadata?.name || null
@@ -35,6 +42,11 @@ export async function syncAccountFromSupabaseUser(user) {
       ? true
       : (existing?.email === email ? (existing.appliedForExcom ?? false) : false)
   sessionStorage.removeItem(APPLIED_FOR_EXCOM_KEY)
+
+  const typedName = sessionStorage.getItem(SIGNUP_NAME_KEY)?.trim() || null
+  sessionStorage.removeItem(SIGNUP_NAME_KEY)
+  const requestedExcomRole = sessionStorage.getItem(REQUESTED_EXCOM_ROLE_KEY)
+  sessionStorage.removeItem(REQUESTED_EXCOM_ROLE_KEY)
 
   const { verified: isPresident, name: presidentName } = await verifyPresident(email)
   const roles = isPresident ? ['President'] : await getRolesForEmail(email)
@@ -56,11 +68,22 @@ export async function syncAccountFromSupabaseUser(user) {
   } else {
     const signup = await getOrCreateSignupStatus({
       email,
-      name: googleName || email,
+      name: typedName || googleName || email,
       appliedForExcom,
     })
     resolvedName = signup.name || googleName || email
     status = signup.status
+    // A pending application, reviewed by the President — separate from
+    // (and in addition to) the general member signup above, which the
+    // VPM reviews. Only fires once, right after the Sign Up form is
+    // submitted with the role dropdown filled in.
+    if (requestedExcomRole) {
+      await submitExcomApplication({
+        role: requestedExcomRole,
+        name: typedName || googleName || email,
+        email,
+      })
+    }
   }
 
   const account = {

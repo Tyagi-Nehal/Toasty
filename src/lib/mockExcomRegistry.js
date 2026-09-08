@@ -21,6 +21,20 @@ import { ensureRosterMember } from './mockRosterStore.js'
 // associate — actually did the work is who gets credited).
 export const ASSOCIATE_ELIGIBLE_ROLES = ['VPE', 'VPPR', 'VPM', 'Treasurer', 'Secretary']
 
+// Every role selectable on the Register Your EXCOM form and on the Sign
+// Up page's "apply for an ExCom position" dropdown (mockExcomApplications.js)
+// — kept in one place so the two pickers can't drift apart. President is
+// deliberately absent from both: that's a separate founder-verification
+// flow (mockClubRegistry.js), never something appointed or applied for.
+export const EXCOM_ROLES = [
+  'VPE', 'Ass. VPE',
+  'VPPR', 'Ass. VPPR',
+  'VPM', 'Ass. VPM',
+  'Treasurer', 'Ass. Treasurer',
+  'Secretary', 'Ass. Secretary',
+  'SAA',
+]
+
 function normalizeEmail(email) {
   return (email ?? '').trim().toLowerCase()
 }
