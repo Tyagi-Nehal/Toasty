@@ -23,6 +23,16 @@ dist-ssr
 
 # Claude Code local settings (per-machine, not shared)
 .claude/settings.local.json
+
+# Real club member data (names, attendance, role history) — one-time
+# seed scripts already run against the live DB, and the original build
+# brief. Kept locally for reference, not published on GitHub.
+PROJECT_BRIEF.md
+supabase/seed-roster.sql
+supabase/seed-attendance.sql
+supabase/seed-meetings.sql
+supabase/seed-member-renewals.sql
+
 .DS_Store
 *.suo
 *.ntvs*
