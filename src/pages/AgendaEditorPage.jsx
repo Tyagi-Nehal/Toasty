@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Clock, History, Lock, Megaphone, Plus, Send, Sparkles, Trash2 } from 'lucide-react'
+import { Clock, History, Lock, Megaphone, Plus, Send, Sparkles, Trash2, X } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import CancelledMeetingNotice from '../components/CancelledMeetingNotice.jsx'
 import {
@@ -14,15 +14,112 @@ import {
   syncAgendaWithRoleBoard,
 } from '../lib/mockAgendaStore.js'
 import { findNextActiveMeeting, getMeetings } from '../lib/mockRolesStore.js'
+import { getMembers } from '../lib/mockRosterStore.js'
 
 const inputClass =
   'w-full rounded-lg border border-accent/30 bg-cream px-2.5 py-1.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60'
 const headerInputClass =
   'mt-1 w-full rounded-lg border border-accent/30 bg-white px-3 py-2 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60'
 const headerLabelClass = 'text-xs font-medium text-ink/50'
+const OTHER_VALUE = '__other__'
 
 function multilineRows(...values) {
   return Math.max(1, ...values.map((v) => (v || '').split('\n').length))
+}
+
+// A row's Name cell can hold several people (newline-separated, one per
+// Role Player line) — e.g. several Table Topics speakers stacked in one
+// row. Each line gets its own roster dropdown + an explicit "Other
+// (guest)" escape hatch instead of one free-text box, so a typo or
+// different spelling can't silently fail to match anyone real. The
+// stored value is still the same newline-joined string every reader
+// (AgendaPage.jsx, the sent snapshot, MOM auto-fill) already expects —
+// only the editing UI changes.
+function AgendaNameCell({ value, roster, disabled, onChange }) {
+  const lines = value ? value.split('\n') : ['']
+  const [otherMode, setOtherMode] = useState(() =>
+    lines.map((line) => line !== '' && !roster.some((m) => m.name === line)),
+  )
+
+  function commit(nextLines) {
+    onChange(nextLines.join('\n'))
+  }
+
+  function updateLine(i, newValue) {
+    const next = [...lines]
+    next[i] = newValue
+    commit(next)
+  }
+
+  function handleSelect(i, selected) {
+    setOtherMode((prev) => prev.map((v, idx) => (idx === i ? selected === OTHER_VALUE : v)))
+    updateLine(i, selected === OTHER_VALUE ? '' : selected)
+  }
+
+  function addLine() {
+    setOtherMode((prev) => [...prev, false])
+    commit([...lines, ''])
+  }
+
+  function removeLine(i) {
+    setOtherMode((prev) => prev.filter((_, idx) => idx !== i))
+    const next = lines.filter((_, idx) => idx !== i)
+    commit(next.length ? next : [''])
+  }
+
+  return (
+    <div className="space-y-1">
+      {lines.map((line, i) => (
+        <div key={i} className="flex items-center gap-1">
+          {otherMode[i] ? (
+            <input
+              type="text"
+              autoFocus
+              disabled={disabled}
+              value={line}
+              onChange={(e) => updateLine(i, e.target.value)}
+              placeholder="Guest name"
+              className={`${inputClass} w-32`}
+            />
+          ) : (
+            <select
+              disabled={disabled}
+              value={line}
+              onChange={(e) => handleSelect(i, e.target.value)}
+              className={`${inputClass} w-32`}
+            >
+              <option value="">Unassigned</option>
+              {roster.map((m) => (
+                <option key={m.email} value={m.name}>
+                  {m.name}
+                </option>
+              ))}
+              <option value={OTHER_VALUE}>Other (guest)…</option>
+            </select>
+          )}
+          {lines.length > 1 && (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => removeLine(i)}
+              aria-label="Remove name"
+              className="shrink-0 rounded p-1 text-ink/30 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+      ))}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={addLine}
+        className="text-xs font-semibold text-primary/70 transition hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        + Add name
+      </button>
+    </div>
+  )
 }
 
 function timeAgo(isoString) {
@@ -43,6 +140,7 @@ export default function AgendaEditorPage() {
   const [agenda, setAgenda] = useState(null)
   const [history, setHistory] = useState(() => getAgendaHistory())
   const [saving, setSaving] = useState(false)
+  const [roster, setRoster] = useState([])
   const saveTimerRef = useRef(null)
 
   useEffect(() => {
@@ -51,6 +149,7 @@ export default function AgendaEditorPage() {
       const upcoming = findNextActiveMeeting(fetched)
       setActiveMeetingId((prev) => prev ?? upcoming?.id ?? fetched[fetched.length - 1]?.id ?? null)
     })
+    getMembers().then(setRoster)
   }, [])
 
   useEffect(() => {
@@ -408,15 +507,11 @@ export default function AgendaEditorPage() {
                               />
                             </td>
                             <td className="px-3 py-2 align-top">
-                              <textarea
-                                rows={rows}
-                                disabled={isPast}
+                              <AgendaNameCell
                                 value={item.name}
-                                placeholder="Unassigned"
-                                onChange={(e) =>
-                                  handleFieldChange(item.id, 'name', e.target.value)
-                                }
-                                className={`${inputClass} w-36 resize-none whitespace-pre overflow-x-auto`}
+                                roster={roster}
+                                disabled={isPast}
+                                onChange={(value) => handleFieldChange(item.id, 'name', value)}
                               />
                             </td>
                             <td className="px-2 py-2 align-top">
