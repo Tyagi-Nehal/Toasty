@@ -12,6 +12,7 @@ import {
   persistAgenda,
   removeAgendaRow,
   sendAgendaToMembers,
+  shortenName,
   syncAgendaWithRoleBoard,
 } from '../lib/mockAgendaStore.js'
 import { findNextActiveMeeting, getMeetings } from '../lib/mockRolesStore.js'
@@ -28,86 +29,125 @@ function multilineRows(...values) {
   return Math.max(1, ...values.map((v) => (v || '').split('\n').length))
 }
 
+const TITLES = ['TM', 'DTM', 'Guest']
+
+// Splits a stored line like "DTM Aurobindo" into { title, rest }. Falls
+// back to 'TM' (the overwhelming common case) if no recognized title
+// prefix is found — e.g. a line saved before this feature existed.
+function parseLine(line) {
+  for (const title of TITLES) {
+    if (line === title) return { title, rest: '' }
+    if (line.startsWith(`${title} `)) return { title, rest: line.slice(title.length + 1) }
+  }
+  return { title: 'TM', rest: line }
+}
+
 // A row's Name cell can hold several people (newline-separated, one per
 // Role Player line) — e.g. several Table Topics speakers stacked in one
-// row. Each line gets its own roster dropdown + an explicit "Other
-// (guest)" escape hatch instead of one free-text box, so a typo or
-// different spelling can't silently fail to match anyone real. The
-// stored value is still the same newline-joined string every reader
-// (AgendaPage.jsx, the sent snapshot, MOM auto-fill) already expects —
-// only the editing UI changes.
+// row. Each line gets its own title (TM/DTM/Guest) + roster dropdown +
+// an explicit "Other (guest)" escape hatch instead of one free-text box,
+// so a typo or different spelling can't silently fail to match anyone
+// real. A roster member's name is always shortened (shortenName — first
+// name + last initial, matching the club's real printed agendas); a
+// manually-typed guest name is used exactly as typed, since a guest
+// might not even have a last name to shorten (see the reference
+// agenda's own "DTM Aurobindo"). The stored value is still the same
+// newline-joined "TITLE Name" string every reader (AgendaPage.jsx, the
+// sent snapshot, MOM auto-fill) already expects — only the editing UI
+// changes.
 function AgendaNameCell({ value, roster, disabled, onChange }) {
-  const lines = value ? value.split('\n') : ['']
-  const [otherMode, setOtherMode] = useState(() =>
-    lines.map((line) => line !== '' && !roster.some((m) => m.name === line)),
-  )
+  const [rows, setRows] = useState(() => {
+    const lines = value ? value.split('\n') : ['']
+    return lines.map((line) => {
+      const { title, rest } = parseLine(line)
+      const member = roster.find((m) => shortenName(m.name) === rest)
+      if (member) return { title, selected: member.email, other: '' }
+      return { title, selected: rest ? OTHER_VALUE : '', other: rest }
+    })
+  })
 
-  function commit(nextLines) {
-    onChange(nextLines.join('\n'))
+  function composeLine(row) {
+    if (row.selected === OTHER_VALUE) {
+      return row.other.trim() ? `${row.title} ${row.other.trim()}` : ''
+    }
+    if (row.selected) {
+      const member = roster.find((m) => m.email === row.selected)
+      return member ? `${row.title} ${shortenName(member.name)}` : ''
+    }
+    return ''
   }
 
-  function updateLine(i, newValue) {
-    const next = [...lines]
-    next[i] = newValue
-    commit(next)
+  function commit(nextRows) {
+    setRows(nextRows)
+    onChange(nextRows.map(composeLine).join('\n'))
   }
 
-  function handleSelect(i, selected) {
-    setOtherMode((prev) => prev.map((v, idx) => (idx === i ? selected === OTHER_VALUE : v)))
-    updateLine(i, selected === OTHER_VALUE ? '' : selected)
+  function updateRow(i, patch) {
+    commit(rows.map((row, idx) => (idx === i ? { ...row, ...patch } : row)))
   }
 
   function addLine() {
-    setOtherMode((prev) => [...prev, false])
-    commit([...lines, ''])
+    commit([...rows, { title: 'TM', selected: '', other: '' }])
   }
 
   function removeLine(i) {
-    setOtherMode((prev) => prev.filter((_, idx) => idx !== i))
-    const next = lines.filter((_, idx) => idx !== i)
-    commit(next.length ? next : [''])
+    const next = rows.filter((_, idx) => idx !== i)
+    commit(next.length ? next : [{ title: 'TM', selected: '', other: '' }])
   }
 
   return (
-    <div className="space-y-1">
-      {lines.map((line, i) => (
-        <div key={i} className="flex items-center gap-1">
-          {otherMode[i] ? (
-            <input
-              type="text"
-              autoFocus
-              disabled={disabled}
-              value={line}
-              onChange={(e) => updateLine(i, e.target.value)}
-              placeholder="Guest name"
-              className={`${inputClass} w-32`}
-            />
-          ) : (
+    <div className="space-y-1.5">
+      {rows.map((row, i) => (
+        <div key={i} className="space-y-1">
+          <div className="flex items-center gap-1">
             <select
               disabled={disabled}
-              value={line}
-              onChange={(e) => handleSelect(i, e.target.value)}
-              className={`${inputClass} w-32`}
+              value={row.title}
+              onChange={(e) => updateRow(i, { title: e.target.value })}
+              className={`${inputClass} w-[4.5rem] shrink-0`}
+            >
+              {TITLES.map((title) => (
+                <option key={title} value={title}>
+                  {title}
+                </option>
+              ))}
+            </select>
+            <select
+              disabled={disabled}
+              value={row.selected}
+              onChange={(e) => updateRow(i, { selected: e.target.value })}
+              className={`${inputClass} min-w-0 flex-1`}
             >
               <option value="">Unassigned</option>
               {roster.map((m) => (
-                <option key={m.email} value={m.name}>
+                <option key={m.email} value={m.email}>
                   {m.name}
                 </option>
               ))}
               <option value={OTHER_VALUE}>Other (guest)…</option>
             </select>
-          )}
-          {lines.length > 1 && (
-            <button
-              type="button"
+            {rows.length > 1 && (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => removeLine(i)}
+                aria-label="Remove name"
+                className="shrink-0 rounded p-1 text-ink/30 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          {row.selected === OTHER_VALUE && (
+            <input
+              type="text"
+              autoFocus
               disabled={disabled}
-              onClick={() => removeLine(i)}
-              aria-label="Remove name"
-              className="shrink-0 rounded p-1 text-ink/30 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <X size={12} />
-            </button>
+              value={row.other}
+              onChange={(e) => updateRow(i, { other: e.target.value })}
+              placeholder="Guest name"
+              className={inputClass}
+            />
           )}
         </div>
       ))}

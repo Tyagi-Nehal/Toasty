@@ -32,8 +32,22 @@ const MAX_LOG_ENTRIES = 25
 // meeting by convention. The agenda defaults to them regardless of what
 // the role board shows for saa/po; the VPE can retype the name field any
 // time, this only governs what a fresh/regenerated agenda starts with.
-const DEFAULT_SAA_NAME = 'TM Durva Sharma'
-const DEFAULT_PO_NAME = 'TM Sarvajit Srivatsa'
+const DEFAULT_SAA_NAME = 'TM Durva S.'
+const DEFAULT_PO_NAME = 'TM Sarvajit S.'
+
+// Agenda names are always shown as first name + last initial (privacy/
+// brevity, matching the club's real printed agendas) — a real account's
+// full name (e.g. "Faizaan Naiman Naveed Nasir") is too long to print
+// legibly across 20+ rows. Only applies to a real roster/role-board name;
+// a manually-typed guest name (AgendaNameCell's "Other" field) is used
+// exactly as typed, not run through this — see the reference agenda's
+// own "DTM Aurobindo" (no last name at all) for why that has to stay a
+// free-text field the VPE fully controls.
+export function shortenName(fullName) {
+  const parts = (fullName ?? '').trim().split(/\s+/).filter(Boolean)
+  if (parts.length <= 1) return parts[0] ?? ''
+  return `${parts[0]} ${parts[parts.length - 1][0]}.`
+}
 
 function logAction(message) {
   const entry = { id: crypto.randomUUID(), message, time: new Date().toISOString() }
@@ -145,7 +159,7 @@ export async function generateAgenda(meetingId, existingAgenda) {
   const meeting = await getMeeting(meetingId)
   const named = (roleId) => {
     const takenBy = meeting.roles[roleId]?.takenBy
-    return takenBy ? `TM ${takenBy}` : ''
+    return takenBy ? `TM ${shortenName(takenBy)}` : ''
   }
   const tmod = named('tmod')
 
@@ -261,7 +275,7 @@ export async function syncAgendaWithRoleBoard(meetingId, agenda) {
   if (!meeting) return agenda
   const named = (roleId) => {
     const takenBy = meeting.roles[roleId]?.takenBy
-    return takenBy ? `TM ${takenBy}` : ''
+    return takenBy ? `TM ${shortenName(takenBy)}` : ''
   }
   let changed = false
   const items = agenda.items.map((item) => {
