@@ -124,9 +124,9 @@ export default function AttendancePage() {
                     : 'border-accent/30 bg-white text-ink hover:border-primary/50'
                 }`}
               >
-                <p className="text-sm font-semibold">{m.label}</p>
+                <p className="text-sm font-semibold">{m.dateLabel}</p>
                 <p className={`text-xs ${active ? 'text-cream/80' : 'text-ink/50'}`}>
-                  {m.dateLabel}
+                  {m.label}
                 </p>
               </button>
             )
