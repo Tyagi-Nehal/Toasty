@@ -672,7 +672,7 @@ export default function AgendaEditorPage() {
                                 onChange={(e) =>
                                   handleFieldChange(item.id, 'rolePlayer', e.target.value)
                                 }
-                                className={`${inputClass} w-24 resize-none whitespace-pre overflow-x-auto`}
+                                className={`${inputClass} w-20 resize-none whitespace-pre overflow-x-auto`}
                               />
                             </td>
                             <td className="w-64 px-3 py-2 align-top">
