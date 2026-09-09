@@ -328,7 +328,7 @@ export default function AgendaEditorPage() {
       <div className="hidden print:block">
         <AgendaPrintView agenda={agenda} meeting={activeMeeting} />
       </div>
-      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10 print:hidden">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 print:hidden">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">
@@ -483,8 +483,8 @@ export default function AgendaEditorPage() {
             </button>
           </div>
         ) : (
-          <div className="mt-6 grid gap-6 lg:grid-cols-3">
-            <div className="space-y-6 lg:col-span-2">
+          <div className="mt-6 space-y-6">
+            <div className="space-y-6">
               {/* Header info block, matching the club's printed agenda */}
               <div className="rounded-3xl border border-accent/30 bg-white p-6">
                 <h2 className="text-sm font-semibold text-ink">
