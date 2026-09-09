@@ -108,13 +108,14 @@ export async function removeExcomMember(id) {
 export async function getRoleForEmail(email) {
   const normalized = normalizeEmail(email)
   if (!normalized) return null
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('excom_appointments')
     .select('role')
     .eq('email', normalized)
     .order('appointed_at', { ascending: false })
     .limit(1)
     .maybeSingle()
+  if (error) console.error('[mockExcomRegistry] getRoleForEmail failed:', error.message)
   return data?.role ?? null
 }
 
@@ -180,14 +181,20 @@ export async function getNameForRole(role) {
 // first), instead of just the single most-recent one — lets one email
 // hold multiple ExCom roles at once, e.g. for testing several role
 // dashboards without needing a separate real Google account per role.
+// Runs on every sign-in (mockAuth.js) and decides whether a real officer
+// gets recognized as one at all — logging a failure here matters for the
+// same reason as verifyPresident's above: an unchecked error used to be
+// silently identical to "holds no roles," demoting any real ExCom
+// officer to the generic pending-member flow on a mere network hiccup.
 export async function getRolesForEmail(email) {
   const normalized = normalizeEmail(email)
   if (!normalized) return []
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('excom_appointments')
     .select('role')
     .eq('email', normalized)
     .order('appointed_at', { ascending: false })
+  if (error) console.error('[mockExcomRegistry] getRolesForEmail failed:', error.message)
   return [...new Set((data ?? []).map((row) => row.role))]
 }
 

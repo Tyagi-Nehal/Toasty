@@ -205,15 +205,23 @@ export async function rejectPresident(id) {
 }
 
 // Single round-trip when a caller needs both pieces at once (e.g. login).
+// This runs on every sign-in (see mockAuth.js's syncAccountFromSupabaseUser)
+// and its result decides whether a real President gets recognized as one
+// at all — a network hiccup here used to be silently indistinguishable
+// from "genuinely not a verified president" (the error was never even
+// checked), demoting them to the generic pending-member flow with no
+// trace of why. Logging it doesn't recover the failed check, but makes a
+// transient failure diagnosable instead of looking like a data problem.
 export async function verifyPresident(email) {
   const normalizedEmail = (email ?? '').trim().toLowerCase()
   if (!normalizedEmail) return { verified: false, name: null }
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('president_verifications')
     .select('name')
     .eq('status', 'approved')
     .eq('email', normalizedEmail)
     .maybeSingle()
+  if (error) console.error('[mockClubRegistry] verifyPresident failed:', error.message)
   return { verified: !!data, name: data?.name ?? null }
 }
 
