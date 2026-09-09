@@ -17,7 +17,7 @@ import {
   shortenName,
   syncAgendaWithRoleBoard,
 } from '../lib/mockAgendaStore.js'
-import { findNextActiveMeeting, getMeetings } from '../lib/mockRolesStore.js'
+import { findNextActiveMeeting, getMeetings, renameMeeting } from '../lib/mockRolesStore.js'
 import { getMembers } from '../lib/mockRosterStore.js'
 
 const inputClass =
@@ -208,7 +208,13 @@ export default function AgendaEditorPage() {
   const [history, setHistory] = useState(() => getAgendaHistory())
   const [saving, setSaving] = useState(false)
   const [roster, setRoster] = useState([])
+  const [labelDraft, setLabelDraft] = useState('')
+  const [savingLabel, setSavingLabel] = useState(false)
   const saveTimerRef = useRef(null)
+
+  function refreshMeetings() {
+    return getMeetings().then(setMeetings)
+  }
 
   useEffect(() => {
     getMeetings().then((fetched) => {
@@ -218,6 +224,34 @@ export default function AgendaEditorPage() {
     })
     getMembers().then(setRoster)
   }, [])
+
+  // Meeting numbers are VPE-editable (a skipped/rescheduled meeting can
+  // throw off the auto-assigned sequence) — reuses the same renameMeeting
+  // the VPPR already has on Photo Memories, so there's one source of
+  // truth for a meeting's label everywhere it's shown, not an
+  // agenda-only copy that could drift from it.
+  useEffect(() => {
+    const m = meetings.find((mm) => mm.id === activeMeetingId)
+    setLabelDraft(m?.label ?? '')
+  }, [activeMeetingId])
+
+  async function handleLabelBlur() {
+    const current = meetings.find((m) => m.id === activeMeetingId)
+    const trimmed = labelDraft.trim()
+    if (!current || !trimmed || trimmed === current.label) {
+      setLabelDraft(current?.label ?? '')
+      return
+    }
+    setSavingLabel(true)
+    try {
+      await renameMeeting(current.id, trimmed)
+      await refreshMeetings()
+    } catch (err) {
+      window.alert(err.message)
+      setLabelDraft(current.label)
+    }
+    setSavingLabel(false)
+  }
 
   useEffect(() => {
     if (!activeMeetingId) return
@@ -358,6 +392,17 @@ export default function AgendaEditorPage() {
   const activeMeeting = meetings.find((m) => m.id === activeMeetingId)
   const isPast = (activeMeeting?.hoursUntilMeeting ?? 0) < 0
 
+  // Meetings load oldest-first (see getMeetings). Rotating the list so
+  // the next upcoming meeting leads means the VPE lands on it without
+  // scrolling the tab strip — past meetings (rarely reopened, since
+  // they're read-only) fall to the end instead of leading.
+  const upcomingMeeting = findNextActiveMeeting(meetings)
+  const upcomingIndex = upcomingMeeting ? meetings.findIndex((m) => m.id === upcomingMeeting.id) : -1
+  const orderedMeetings =
+    upcomingIndex > 0
+      ? [...meetings.slice(upcomingIndex), ...meetings.slice(0, upcomingIndex)]
+      : meetings
+
   if (!activeMeeting) {
     return (
       <MemberLayout>
@@ -446,7 +491,7 @@ export default function AgendaEditorPage() {
 
         {/* Meeting tabs */}
         <div className="mt-6 flex gap-2 overflow-x-auto">
-          {meetings.map((m) => {
+          {orderedMeetings.map((m) => {
             const active = m.id === activeMeetingId
             return (
               <button
@@ -532,9 +577,18 @@ export default function AgendaEditorPage() {
             <div className="space-y-6">
               {/* Header info block, matching the club's printed agenda */}
               <div className="rounded-3xl border border-accent/30 bg-white p-6">
-                <h2 className="text-sm font-semibold text-ink">
-                  {activeMeeting.label} — {agenda.dateLabel}
-                </h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    disabled={isPast}
+                    value={labelDraft}
+                    onChange={(e) => setLabelDraft(e.target.value)}
+                    onBlur={handleLabelBlur}
+                    className="w-32 rounded-lg border border-accent/30 bg-cream px-2 py-1 text-sm font-semibold text-ink focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                  />
+                  <h2 className="text-sm font-semibold text-ink">— {agenda.dateLabel}</h2>
+                  {savingLabel && <span className="text-xs font-medium text-primary">Saving…</span>}
+                </div>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <div>
                     <label className={headerLabelClass}>Theme</label>
