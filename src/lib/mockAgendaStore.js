@@ -72,8 +72,18 @@ export function getAgendaHistory() {
   }
 }
 
-function timeToMinutes(time) {
-  const match = time.match(/(\d+):(\d+)\s*(AM|PM)/i)
+// Exported so the Agenda Editor can build a dropdown of real, always-valid
+// time options from these instead of a free-text field — a raw text input
+// let a mid-typed, not-yet-complete string (e.g. "5:0") get treated as a
+// real value by rescheduleAgendaTimes below, which silently corrupted the
+// stored overallStartTime to an unparseable string; the next keystroke's
+// delta calculation then read that back as timeToMinutes(...) === 0
+// (midnight, its zero-fallback), producing a multi-hour bogus shift across
+// every row. A dropdown can only ever produce a complete, valid value, so
+// this whole failure mode is now structurally impossible, not just guarded
+// against.
+export function timeToMinutes(time) {
+  const match = (time ?? '').match(/(\d+):(\d+)\s*(AM|PM)/i)
   if (!match) return 0
   let [, hours, minutes, meridiem] = match
   hours = Number(hours) % 12
@@ -81,7 +91,7 @@ function timeToMinutes(time) {
   return hours * 60 + Number(minutes)
 }
 
-function minutesToTime(totalMinutes) {
+export function minutesToTime(totalMinutes) {
   const normalized = ((totalMinutes % 1440) + 1440) % 1440
   let hours = Math.floor(normalized / 60)
   const minutes = normalized % 60

@@ -9,6 +9,7 @@ import {
   getAgenda,
   getAgendaChangeSummary,
   getAgendaHistory,
+  minutesToTime,
   persistAgenda,
   removeAgendaRow,
   rescheduleAgendaTimes,
@@ -25,6 +26,30 @@ const headerInputClass =
   'mt-1 w-full rounded-lg border border-accent/30 bg-white px-3 py-2 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60'
 const headerLabelClass = 'text-xs font-medium text-ink/50'
 const OTHER_VALUE = '__other__'
+
+// Every minute from 3:00 PM to 10:00 PM — covers every real meeting time
+// with room either side, and 1-minute steps because several real segments
+// (e.g. "Toastmaster of the Day + Speaker Introduction") are genuinely
+// only 1 minute long, so anything coarser (5/10-min steps) couldn't
+// represent the club's actual schedule. A dropdown over a free-text field
+// so a time can never be a partially-typed, invalid string — see
+// timeToMinutes's export comment in mockAgendaStore.js for the bug that
+// caused.
+const TIME_OPTIONS = Array.from({ length: 7 * 60 + 1 }, (_, i) => minutesToTime(15 * 60 + i))
+
+function TimeSelect({ value, disabled, onChange, className }) {
+  return (
+    <select value={value} disabled={disabled} onChange={onChange} className={className}>
+      {!value && <option value="">--:-- --</option>}
+      {!TIME_OPTIONS.includes(value) && value && <option value={value}>{value}</option>}
+      {TIME_OPTIONS.map((t) => (
+        <option key={t} value={t}>
+          {t}
+        </option>
+      ))}
+    </select>
+  )
+}
 
 function multilineRows(...values) {
   return Math.max(1, ...values.map((v) => (v || '').split('\n').length))
@@ -105,7 +130,7 @@ function AgendaNameCell({ value, roster, disabled, onChange }) {
               disabled={disabled}
               value={row.title}
               onChange={(e) => updateRow(i, { title: e.target.value })}
-              className={`${inputClass} w-[4.5rem] shrink-0`}
+              className={`${inputClass} w-16 shrink-0`}
             >
               {TITLES.map((title) => (
                 <option key={title} value={title}>
@@ -117,7 +142,7 @@ function AgendaNameCell({ value, roster, disabled, onChange }) {
               disabled={disabled}
               value={row.selected}
               onChange={(e) => updateRow(i, { selected: e.target.value })}
-              className={`${inputClass} min-w-[9rem] flex-1`}
+              className={`${inputClass} min-w-0 flex-1`}
             >
               <option value="">Unassigned</option>
               {roster.map((m) => (
@@ -227,7 +252,23 @@ export default function AgendaEditorPage() {
     }, 700)
   }
 
+  // Every discrete action below (Generate, Reset, Add/Remove Row, Send)
+  // does its own immediate write. Without this, a debounced autosave
+  // scheduled by a keystroke just before the click could still be
+  // pending and fire ~700ms later with its own stale closure of the
+  // agenda from *before* the action ran — silently overwriting a just-
+  // completed Send (reverting sentAt back to null) or a fresh
+  // Generate/Reset with old data. This is exactly the bug behind Theme/
+  // Word of the Day/Meaning appearing to "un-save" after a refresh.
+  function cancelPendingSave() {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = null
+    }
+  }
+
   async function handleGenerate() {
+    cancelPendingSave()
     refresh(await generateAgenda(activeMeetingId, agenda))
   }
 
@@ -240,6 +281,7 @@ export default function AgendaEditorPage() {
     if (!window.confirm('Reset this agenda to its default structure? Every edit you\'ve made — including Theme, Word of the Day, and Venue — will be lost.')) {
       return
     }
+    cancelPendingSave()
     refresh(await generateAgenda(activeMeetingId, null))
   }
 
@@ -298,14 +340,17 @@ export default function AgendaEditorPage() {
   }
 
   async function handleAddRow() {
+    cancelPendingSave()
     refresh(await addAgendaRow(activeMeetingId, agenda))
   }
 
   async function handleRemoveRow(itemId) {
+    cancelPendingSave()
     refresh(await removeAgendaRow(activeMeetingId, agenda, itemId))
   }
 
   async function handleSend() {
+    cancelPendingSave()
     refresh(await sendAgendaToMembers(activeMeetingId, agenda))
   }
 
@@ -328,7 +373,7 @@ export default function AgendaEditorPage() {
       <div className="hidden print:block">
         <AgendaPrintView agenda={agenda} meeting={activeMeeting} />
       </div>
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 print:hidden">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10 print:hidden">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">
@@ -549,19 +594,16 @@ export default function AgendaEditorPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className={headerLabelClass}>Start Time</label>
-                      <input
-                        type="text"
+                      <TimeSelect
                         disabled={isPast}
                         value={agenda.overallStartTime}
                         onChange={(e) => handleStartTimeChange(e.target.value)}
-                        placeholder="e.g. 05:00 PM"
                         className={headerInputClass}
                       />
                     </div>
                     <div>
                       <label className={headerLabelClass}>End Time</label>
-                      <input
-                        type="text"
+                      <TimeSelect
                         disabled={isPast}
                         value={agenda.overallEndTime}
                         onChange={(e) => handleHeaderChange('overallEndTime', e.target.value)}
@@ -592,8 +634,7 @@ export default function AgendaEditorPage() {
                         return (
                           <tr key={item.id} className="border-b border-accent/10 last:border-0">
                             <td className="px-3 py-2 align-top">
-                              <input
-                                type="text"
+                              <TimeSelect
                                 disabled={isPast}
                                 value={item.startTime}
                                 onChange={(e) =>
@@ -603,8 +644,7 @@ export default function AgendaEditorPage() {
                               />
                             </td>
                             <td className="px-3 py-2 align-top">
-                              <input
-                                type="text"
+                              <TimeSelect
                                 disabled={isPast}
                                 value={item.endTime}
                                 onChange={(e) =>
@@ -621,7 +661,7 @@ export default function AgendaEditorPage() {
                                 onChange={(e) =>
                                   handleFieldChange(item.id, 'segment', e.target.value)
                                 }
-                                className={`${inputClass} w-56 resize-none whitespace-pre overflow-x-auto`}
+                                className={`${inputClass} w-40 resize-none whitespace-pre overflow-x-auto`}
                               />
                             </td>
                             <td className="px-3 py-2 align-top">
@@ -632,10 +672,10 @@ export default function AgendaEditorPage() {
                                 onChange={(e) =>
                                   handleFieldChange(item.id, 'rolePlayer', e.target.value)
                                 }
-                                className={`${inputClass} w-32 resize-none whitespace-pre overflow-x-auto`}
+                                className={`${inputClass} w-24 resize-none whitespace-pre overflow-x-auto`}
                               />
                             </td>
-                            <td className="w-56 px-3 py-2 align-top">
+                            <td className="w-60 px-3 py-2 align-top">
                               <AgendaNameCell
                                 value={item.name}
                                 roster={roster}
