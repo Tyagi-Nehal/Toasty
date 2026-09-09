@@ -108,7 +108,7 @@ export default function AgendaPrintView({ agenda, meeting }) {
             <tr key={item.id} style={{ breakInside: 'avoid' }}>
               <td className={`${cellClass} whitespace-nowrap`}>{item.startTime}</td>
               <td className={`${cellClass} whitespace-nowrap`}>{item.endTime}</td>
-              <td className={cellClass}>{item.segment}</td>
+              <td className={`${cellClass} whitespace-pre-line leading-tight`}>{item.segment}</td>
               <td className={`${cellClass} whitespace-pre-line leading-tight`}>{item.rolePlayer}</td>
               <td className={`${cellClass} whitespace-pre-line leading-tight`}>
                 {item.name || 'Unassigned'}

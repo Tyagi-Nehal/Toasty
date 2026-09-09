@@ -184,6 +184,19 @@ const TAGL_LABELS = {
   listener: 'LISTENER',
 }
 
+// The club's real printed agendas list Timer/Ah Counter/Grammarian/
+// Listener a second time as sub-lines under the TAGL row's own Segment
+// text (not just in the Role Player column) — matching that exactly,
+// title-case here vs. the Role Player column's all-caps abbreviations.
+// GE isn't repeated as a sub-line since "General Evaluator" is already
+// named in the segment title itself.
+const TAGL_SEGMENT_SUBLABELS = {
+  timer: 'Timer',
+  'ah-counter': 'Ah Counter',
+  grammarian: 'Grammarian',
+  listener: 'Listener',
+}
+
 // Builds the agenda's row list from whatever roles actually exist on
 // this meeting (meeting.roles, from Role Management's add/remove) —
 // not a fixed template. A role not on the meeting (e.g. Table Topics
@@ -244,8 +257,12 @@ export async function generateAgenda(meetingId, existingAgenda) {
 
   const taglRoleIds = ['ge', 'timer', 'ah-counter', 'grammarian', 'listener'].filter(has)
   if (taglRoleIds.length > 0) {
-    addRow(
+    const taglSegment = [
       'General Evaluator + TAGL Team Introduction',
+      ...taglRoleIds.filter((id) => id !== 'ge').map((id) => TAGL_SEGMENT_SUBLABELS[id]),
+    ].join('\n')
+    addRow(
+      taglSegment,
       taglRoleIds.map((id) => TAGL_LABELS[id]).join('\n'),
       taglRoleIds.map(named).join('\n'),
       5,

@@ -152,7 +152,9 @@ export default function AgendaPage() {
                     >
                       <td className="px-4 py-3 text-ink/60">{item.startTime}</td>
                       <td className="px-4 py-3 text-ink/60">{item.endTime}</td>
-                      <td className="px-4 py-3 font-medium text-ink">{item.segment}</td>
+                      <td className="whitespace-pre-line px-4 py-3 font-medium text-ink">
+                        {item.segment}
+                      </td>
                       <td className="whitespace-pre px-4 py-3 text-ink/70">{item.rolePlayer}</td>
                       <td className="whitespace-pre px-4 py-3">
                         <span className="text-ink/70">{item.name || '—'}</span>
@@ -185,7 +187,7 @@ export default function AgendaPage() {
                   <Clock size={12} />
                   {item.startTime} – {item.endTime}
                 </p>
-                <p className="mt-1 font-semibold text-ink">{item.segment}</p>
+                <p className="mt-1 whitespace-pre-line font-semibold text-ink">{item.segment}</p>
                 <p className="mt-0.5 whitespace-pre-line text-xs text-ink/50">
                   {item.rolePlayer}
                 </p>

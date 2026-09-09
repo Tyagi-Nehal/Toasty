@@ -588,7 +588,7 @@ export default function AgendaEditorPage() {
                     </thead>
                     <tbody>
                       {agenda.items.map((item) => {
-                        const rows = multilineRows(item.rolePlayer, item.name)
+                        const rows = multilineRows(item.segment, item.rolePlayer, item.name)
                         return (
                           <tr key={item.id} className="border-b border-accent/10 last:border-0">
                             <td className="px-3 py-2 align-top">
@@ -614,14 +614,14 @@ export default function AgendaEditorPage() {
                               />
                             </td>
                             <td className="px-3 py-2 align-top">
-                              <input
-                                type="text"
+                              <textarea
+                                rows={rows}
                                 disabled={isPast}
                                 value={item.segment}
                                 onChange={(e) =>
                                   handleFieldChange(item.id, 'segment', e.target.value)
                                 }
-                                className={`${inputClass} w-56`}
+                                className={`${inputClass} w-56 resize-none whitespace-pre overflow-x-auto`}
                               />
                             </td>
                             <td className="px-3 py-2 align-top">
