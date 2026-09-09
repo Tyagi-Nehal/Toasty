@@ -130,7 +130,7 @@ function AgendaNameCell({ value, roster, disabled, onChange }) {
               disabled={disabled}
               value={row.title}
               onChange={(e) => updateRow(i, { title: e.target.value })}
-              className={`${inputClass} w-16 shrink-0`}
+              className={`${inputClass} w-14 shrink-0`}
             >
               {TITLES.map((title) => (
                 <option key={title} value={title}>
@@ -142,7 +142,7 @@ function AgendaNameCell({ value, roster, disabled, onChange }) {
               disabled={disabled}
               value={row.selected}
               onChange={(e) => updateRow(i, { selected: e.target.value })}
-              className={`${inputClass} min-w-0 flex-1`}
+              className={`${inputClass} min-w-[6.5rem] flex-1`}
             >
               <option value="">Unassigned</option>
               {roster.map((m) => (
