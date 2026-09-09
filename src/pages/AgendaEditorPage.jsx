@@ -577,16 +577,18 @@ export default function AgendaEditorPage() {
             <div className="space-y-6">
               {/* Header info block, matching the club's printed agenda */}
               <div className="rounded-3xl border border-accent/30 bg-white p-6">
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    type="text"
-                    disabled={isPast}
-                    value={labelDraft}
-                    onChange={(e) => setLabelDraft(e.target.value)}
-                    onBlur={handleLabelBlur}
-                    className="w-32 rounded-lg border border-accent/30 bg-cream px-2 py-1 text-sm font-semibold text-ink focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-                  />
-                  <h2 className="text-sm font-semibold text-ink">— {agenda.dateLabel}</h2>
+                <div className="flex flex-wrap items-start gap-2">
+                  <div>
+                    <input
+                      type="text"
+                      disabled={isPast}
+                      value={labelDraft}
+                      onChange={(e) => setLabelDraft(e.target.value)}
+                      onBlur={handleLabelBlur}
+                      className="w-32 rounded-lg border border-accent/30 bg-cream px-2 py-1 text-sm font-semibold text-ink focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+                    <h2 className="mt-1 text-sm font-semibold text-ink">{agenda.dateLabel}</h2>
+                  </div>
                   {savingLabel && <span className="text-xs font-medium text-primary">Saving…</span>}
                 </div>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
