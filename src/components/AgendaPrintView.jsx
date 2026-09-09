@@ -26,7 +26,7 @@ function formatOrdinalDate(dateStr) {
   return `${day}${suffix} ${month}, ${date.getFullYear()}`
 }
 
-const cellClass = 'border border-ink/25 px-1.5 py-0.5 align-top'
+const cellClass = 'border border-ink/25 px-2 py-[5px] align-top'
 
 export default function AgendaPrintView({ agenda, meeting }) {
   if (!agenda || !meeting) return null
@@ -42,16 +42,19 @@ export default function AgendaPrintView({ agenda, meeting }) {
       {/* Tighter than the browser's own default print margins allow —
           @page here overrides them so the compact padding above actually
           has an effect instead of being swallowed by ~0.5-1in of
-          browser-default margin on every side. Verified against a full
-          24-row generated agenda (see generateAgenda) that it fits one
-          page at this size. */}
+          browser-default margin on every side. Sizes below (text-xs
+          table, px-2 py-[5px] cells) were tuned against real sent
+          agendas — a typical ~20-row meeting fills one page with little
+          leftover white space; an unusually large 6-speaker/34-row
+          meeting still spills onto a 2nd page, same as it already did
+          before this pass at the old, smaller sizes. */}
       <style>{'@media print { @page { margin: 0.3in; } }'}</style>
       <div className="text-center">
-        <h1 className="text-lg font-extrabold tracking-wide">
+        <h1 className="text-xl font-extrabold tracking-wide">
           MANIPAL ACADEMY OF HIGHER EDUCATION
         </h1>
         <p className="text-xs font-semibold tracking-wide">TOASTMASTERS SESSION</p>
-        <p className="text-xl font-extrabold tracking-wide">AGENDA</p>
+        <p className="text-2xl font-extrabold tracking-wide">AGENDA</p>
         {meetingNumber && <p className="text-xs font-semibold">MEETING – {meetingNumber}</p>}
       </div>
 
@@ -86,7 +89,7 @@ export default function AgendaPrintView({ agenda, meeting }) {
         </p>
       )}
 
-      <table className="mt-2 w-full table-fixed border-collapse text-[11px]">
+      <table className="mt-2 w-full table-fixed border-collapse text-xs">
         <colgroup>
           <col style={{ width: '13%' }} />
           <col style={{ width: '13%' }} />
