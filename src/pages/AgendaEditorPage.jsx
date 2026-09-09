@@ -11,6 +11,7 @@ import {
   getAgendaHistory,
   persistAgenda,
   removeAgendaRow,
+  rescheduleAgendaTimes,
   sendAgendaToMembers,
   shortenName,
   syncAgendaWithRoleBoard,
@@ -116,7 +117,7 @@ function AgendaNameCell({ value, roster, disabled, onChange }) {
               disabled={disabled}
               value={row.selected}
               onChange={(e) => updateRow(i, { selected: e.target.value })}
-              className={`${inputClass} min-w-0 flex-1`}
+              className={`${inputClass} min-w-[9rem] flex-1`}
             >
               <option value="">Unassigned</option>
               {roster.map((m) => (
@@ -245,6 +246,19 @@ export default function AgendaEditorPage() {
   function handleHeaderChange(field, value) {
     setAgenda((prev) => {
       const next = { ...prev, [field]: value }
+      scheduleSave(activeMeetingId, next)
+      return next
+    })
+  }
+
+  // Changing the overall Start Time shifts every row's start/end time by
+  // the same amount, keeping each row's own duration — rescheduleAgendaTimes
+  // only actually shifts once the typed value is a complete, valid time
+  // (otherwise it's a no-op field update), so this is safe to call on
+  // every keystroke rather than needing a separate onBlur.
+  function handleStartTimeChange(value) {
+    setAgenda((prev) => {
+      const next = rescheduleAgendaTimes(prev, value)
       scheduleSave(activeMeetingId, next)
       return next
     })
@@ -539,7 +553,8 @@ export default function AgendaEditorPage() {
                         type="text"
                         disabled={isPast}
                         value={agenda.overallStartTime}
-                        onChange={(e) => handleHeaderChange('overallStartTime', e.target.value)}
+                        onChange={(e) => handleStartTimeChange(e.target.value)}
+                        placeholder="e.g. 05:00 PM"
                         className={headerInputClass}
                       />
                     </div>
@@ -620,7 +635,7 @@ export default function AgendaEditorPage() {
                                 className={`${inputClass} w-32 resize-none whitespace-pre overflow-x-auto`}
                               />
                             </td>
-                            <td className="px-3 py-2 align-top">
+                            <td className="w-56 px-3 py-2 align-top">
                               <AgendaNameCell
                                 value={item.name}
                                 roster={roster}

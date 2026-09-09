@@ -458,7 +458,7 @@ export default function RoleManagementPage() {
                             {entry.takenBy ?? '—'}
                           </td>
                           <td className="px-4 py-2.5">
-                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${badge.className}`}>
+                            <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${badge.className}`}>
                               {badge.text}
                             </span>
                           </td>
@@ -512,7 +512,7 @@ export default function RoleManagementPage() {
                             </span>
                           )}
                         </p>
-                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${badge.className}`}>
+                        <span className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${badge.className}`}>
                           {badge.text}
                         </span>
                       </div>

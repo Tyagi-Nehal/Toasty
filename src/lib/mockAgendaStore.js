@@ -90,6 +90,32 @@ function minutesToTime(totalMinutes) {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${meridiem}`
 }
 
+// Called when the VPE changes the header's overall Start Time — shifts
+// every row's start/end time by the same delta, preserving each row's
+// own duration, instead of leaving every row's schedule stale relative
+// to the new start (the header field used to be purely cosmetic, not
+// connected to the row times at all). Only fires once the typed value
+// is a fully valid "H:MM AM/PM" string — a free-text field means
+// mid-typing states like "5:0" would otherwise trigger a garbage shift.
+export function rescheduleAgendaTimes(agenda, newStartTime) {
+  if (!/^\d{1,2}:\d{2}\s*(AM|PM)$/i.test((newStartTime ?? '').trim())) {
+    return { ...agenda, overallStartTime: newStartTime }
+  }
+  const delta = timeToMinutes(newStartTime) - timeToMinutes(agenda.overallStartTime)
+  if (delta === 0) return { ...agenda, overallStartTime: newStartTime }
+  const shift = (time) => (time ? minutesToTime(timeToMinutes(time) + delta) : time)
+  return {
+    ...agenda,
+    overallStartTime: newStartTime,
+    overallEndTime: shift(agenda.overallEndTime),
+    items: agenda.items.map((item) => ({
+      ...item,
+      startTime: shift(item.startTime),
+      endTime: shift(item.endTime),
+    })),
+  }
+}
+
 // snake_case DB row -> camelCase object the pages work with.
 function fromRow(row) {
   if (!row) return null
@@ -200,7 +226,7 @@ export async function generateAgenda(meetingId, existingAgenda) {
     if (has('tmod')) {
       addRow('Toastmaster of the Day + Speaker Introduction', 'TMOD', tmod, 1, ['tmod'])
     }
-    addRow('Speech Delivery', 'Speaker', named(`speaker-${n}`), 15, [`speaker-${n}`])
+    addRow('Speech Delivery', 'Speaker', named(`speaker-${n}`), 8, [`speaker-${n}`])
   }
 
   addRow('Networking', 'All', 'All', 15)
@@ -222,7 +248,7 @@ export async function generateAgenda(meetingId, existingAgenda) {
       'General Evaluator + TAGL Team Introduction',
       taglRoleIds.map((id) => TAGL_LABELS[id]).join('\n'),
       taglRoleIds.map(named).join('\n'),
-      6,
+      5,
       taglRoleIds,
     )
   }
@@ -235,7 +261,7 @@ export async function generateAgenda(meetingId, existingAgenda) {
 
   if (has('ttm')) {
     if (has('tmod')) addRow('Table Topic Master Introduction by TMOD', 'TMOD', tmod, 1, ['tmod'])
-    addRow('Table Topics Session', 'TTM', named('ttm'), 15, ['ttm'])
+    addRow('Table Topics Session', 'TTM', named('ttm'), 30, ['ttm'])
   }
   if (has('tmod') && has('ge')) {
     addRow('Toastmaster Of The Day + GE Introduction', 'TMOD', tmod, 6, ['tmod'])
