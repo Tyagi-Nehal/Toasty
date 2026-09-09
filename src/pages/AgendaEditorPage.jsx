@@ -130,7 +130,7 @@ function AgendaNameCell({ value, roster, disabled, onChange }) {
               disabled={disabled}
               value={row.title}
               onChange={(e) => updateRow(i, { title: e.target.value })}
-              className={`${inputClass} w-14 shrink-0`}
+              className="w-16 shrink-0 rounded-lg border border-accent/30 bg-cream px-1.5 py-1.5 text-sm text-ink focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
             >
               {TITLES.map((title) => (
                 <option key={title} value={title}>
@@ -142,7 +142,7 @@ function AgendaNameCell({ value, roster, disabled, onChange }) {
               disabled={disabled}
               value={row.selected}
               onChange={(e) => updateRow(i, { selected: e.target.value })}
-              className={`${inputClass} min-w-[6.5rem] flex-1`}
+              className={`${inputClass} min-w-[7rem] flex-1`}
             >
               <option value="">Unassigned</option>
               {roster.map((m) => (
@@ -675,7 +675,7 @@ export default function AgendaEditorPage() {
                                 className={`${inputClass} w-24 resize-none whitespace-pre overflow-x-auto`}
                               />
                             </td>
-                            <td className="w-60 px-3 py-2 align-top">
+                            <td className="w-64 px-3 py-2 align-top">
                               <AgendaNameCell
                                 value={item.name}
                                 roster={roster}
