@@ -42,7 +42,7 @@ function StatusBadge({ role, roleId, isMine }) {
   if (role.status === 'auto') {
     return (
       <span className="rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold text-primary">
-        {role.isOverride ? 'Assigned by VPE to' : 'Auto-assigned to'} {role.takenBy}
+        {role.isOverride ? 'Auto-assigned by VPE to' : 'Auto-assigned to'} {role.takenBy}
       </span>
     )
   }
@@ -190,7 +190,7 @@ export default function RoleSelectionPage() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-primary">
                   {myRoleEntry.status === 'auto'
                     ? myRoleEntry.isOverride
-                      ? 'Assigned by VPE'
+                      ? 'Auto-assigned by VPE'
                       : 'Auto-assigned'
                     : 'Self-selected'}
                 </p>

@@ -205,9 +205,11 @@ export default function MemberDashboard() {
                           <p className="font-semibold text-ink">{myRole.name}</p>
                           {myRoleEntry.status === 'auto' && (
                             <p className="mt-1 text-xs font-medium text-primary">
-                              {isVpeOnlyRole || myRoleEntry.isOverride
+                              {isVpeOnlyRole
                                 ? 'Assigned by the VPE'
-                                : `Auto-assigned${myRoleEntry.acceptedAt ? ' · Confirmed' : ' · Awaiting your response'}`}
+                                : myRoleEntry.isOverride
+                                  ? 'Auto-assigned by VPE'
+                                  : `Auto-assigned${myRoleEntry.acceptedAt ? ' · Confirmed' : ' · Awaiting your response'}`}
                             </p>
                           )}
                         </div>

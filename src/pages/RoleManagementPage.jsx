@@ -53,7 +53,7 @@ const statusLabels = {
 // the VPE's own role board can show which of the two actually happened.
 function getStatusBadge(entry) {
   if (entry.status === 'auto' && entry.isOverride) {
-    return { text: 'Assigned by VPE', className: 'bg-accent/20 text-primary' }
+    return { text: 'Auto-assigned by VPE', className: 'bg-accent/20 text-primary' }
   }
   return statusLabels[entry.status]
 }
