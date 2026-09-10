@@ -214,8 +214,16 @@ async function fetchRawViews() {
     // itself happened. A VPE opening the Agenda Editor the morning of a
     // meeting to make last-minute changes found it already locked
     // read-only. Now it only flips negative the day *after* the meeting.
+    //
+    // Math.floor, not Math.round — right after midnight the raw diff is
+    // a small negative fraction (e.g. -0.05h), and round() collapses
+    // that to -0, which reads as "not past" (`-0 < 0` is false). That
+    // left a meeting still showing as "today's meeting" for up to ~30
+    // minutes into the next day before the rounding tipped over. floor()
+    // always rounds toward -Infinity, so it goes negative the instant
+    // midnight actually passes.
     const hoursUntilMeeting = m.meeting_date
-      ? Math.round((new Date(`${m.meeting_date}T23:59:59`).getTime() - Date.now()) / 3600000)
+      ? Math.floor((new Date(`${m.meeting_date}T23:59:59`).getTime() - Date.now()) / 3600000)
       : null
     const autoAssignCutoff = getAutoAssignCutoff(m.meeting_date)
 
