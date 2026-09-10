@@ -109,6 +109,19 @@ export async function getPoll() {
   return toPollView(data, meeting)
 }
 
+// A row's Name can hold several people at once (newline-joined, one line
+// per entry in roleIds — see the TAGL row in mockAgendaStore.js), each
+// line prefixed with its title ("TM ", "DTM ", "Guest "). Picks out the
+// line matching this specific roleId and drops the title prefix, so the
+// poll shows the same bare name the meeting.roles fallback below does.
+function nameForRoleFromAgendaItem(item, roleId) {
+  if (!item) return null
+  const idx = item.roleIds.indexOf(roleId)
+  const line = (item.name ?? '').split('\n')[idx]
+  if (!line) return null
+  return line.replace(/^(?:TM|DTM|Guest)\s+/, '').trim() || null
+}
+
 // Builds (or rebuilds) the poll's candidate lists from the agenda if it's
 // been generated, otherwise straight from the meeting's confirmed roles.
 // Rebuilding always resets isOpen/releasedAt/closedAt to a fresh draft —
@@ -122,8 +135,8 @@ export async function buildPollFromAgenda() {
     const candidates = cat.roleIds
       .map((roleId) => {
         if (agenda) {
-          const item = agenda.items.find((i) => i.roleId === roleId)
-          return item?.member || null
+          const item = agenda.items.find((i) => i.roleIds?.includes(roleId))
+          return nameForRoleFromAgendaItem(item, roleId)
         }
         return displayName(meeting.roles[roleId]?.takenBy)
       })
