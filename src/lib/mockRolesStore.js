@@ -206,8 +206,16 @@ async function fetchRawViews() {
 
   return (meetings ?? []).map((m) => {
     const meetingAssignments = (assignments ?? []).filter((a) => a.meeting_id === m.id)
+    // Measured against the END of the meeting's calendar day (23:59:59),
+    // not its start — comparing to midnight made hoursUntilMeeting go
+    // negative (and every "isPast"/"is this the next active meeting"
+    // check derived from it, e.g. below and in the Agenda Editor) the
+    // instant the meeting's own day began, hours before the meeting
+    // itself happened. A VPE opening the Agenda Editor the morning of a
+    // meeting to make last-minute changes found it already locked
+    // read-only. Now it only flips negative the day *after* the meeting.
     const hoursUntilMeeting = m.meeting_date
-      ? Math.round((new Date(`${m.meeting_date}T00:00:00`).getTime() - Date.now()) / 3600000)
+      ? Math.round((new Date(`${m.meeting_date}T23:59:59`).getTime() - Date.now()) / 3600000)
       : null
     const autoAssignCutoff = getAutoAssignCutoff(m.meeting_date)
 
