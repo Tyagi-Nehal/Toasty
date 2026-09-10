@@ -47,6 +47,17 @@ const statusLabels = {
   auto: { text: 'Auto-assigned', className: 'bg-accent/20 text-primary' },
 }
 
+// A VPE's deliberate Override also lands on status 'auto' (see
+// overrideRole in mockRolesStore.js), same as a genuine algorithmic
+// auto-assign — isOverride is the only thing that tells them apart, so
+// the VPE's own role board can show which of the two actually happened.
+function getStatusBadge(entry) {
+  if (entry.status === 'auto' && entry.isOverride) {
+    return { text: 'Assigned by VPE', className: 'bg-accent/20 text-primary' }
+  }
+  return statusLabels[entry.status]
+}
+
 // One tab-chip label/color per getRoleFillSummary phase — colors reuse
 // tokens already meaningful elsewhere on this page (e.g. accent/15 +
 // text-primary is the same pair as the role board's "Open" badge).
@@ -438,7 +449,7 @@ export default function RoleManagementPage() {
                   <tbody>
                     {getMeetingRoleEntries(activeMeeting.roles).map((role) => {
                       const entry = activeMeeting.roles[role.id]
-                      const badge = statusLabels[entry.status]
+                      const badge = getStatusBadge(entry)
                       return (
                         <tr
                           key={role.id}
@@ -495,7 +506,7 @@ export default function RoleManagementPage() {
               <div className="mt-4 space-y-2.5 sm:hidden">
                 {getMeetingRoleEntries(activeMeeting.roles).map((role) => {
                   const entry = activeMeeting.roles[role.id]
-                  const badge = statusLabels[entry.status]
+                  const badge = getStatusBadge(entry)
                   return (
                     <div
                       key={role.id}

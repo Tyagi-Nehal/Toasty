@@ -173,6 +173,7 @@ function buildRolesObject(assignments) {
       status: a.status,
       ...(a.taken_by_name ? { takenBy: a.taken_by_name } : {}),
       ...(a.accepted_at ? { acceptedAt: a.accepted_at } : {}),
+      ...(a.is_override ? { isOverride: true } : {}),
     }
   }
   return roles
@@ -418,7 +419,10 @@ export async function acceptAutoAssignedRole(meetingId) {
 // Status is always system-decided, never chosen by the VPE: a name
 // means it's now auto-assigned (whether the system or the VPE put it
 // there), no name means it's reopened. Only a member's own self-select
-// (selectRole, above) ever produces 'taken'.
+// (selectRole, above) ever produces 'taken'. is_override records which
+// case it was — status alone can't tell a genuine algorithmic auto-assign
+// apart from a VPE's deliberate pick, and the member-facing role list
+// wants to show "Assigned by VPE" only for the latter.
 export async function overrideRole(meetingId, roleId, { takenBy, takenByEmail }) {
   const meeting = await getMeeting(meetingId)
   const { error } = await supabase
@@ -428,6 +432,7 @@ export async function overrideRole(meetingId, roleId, { takenBy, takenByEmail })
       taken_by_name: takenBy || null,
       taken_by_email: takenBy ? takenByEmail || null : null,
       accepted_at: null,
+      is_override: !!takenBy,
     })
     .eq('meeting_id', meetingId)
     .eq('role_id', roleId)

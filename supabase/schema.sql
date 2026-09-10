@@ -479,6 +479,14 @@ create policy "assignments vpe or president insert" on meeting_role_assignments
 -- doesn't retroactively make it "self-selected").
 alter table meeting_role_assignments add column if not exists accepted_at timestamptz;
 
+-- Distinguishes a VPE's deliberate Override from a genuine algorithmic
+-- auto-assign or the standing PO/SAA fixed-officer fill — all three set
+-- status = 'auto' (see overrideRole/runAutoAssign/fillFixedOfficerRoles
+-- in mockRolesStore.js), so without this the member-facing role list had
+-- no way to show "Assigned by VPE" instead of "Auto-assigned to X" for a
+-- role the VPE specifically hand-picked someone into.
+alter table meeting_role_assignments add column if not exists is_override boolean not null default false;
+
 -- Presiding Officer ('po') and Sergeant at Arms ('saa') are excluded from
 -- the "status = 'open'" and "unclaimed auto" self-service branches below —
 -- those two roles are always the same real ExCom officers and are only
