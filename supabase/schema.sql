@@ -1221,4 +1221,48 @@ create policy "feedback president update" on feedback
   );
 
 grant select, insert, update on feedback to authenticated;
+
+-- Cross-device, per-recipient notifications for role events — separate
+-- from the VPE's local "Notifications Log" on Role Management (that one
+-- is a localStorage action journal, only ever visible in the browser
+-- that performed the action, so a member declining a role on their own
+-- phone never reached the VPE's laptop at all). Used first for: a
+-- member declining a role the VPE assigned them notifies that VPE, for
+-- real, on whatever device they next open Role Management on.
+create table if not exists role_notifications (
+  id bigint generated always as identity primary key,
+  recipient_email text not null,
+  message text not null,
+  meeting_id bigint references meetings(id) on delete set null,
+  read boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+alter table role_notifications enable row level security;
+
+drop policy if exists "role_notifications recipient select" on role_notifications;
+create policy "role_notifications recipient select" on role_notifications
+  for select to authenticated
+  using (
+    lower(recipient_email) = lower(auth.jwt() ->> 'email')
+    or exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+    )
+  );
+
+-- Insert isn't restricted to "the recipient" (it never is — you're
+-- notifying someone else about your own action), same trust posture as
+-- every other action-triggered insert in this schema.
+drop policy if exists "role_notifications authenticated insert" on role_notifications;
+create policy "role_notifications authenticated insert" on role_notifications
+  for insert to authenticated
+  with check (true);
+
+drop policy if exists "role_notifications recipient update" on role_notifications;
+create policy "role_notifications recipient update" on role_notifications
+  for update to authenticated
+  using (lower(recipient_email) = lower(auth.jwt() ->> 'email'));
+
+grant select, insert, update on role_notifications to authenticated;
 grant usage, select on all sequences in schema public to authenticated;

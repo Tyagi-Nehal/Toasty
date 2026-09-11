@@ -20,7 +20,7 @@ import {
 } from './mockRosterStore.js'
 import { getAttendanceStatsByMember } from './mockAttendanceStore.js'
 import { scoreExternalBooking, scoreVpeFinalize, scoreRoleDecline } from './mockPointsStore.js'
-import { getNameForRole } from './mockExcomRegistry.js'
+import { getNameForRole, getEmailForRole } from './mockExcomRegistry.js'
 import { getApprovedClubs } from './mockClubRegistry.js'
 
 const LOG_KEY = 'toasty_role_notifications'
@@ -82,6 +82,42 @@ export function getNotifications() {
   } catch {
     return []
   }
+}
+
+// Real, cross-device notifications (role_notifications table) — unlike
+// the local activity log above, these actually reach a recipient on a
+// different device than the one that triggered them. Currently used for
+// one thing: telling the VPE a member declined a role they were
+// assigned. Best-effort — a failed insert shouldn't block the real
+// action (the decline) that triggered it, only get logged.
+async function pushRoleNotificationTo(email, message, meetingId) {
+  const normalized = (email ?? '').trim().toLowerCase()
+  if (!normalized) return
+  const { error } = await supabase.from('role_notifications').insert({
+    recipient_email: normalized,
+    message,
+    meeting_id: meetingId ?? null,
+  })
+  if (error) console.error('[mockRolesStore] pushRoleNotificationTo failed:', error.message)
+}
+
+// Most-recent-first, capped — same shape (id, message, time) as the
+// local getNotifications() above so RoleManagementPage can merge both
+// into one displayed list.
+export async function getRealNotificationsFor(email) {
+  const normalized = (email ?? '').trim().toLowerCase()
+  if (!normalized) return []
+  const { data, error } = await supabase
+    .from('role_notifications')
+    .select('*')
+    .eq('recipient_email', normalized)
+    .order('created_at', { ascending: false })
+    .limit(MAX_LOG_ENTRIES)
+  if (error) {
+    console.error('[mockRolesStore] getRealNotificationsFor failed:', error.message)
+    return []
+  }
+  return (data ?? []).map((n) => ({ id: `real-${n.id}`, message: n.message, time: n.created_at }))
 }
 
 function roleName(roleId) {
@@ -388,6 +424,17 @@ export async function declineMyRole(meetingId) {
   }
   await scoreRoleDecline(meeting, account)
   logAction(`You declined ${roleName(myRoleId)} for ${meeting.dateLabel}`)
+
+  // Tell the VPE for real — the local log entry above only ever lands in
+  // the declining member's own browser, never the VPE's.
+  const vpeEmail = await getEmailForRole('VPE')
+  if (vpeEmail) {
+    await pushRoleNotificationTo(
+      vpeEmail,
+      `${account?.name ?? 'A member'} declined their ${roleName(myRoleId)} role for ${meeting.dateLabel}.`,
+      meetingId,
+    )
+  }
 }
 
 // Acknowledges an auto-assigned role — status stays 'auto' (accepting

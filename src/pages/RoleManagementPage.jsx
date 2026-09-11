@@ -30,6 +30,7 @@ import {
   getMeetingRoleEntries,
   getMeetings,
   getNotifications,
+  getRealNotificationsFor,
   getRoleFillSummary,
   overrideRole,
   removeMeetingRole,
@@ -38,6 +39,7 @@ import {
   unfinalizeMeeting,
 } from '../lib/mockRolesStore.js'
 import { getMembers, scoringWeights } from '../lib/mockRosterStore.js'
+import { getAccount } from '../lib/mockAuth.js'
 
 const OTHER_ROLE_VALUE = '__other__'
 
@@ -113,7 +115,16 @@ export default function RoleManagementPage() {
         (prev) => prev ?? upcoming?.id ?? fetched[fetched.length - 1]?.id ?? null,
       )
     })
-    setNotifications(getNotifications())
+    // Local action-log entries (this browser only) merged with real,
+    // cross-device notifications targeted at this VPE (e.g. a member
+    // declining a role on their own phone) — sorted together so the log
+    // reads as one timeline regardless of which device an event happened on.
+    const local = getNotifications()
+    getRealNotificationsFor(getAccount()?.email).then((real) => {
+      setNotifications(
+        [...local, ...real].sort((a, b) => new Date(b.time) - new Date(a.time)),
+      )
+    })
   }
 
   useEffect(() => {
