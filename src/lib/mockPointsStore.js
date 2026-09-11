@@ -74,16 +74,16 @@ function timeOnDate(dateStr, timeStr) {
 }
 
 // Meeting's scheduled start, as a real Date — treated as the reference
-// point for every "within 24h of the meeting" check in this file (there's
+// point for every "within 48h of the meeting" check in this file (there's
 // no separate "meeting closure/end" field to be more precise than that).
 function getMeetingDateTime(meeting) {
   return timeOnDate(meeting?.date, meeting?.time)
 }
 
-function isWithin24HoursAfter(actionTime, referenceDateTime) {
+function isWithin48HoursAfter(actionTime, referenceDateTime) {
   if (!referenceDateTime) return false
   const diffMs = new Date(actionTime).getTime() - referenceDateTime.getTime()
-  return diffMs >= 0 && diffMs <= 24 * 60 * 60 * 1000
+  return diffMs >= 0 && diffMs <= 48 * 60 * 60 * 1000
 }
 
 // The Tuesday of the same week as the meeting (or the meeting's own date,
@@ -311,7 +311,7 @@ export async function scoreExternalBooking(takenByName, takenByEmail) {
   })
 }
 
-// Secretary: MOM submitted within 24h. SAA: meeting started on time, per
+// Secretary: MOM submitted within 48h. SAA: meeting started on time, per
 // the MOM's own reported startTime. Called from saveSubmittedMOM().
 // SAA's award isn't gated by who's acting — it's not "SAA's job done by
 // someone else," it's an objective fact about the meeting (it started
@@ -322,14 +322,14 @@ export async function scoreMomSubmission(meeting, mom, submittedAt) {
   const scheduled = getMeetingDateTime(meeting)
 
   const secretaryEmail = await getActingEmailForRole('Secretary')
-  if (secretaryEmail && isWithin24HoursAfter(submittedAt, scheduled)) {
+  if (secretaryEmail && isWithin48HoursAfter(submittedAt, scheduled)) {
     await awardPointsOncePerMeeting({
       role: 'Secretary',
       email: secretaryEmail,
       meetingId: meeting.id,
       category: 'mom_on_time',
       points: 10,
-      note: `MOM submitted within 24h for ${meeting.dateLabel ?? meeting.date}`,
+      note: `MOM submitted within 48h for ${meeting.dateLabel ?? meeting.date}`,
     })
   }
 
@@ -351,24 +351,24 @@ export async function scoreMomSubmission(meeting, mom, submittedAt) {
   }
 }
 
-// Secretary: attendance marked within 24h. Called from submitAttendance().
+// Secretary: attendance marked within 48h. Called from submitAttendance().
 export async function scoreAttendanceSubmission(meeting, submittedAt) {
   if (!meeting) return
   const secretaryEmail = await getActingEmailForRole('Secretary')
   if (!secretaryEmail) return
   const scheduled = getMeetingDateTime(meeting)
-  if (!isWithin24HoursAfter(submittedAt, scheduled)) return
+  if (!isWithin48HoursAfter(submittedAt, scheduled)) return
   await awardPointsOncePerMeeting({
     role: 'Secretary',
     email: secretaryEmail,
     meetingId: meeting.id,
     category: 'attendance_on_time',
     points: 10,
-    note: `Attendance marked within 24h for ${meeting.dateLabel ?? meeting.date}`,
+    note: `Attendance marked within 48h for ${meeting.dateLabel ?? meeting.date}`,
   })
 }
 
-// VPPR: photos submitted within 24h — up to 20/meeting, capped at
+// VPPR: photos submitted within 48h — up to 20/meeting, capped at
 // 80 total for the month (a hybrid of the two cap styles above: once
 // per meeting, but also bounded by a running monthly points total).
 // Sized so routine on-time uploads alone reach the same 80 ceiling every
@@ -379,7 +379,7 @@ export async function scorePhotosSubmission(meeting, submittedAt) {
   const vpprEmail = await getActingEmailForRole('VPPR')
   if (!vpprEmail) return
   const scheduled = getMeetingDateTime(meeting)
-  if (!isWithin24HoursAfter(submittedAt, scheduled)) return
+  if (!isWithin48HoursAfter(submittedAt, scheduled)) return
 
   const normalized = normalizeEmail(vpprEmail)
   const { data: existing } = await supabase
@@ -411,7 +411,7 @@ export async function scorePhotosSubmission(meeting, submittedAt) {
     meetingId: meeting.id,
     category: 'photos_on_time',
     points: Math.min(20, remaining),
-    note: `Photos submitted within 24h for ${meeting.dateLabel ?? meeting.date}`,
+    note: `Photos submitted within 48h for ${meeting.dateLabel ?? meeting.date}`,
   })
 }
 
