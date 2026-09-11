@@ -665,6 +665,54 @@ export function canFinalizeMeeting(meetings, meetingId) {
   return findNextActiveMeeting(meetings)?.id === meetingId
 }
 
+// A member's real role history — MemberProfilePage's "Role History".
+// Deliberately reads meeting_role_assignments (the live board), not the
+// role_history table: role_history's own "meeting_date" is actually the
+// date the assignment was *recorded* (see recordRoleAssignment above),
+// not the meeting's real date, and it accumulates one row per
+// auto-assign pass rather than one per real outcome — so it's the right
+// source for scoreMemberForRole's fairness math, but the wrong source
+// for a member-facing history list. Past meetings only ("history"), most
+// recent first.
+//
+// Falls back to matching by name when taken_by_email is null — plenty of
+// older rows (self-selected before email-tracking was consistent, or
+// filled by the pre-resolveFixedRoleAssignee version of PO/SAA auto-fill)
+// only ever recorded a name. The name match is a prefix check, not exact
+// equality — a member's "name of record" isn't guaranteed stable over
+// time (e.g. a roster entry corrected from "Sarvajit" to "Sarvajit
+// Srivatsa" mid-way through this club's real history means older rows
+// captured the short form). Same known limitation as deriveMyRoleId
+// above: a same-named duplicate could false-match, acceptable for a
+// small pilot club, not bulletproof.
+export async function getRoleHistoryForEmail(email, name) {
+  const normalizedEmail = (email ?? '').trim().toLowerCase()
+  const normalizedName = (name ?? '').trim().toLowerCase()
+  if (!normalizedEmail && !normalizedName) return []
+  const { data, error } = await supabase
+    .from('meeting_role_assignments')
+    .select('role_id, taken_by_name, taken_by_email, meetings(meeting_date, label)')
+    .neq('status', 'open')
+  if (error) {
+    console.error('[mockRolesStore] getRoleHistoryForEmail failed:', error.message)
+    return []
+  }
+  const today = new Date().toISOString().slice(0, 10)
+  return (data ?? [])
+    .filter((r) => {
+      const emailMatch = r.taken_by_email && r.taken_by_email.toLowerCase() === normalizedEmail
+      const recordedName = (r.taken_by_name ?? '').trim().toLowerCase()
+      const nameMatch = !r.taken_by_email && recordedName && normalizedName.startsWith(recordedName)
+      return (emailMatch || nameMatch) && r.meetings?.meeting_date && r.meetings.meeting_date <= today
+    })
+    .map((r) => ({
+      roleId: r.role_id,
+      meetingDate: r.meetings.meeting_date,
+      meetingLabel: r.meetings.label,
+    }))
+    .sort((a, b) => (a.meetingDate < b.meetingDate ? 1 : -1))
+}
+
 // Derived fill/phase summary for a meeting — used by the Role Management
 // page's status card, each meeting tab's chip, and the finalize-confirm
 // gate. Pure — everything it needs is already on the meeting object

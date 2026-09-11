@@ -517,6 +517,33 @@ export async function getMemberMonthlyPoints(email) {
   return (data ?? []).reduce((sum, row) => sum + row.points, 0)
 }
 
+// All-time total + this-month total + a by-category breakdown, in one
+// query — MemberProfilePage's "Points Breakdown" card. Categories can be
+// negative (role_decline is a penalty), so this is a plain point total
+// per category, not a share-of-total percentage.
+export async function getMemberPointsSummary(email) {
+  const normalized = normalizeEmail(email)
+  if (!normalized) return { total: 0, thisMonth: 0, byCategory: [] }
+  const { start, end } = getCurrentMonthRange()
+  const { data, error } = await supabase
+    .from('member_points')
+    .select('points, category, awarded_at')
+    .eq('member_email', normalized)
+  if (error) {
+    console.error('[mockPointsStore] getMemberPointsSummary failed:', error.message)
+    return { total: 0, thisMonth: 0, byCategory: [] }
+  }
+  const rows = data ?? []
+  const total = rows.reduce((sum, r) => sum + r.points, 0)
+  const thisMonth = rows
+    .filter((r) => r.awarded_at >= start && r.awarded_at < end)
+    .reduce((sum, r) => sum + r.points, 0)
+  const byCategoryMap = {}
+  for (const r of rows) byCategoryMap[r.category] = (byCategoryMap[r.category] ?? 0) + r.points
+  const byCategory = Object.entries(byCategoryMap).map(([category, points]) => ({ category, points }))
+  return { total, thisMonth, byCategory }
+}
+
 export async function scoreRoleDecline(meeting, account) {
   const normalized = normalizeEmail(account?.email)
   if (!normalized || !meeting) return

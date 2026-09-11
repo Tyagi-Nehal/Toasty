@@ -12,24 +12,49 @@ import MemberLayout from '../components/MemberLayout.jsx'
 import Avatar from '../components/Avatar.jsx'
 import { getAccount } from '../lib/mockAuth.js'
 import { getRosterStatusForEmail } from '../lib/mockRosterStore.js'
-import { roleHistory, pointsBreakdown } from '../data/mockProfileData.js'
+import { getRoleHistoryForEmail } from '../lib/mockRolesStore.js'
+import { getMemberPointsSummary } from '../lib/mockPointsStore.js'
+import { roleCatalog } from '../data/roleCatalog.js'
 import { mentors } from '../data/mentors.js'
 
+// Real member_points categories only (Phase 1: role_decline penalty,
+// referral bonuses) — "Role completion"/"Attendance"/"Recognition" from
+// the old mock data aren't things a member actually earns points for
+// yet, so this page no longer implies they are.
 const categoryLabels = {
-  roleCompletion: 'Role completion',
-  attendance: 'Attendance',
-  recognition: 'Recognition',
+  role_decline: 'Role declines',
+  guest_attended: 'Guest attended a meeting',
+  guest_converted: 'Guest converted to member',
 }
 
 const paymentStatusLabel = { paid: 'Paid', pending: 'Pending', overdue: 'Overdue' }
 
+function formatMeetingDate(dateStr) {
+  if (!dateStr) return ''
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function roleDisplayName(roleId) {
+  return roleCatalog.find((r) => r.id === roleId)?.name ?? roleId
+}
+
 export default function MemberProfilePage() {
   const account = getAccount()
   const [renewal, setRenewal] = useState(null)
+  const [roleHistory, setRoleHistory] = useState([])
+  const [points, setPoints] = useState({ total: 0, thisMonth: 0, byCategory: [] })
   const myMentor = mentors[0] ?? null
 
   useEffect(() => {
-    if (account?.email) getRosterStatusForEmail(account.email).then(setRenewal)
+    if (account?.email) {
+      getRosterStatusForEmail(account.email).then(setRenewal)
+      getRoleHistoryForEmail(account.email, account.name).then(setRoleHistory)
+      getMemberPointsSummary(account.email).then(setPoints)
+    }
   }, [])
 
   return (
@@ -57,93 +82,95 @@ export default function MemberProfilePage() {
           </div>
           <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
             <div className="rounded-2xl bg-cream p-4 text-center">
-              <p className="text-2xl font-extrabold text-ink">{pointsBreakdown.total}</p>
+              <p className="text-2xl font-extrabold text-ink">{points.total}</p>
               <p className="text-xs text-ink/50">Total points</p>
             </div>
             <div className="rounded-2xl bg-cream p-4 text-center">
-              <p className="text-2xl font-extrabold text-ink">
-                {pointsBreakdown.thisMonth}
-              </p>
+              <p className="text-2xl font-extrabold text-ink">{points.thisMonth}</p>
               <p className="text-xs text-ink/50">This month</p>
             </div>
             <div className="col-span-2 rounded-2xl bg-cream p-4 text-center sm:col-span-1">
-              <p className="text-2xl font-extrabold text-ink">
-                {roleHistory.length}
-              </p>
-              <p className="text-xs text-ink/50">Roles completed</p>
+              <p className="text-2xl font-extrabold text-ink">{roleHistory.length}</p>
+              <p className="text-xs text-ink/50">Roles held</p>
             </div>
           </div>
 
-          <div className="mt-5 space-y-3">
-            {Object.entries(pointsBreakdown.byCategory).map(([key, value]) => {
-              const pct = Math.round((value / pointsBreakdown.total) * 100)
-              return (
-                <div key={key}>
-                  <div className="flex items-center justify-between text-xs text-ink/60">
-                    <span>{categoryLabels[key] ?? key}</span>
-                    <span className="font-medium text-ink">{value} pts</span>
-                  </div>
-                  <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-cream">
-                    <div
-                      className="h-full rounded-full bg-primary"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
+          {points.byCategory.length > 0 ? (
+            <div className="mt-5 space-y-2.5">
+              {points.byCategory.map(({ category, points: value }) => (
+                <div
+                  key={category}
+                  className="flex items-center justify-between rounded-xl bg-cream/60 px-4 py-2.5 text-sm"
+                >
+                  <span className="text-ink/70">{categoryLabels[category] ?? category}</span>
+                  <span className={`font-semibold ${value < 0 ? 'text-red-600' : 'text-primary'}`}>
+                    {value > 0 ? '+' : ''}
+                    {value} pts
+                  </span>
                 </div>
-              )
-            })}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-5 text-sm text-ink/50">No points recorded yet.</p>
+          )}
         </div>
 
-        {/* Role history */}
+        {/* Role history — real assignments from the live role board, not
+            per-role points (regular members don't currently earn points
+            for holding a role — see getMemberPointsSummary above). */}
         <div className="mt-6 rounded-3xl border border-accent/30 bg-white p-6">
           <div className="flex items-center gap-2 text-sm font-semibold text-ink">
             <CalendarDays size={16} className="text-primary" />
             Role History
           </div>
 
-          {/* Desktop table */}
-          <div className="mt-4 hidden overflow-hidden rounded-2xl border border-accent/20 sm:block">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-accent/20 bg-cream/60 text-xs uppercase tracking-wide text-ink/50">
-                  <th className="px-4 py-2.5 font-semibold">Meeting</th>
-                  <th className="px-4 py-2.5 font-semibold">Role</th>
-                  <th className="px-4 py-2.5 font-semibold">Points</th>
-                </tr>
-              </thead>
-              <tbody>
-                {roleHistory.map((item) => (
-                  <tr
-                    key={`${item.meetingDate}-${item.role}`}
-                    className="border-b border-accent/10 last:border-0"
-                  >
-                    <td className="px-4 py-2.5 text-ink/60">{item.meetingDate}</td>
-                    <td className="px-4 py-2.5 font-medium text-ink">{item.role}</td>
-                    <td className="px-4 py-2.5 text-primary">+{item.points}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile cards */}
-          <div className="mt-4 space-y-2.5 sm:hidden">
-            {roleHistory.map((item) => (
-              <div
-                key={`${item.meetingDate}-${item.role}`}
-                className="rounded-2xl border border-accent/20 p-3.5"
-              >
-                <p className="text-xs text-ink/50">{item.meetingDate}</p>
-                <div className="mt-1 flex items-center justify-between">
-                  <p className="font-medium text-ink">{item.role}</p>
-                  <span className="text-sm font-semibold text-primary">
-                    +{item.points}
-                  </span>
-                </div>
+          {roleHistory.length > 0 ? (
+            <>
+              {/* Desktop table */}
+              <div className="mt-4 hidden overflow-hidden rounded-2xl border border-accent/20 sm:block">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-accent/20 bg-cream/60 text-xs uppercase tracking-wide text-ink/50">
+                      <th className="px-4 py-2.5 font-semibold">Meeting</th>
+                      <th className="px-4 py-2.5 font-semibold">Role</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {roleHistory.map((item) => (
+                      <tr
+                        key={`${item.meetingDate}-${item.roleId}`}
+                        className="border-b border-accent/10 last:border-0"
+                      >
+                        <td className="px-4 py-2.5 text-ink/60">
+                          {item.meetingLabel} — {formatMeetingDate(item.meetingDate)}
+                        </td>
+                        <td className="px-4 py-2.5 font-medium text-ink">
+                          {roleDisplayName(item.roleId)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ))}
-          </div>
+
+              {/* Mobile cards */}
+              <div className="mt-4 space-y-2.5 sm:hidden">
+                {roleHistory.map((item) => (
+                  <div
+                    key={`${item.meetingDate}-${item.roleId}`}
+                    className="rounded-2xl border border-accent/20 p-3.5"
+                  >
+                    <p className="text-xs text-ink/50">
+                      {item.meetingLabel} — {formatMeetingDate(item.meetingDate)}
+                    </p>
+                    <p className="mt-1 font-medium text-ink">{roleDisplayName(item.roleId)}</p>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="mt-4 text-sm text-ink/50">No roles held yet.</p>
+          )}
         </div>
 
         {/* Renewal status — read-only, the Treasurer is the only one who
