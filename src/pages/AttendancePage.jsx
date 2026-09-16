@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react'
-import { ClipboardCheck, CalendarClock, CheckSquare, Square, Send, CheckCircle2 } from 'lucide-react'
+import {
+  ClipboardCheck,
+  CalendarClock,
+  CheckSquare,
+  Square,
+  Send,
+  CheckCircle2,
+  Printer,
+} from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
+import AttendancePrintView from '../components/AttendancePrintView.jsx'
 import {
   getRecentMeetingsForAttendance,
   getAttendanceForMeeting,
@@ -89,12 +98,36 @@ export default function AttendancePage() {
     )
   }
 
+  const attendanceEntries = [...attendance.entries()].map(([email, v]) => ({
+    email,
+    name: v.name,
+    present: v.present,
+  }))
+
   return (
     <MemberLayout>
-      <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-10">
-        <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-          <ClipboardCheck size={16} />
-          Attendance
+      <div className="hidden print:block">
+        <AttendancePrintView
+          entries={alreadySubmitted ? attendanceEntries : null}
+          meeting={activeMeeting}
+        />
+      </div>
+      <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-10 print:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+            <ClipboardCheck size={16} />
+            Attendance
+          </div>
+          {alreadySubmitted && (
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="flex items-center gap-2 rounded-xl border border-accent/40 px-4 py-2 text-sm font-semibold text-ink/70 transition hover:border-primary hover:text-primary"
+            >
+              <Printer size={16} />
+              Print to PDF
+            </button>
+          )}
         </div>
         <h1 className="mt-1 text-2xl font-extrabold text-ink sm:text-3xl">
           Take Attendance

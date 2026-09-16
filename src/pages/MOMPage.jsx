@@ -11,9 +11,11 @@ import {
   CheckCircle2,
   Plus,
   Trash2,
+  Printer,
 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import CancelledMeetingNotice from '../components/CancelledMeetingNotice.jsx'
+import MOMPrintView from '../components/MOMPrintView.jsx'
 import { blankMOM } from '../data/mockMOM.js'
 import { getSubmittedMOM, saveSubmittedMOM } from '../lib/mockMOMStore.js'
 import { findNextActiveMeeting, getMeetings } from '../lib/mockRolesStore.js'
@@ -180,7 +182,10 @@ export default function MOMPage() {
 
   return (
     <MemberLayout>
-      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
+      <div className="hidden print:block">
+        <MOMPrintView mom={submitted ? mom : null} meeting={activeMeeting} />
+      </div>
+      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10 print:hidden">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-primary">
@@ -191,13 +196,25 @@ export default function MOMPage() {
               {activeMeeting.dateLabel}
             </h1>
           </div>
-          <span
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-              submitted ? 'bg-primary/10 text-primary' : 'bg-accent/20 text-ink/60'
-            }`}
-          >
-            {submitted ? 'Submitted' : 'Pending'}
-          </span>
+          <div className="flex items-center gap-2">
+            {submitted && (
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex items-center gap-2 rounded-xl border border-accent/40 px-4 py-2.5 text-sm font-semibold text-ink/70 transition hover:border-primary hover:text-primary"
+              >
+                <Printer size={16} />
+                Print to PDF
+              </button>
+            )}
+            <span
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                submitted ? 'bg-primary/10 text-primary' : 'bg-accent/20 text-ink/60'
+              }`}
+            >
+              {submitted ? 'Submitted' : 'Pending'}
+            </span>
+          </div>
         </div>
 
         {/* Meeting tabs */}
