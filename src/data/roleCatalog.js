@@ -34,16 +34,22 @@ export const roleCatalog = [
     name: 'Table Topics Master',
     description: 'Runs the impromptu speaking segment.',
   },
-  ...Array.from({ length: MAX_SPEAKER_SLOTS }, (_, i) => ({
-    id: `speaker-${i + 1}`,
-    name: `Prepared Speaker ${i + 1}`,
-    description: 'Delivers a prepared speech project.',
-  })),
-  ...Array.from({ length: MAX_SPEAKER_SLOTS }, (_, i) => ({
-    id: `evaluator-${i + 1}`,
-    name: `Individual Evaluator ${i + 1}`,
-    description: `Evaluates Prepared Speaker ${i + 1}'s speech.`,
-  })),
+  // Interleaved (Speaker 1, Evaluator 1, Speaker 2, Evaluator 2, ...)
+  // rather than every speaker followed by every evaluator — a speaker/
+  // evaluator pair belongs together in the role list, matching how
+  // they're actually paired up on the agenda.
+  ...Array.from({ length: MAX_SPEAKER_SLOTS }, (_, i) => [
+    {
+      id: `speaker-${i + 1}`,
+      name: `Prepared Speaker ${i + 1}`,
+      description: 'Delivers a prepared speech project.',
+    },
+    {
+      id: `evaluator-${i + 1}`,
+      name: `Individual Evaluator ${i + 1}`,
+      description: `Evaluates Prepared Speaker ${i + 1}'s speech.`,
+    },
+  ]).flat(),
   {
     id: 'timer',
     name: 'Timer',
@@ -78,10 +84,10 @@ export const DEFAULT_ROLE_IDS = [
   'ge',
   'ttm',
   'speaker-1',
-  'speaker-2',
-  'speaker-3',
   'evaluator-1',
+  'speaker-2',
   'evaluator-2',
+  'speaker-3',
   'evaluator-3',
   'timer',
   'ah-counter',
