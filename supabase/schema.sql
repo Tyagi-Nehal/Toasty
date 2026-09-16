@@ -1266,3 +1266,859 @@ create policy "role_notifications recipient update" on role_notifications
 
 grant select, insert, update on role_notifications to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
+
+-- =====================================================================
+-- Multi-club support, Phase 1 — every table gets a club_id, scoped to
+-- whichever club the signed-in account belongs to (current_club_id()).
+-- Toasty was single-tenant until now: every RLS policy above checked
+-- "is this person a President/VPE/etc of *any* approved club," never
+-- *which* club, so a second club's data would have shown up mixed in
+-- with the first everywhere. This phase is DB-only and additive/
+-- backfill-safe (nullable add -> backfill existing rows to the one real
+-- club -> set not null, same pattern already used elsewhere in this
+-- file) — it doesn't change app behavior for the one real club that
+-- exists today. Phase 2 (application code) and Phase 3 (onboarding a
+-- second club) are tracked separately, not part of this file yet.
+-- =====================================================================
+
+alter table excom_appointments add column if not exists club_id text references clubs(id);
+update excom_appointments set club_id = 'mahe-bengaluru-toastmasters-club' where club_id is null;
+alter table excom_appointments alter column club_id set not null;
+create index if not exists excom_appointments_club_id_idx on excom_appointments(club_id);
+
+alter table member_signups add column if not exists club_id text references clubs(id);
+update member_signups set club_id = 'mahe-bengaluru-toastmasters-club' where club_id is null;
+alter table member_signups alter column club_id set not null;
+create index if not exists member_signups_club_id_idx on member_signups(club_id);
+
+alter table excom_applications add column if not exists club_id text references clubs(id);
+update excom_applications set club_id = 'mahe-bengaluru-toastmasters-club' where club_id is null;
+alter table excom_applications alter column club_id set not null;
+create index if not exists excom_applications_club_id_idx on excom_applications(club_id);
+
+alter table members add column if not exists club_id text references clubs(id);
+update members set club_id = 'mahe-bengaluru-toastmasters-club' where club_id is null;
+alter table members alter column club_id set not null;
+create index if not exists members_club_id_idx on members(club_id);
+
+alter table role_history add column if not exists club_id text references clubs(id);
+update role_history set club_id = 'mahe-bengaluru-toastmasters-club' where club_id is null;
+alter table role_history alter column club_id set not null;
+create index if not exists role_history_club_id_idx on role_history(club_id);
+
+alter table meetings add column if not exists club_id text references clubs(id);
+update meetings set club_id = 'mahe-bengaluru-toastmasters-club' where club_id is null;
+alter table meetings alter column club_id set not null;
+create index if not exists meetings_club_id_idx on meetings(club_id);
+
+alter table club_page_photos add column if not exists club_id text references clubs(id);
+update club_page_photos set club_id = 'mahe-bengaluru-toastmasters-club' where club_id is null;
+alter table club_page_photos alter column club_id set not null;
+create index if not exists club_page_photos_club_id_idx on club_page_photos(club_id);
+
+alter table excom_profiles add column if not exists club_id text references clubs(id);
+update excom_profiles set club_id = 'mahe-bengaluru-toastmasters-club' where club_id is null;
+alter table excom_profiles alter column club_id set not null;
+create index if not exists excom_profiles_club_id_idx on excom_profiles(club_id);
+
+alter table club_content_blocks add column if not exists club_id text references clubs(id);
+update club_content_blocks set club_id = 'mahe-bengaluru-toastmasters-club' where club_id is null;
+alter table club_content_blocks alter column club_id set not null;
+create index if not exists club_content_blocks_club_id_idx on club_content_blocks(club_id);
+
+alter table member_renewals add column if not exists club_id text references clubs(id);
+update member_renewals set club_id = 'mahe-bengaluru-toastmasters-club' where club_id is null;
+alter table member_renewals alter column club_id set not null;
+create index if not exists member_renewals_club_id_idx on member_renewals(club_id);
+
+alter table feedback add column if not exists club_id text references clubs(id);
+update feedback set club_id = 'mahe-bengaluru-toastmasters-club' where club_id is null;
+alter table feedback alter column club_id set not null;
+create index if not exists feedback_club_id_idx on feedback(club_id);
+
+alter table role_notifications add column if not exists club_id text references clubs(id);
+update role_notifications set club_id = 'mahe-bengaluru-toastmasters-club' where club_id is null;
+alter table role_notifications alter column club_id set not null;
+create index if not exists role_notifications_club_id_idx on role_notifications(club_id);
+
+alter table excom_points add column if not exists club_id text references clubs(id);
+update excom_points set club_id = 'mahe-bengaluru-toastmasters-club' where club_id is null;
+alter table excom_points alter column club_id set not null;
+create index if not exists excom_points_club_id_idx on excom_points(club_id);
+
+alter table member_points add column if not exists club_id text references clubs(id);
+update member_points set club_id = 'mahe-bengaluru-toastmasters-club' where club_id is null;
+alter table member_points alter column club_id set not null;
+create index if not exists member_points_club_id_idx on member_points(club_id);
+
+-- Meeting-keyed tables — backfilled via join to meetings.club_id (must
+-- run after meetings' own club_id above is populated).
+alter table meeting_role_assignments add column if not exists club_id text references clubs(id);
+update meeting_role_assignments mra set club_id = m.club_id
+  from meetings m where mra.meeting_id = m.id and mra.club_id is null;
+alter table meeting_role_assignments alter column club_id set not null;
+create index if not exists meeting_role_assignments_club_id_idx on meeting_role_assignments(club_id);
+
+alter table agendas add column if not exists club_id text references clubs(id);
+update agendas a set club_id = m.club_id
+  from meetings m where a.meeting_id = m.id and a.club_id is null;
+alter table agendas alter column club_id set not null;
+create index if not exists agendas_club_id_idx on agendas(club_id);
+
+alter table meeting_photos add column if not exists club_id text references clubs(id);
+update meeting_photos mp set club_id = m.club_id
+  from meetings m where mp.meeting_id = m.id and mp.club_id is null;
+alter table meeting_photos alter column club_id set not null;
+create index if not exists meeting_photos_club_id_idx on meeting_photos(club_id);
+
+alter table attendance add column if not exists club_id text references clubs(id);
+update attendance a set club_id = m.club_id
+  from meetings m where a.meeting_id = m.id and a.club_id is null;
+alter table attendance alter column club_id set not null;
+create index if not exists attendance_club_id_idx on attendance(club_id);
+
+alter table moms add column if not exists club_id text references clubs(id);
+update moms mo set club_id = m.club_id
+  from meetings m where mo.meeting_id = m.id and mo.club_id is null;
+alter table moms alter column club_id set not null;
+create index if not exists moms_club_id_idx on moms(club_id);
+
+alter table polls add column if not exists club_id text references clubs(id);
+update polls p set club_id = m.club_id
+  from meetings m where p.meeting_id = m.id and p.club_id is null;
+alter table polls alter column club_id set not null;
+create index if not exists polls_club_id_idx on polls(club_id);
+
+-- Poll-keyed table — backfilled via join to polls.club_id.
+alter table poll_votes add column if not exists club_id text references clubs(id);
+update poll_votes pv set club_id = p.club_id
+  from polls p where pv.poll_id = p.id and pv.club_id is null;
+alter table poll_votes alter column club_id set not null;
+create index if not exists poll_votes_club_id_idx on poll_votes(club_id);
+
+-- A club's president_email must be unique among approved clubs — without
+-- this, current_club_id() below would be ambiguous the moment a second
+-- approved club shares (or could share) a president's email.
+create unique index if not exists clubs_president_email_unique
+  on clubs (lower(president_email)) where status = 'approved';
+
+-- Resolves the signed-in caller's own club from their JWT email, in
+-- priority order: approved president, then ExCom appointment, then
+-- member signup. security definer is required, not optional — without
+-- it, this function's own internal lookups against excom_appointments/
+-- member_signups would themselves be subject to the very club-scoped
+-- RLS it's trying to resolve, producing a circular/empty result.
+create or replace function current_club_id()
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (select id from clubs
+       where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved' limit 1),
+    (select club_id from excom_appointments
+       where lower(email) = lower(auth.jwt() ->> 'email') order by appointed_at desc limit 1),
+    (select club_id from member_signups
+       where lower(email) = lower(auth.jwt() ->> 'email') limit 1)
+  );
+$$;
+
+grant execute on function current_club_id() to authenticated;
+
+-- Rewrite every RLS policy above to also scope by club_id. Each policy
+-- name matches its original definition earlier in this file exactly
+-- (drop + recreate) — this is a clean, idempotent re-application of the
+-- same access rules, just with a club_id check layered in. Public
+-- marketing-content policies (club_page_photos/excom_profiles/
+-- club_content_blocks select, and clubs/president_verifications
+-- entirely) are untouched — an anonymous visitor browsing /club/:clubId
+-- has no current_club_id() to check against; picking the right club
+-- there is the client's job (a Phase 2 concern), not RLS's.
+
+drop policy if exists "excom authenticated select" on excom_appointments;
+create policy "excom authenticated select" on excom_appointments
+  for select to authenticated using (club_id = current_club_id());
+
+drop policy if exists "excom president insert" on excom_appointments;
+create policy "excom president insert" on excom_appointments
+  for insert to authenticated
+  with check (
+    lower(auth.jwt() ->> 'email') = lower(appointed_by_email)
+    and club_id = current_club_id()
+  );
+
+drop policy if exists "excom president delete" on excom_appointments;
+create policy "excom president delete" on excom_appointments
+  for delete to authenticated
+  using (
+    lower(auth.jwt() ->> 'email') = lower(appointed_by_email)
+    and club_id = current_club_id()
+  );
+
+drop policy if exists "signups authenticated select" on member_signups;
+create policy "signups authenticated select" on member_signups
+  for select to authenticated using (club_id = current_club_id());
+
+drop policy if exists "signups self insert" on member_signups;
+create policy "signups self insert" on member_signups
+  for insert to authenticated
+  with check (
+    lower(auth.jwt() ->> 'email') = lower(email)
+    and status = 'pending'
+    and club_id = current_club_id()
+  );
+
+drop policy if exists "signups vpm or president preregister insert" on member_signups;
+create policy "signups vpm or president preregister insert" on member_signups
+  for insert to authenticated
+  with check (
+    status = 'approved'
+    and club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('VPM', 'Ass. VPM')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "signups vpm or president update" on member_signups;
+create policy "signups vpm or president update" on member_signups
+  for update to authenticated
+  using (
+    club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('VPM', 'Ass. VPM')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "excom_applications authenticated select" on excom_applications;
+create policy "excom_applications authenticated select" on excom_applications
+  for select to authenticated using (club_id = current_club_id());
+
+drop policy if exists "excom_applications self insert" on excom_applications;
+create policy "excom_applications self insert" on excom_applications
+  for insert to authenticated
+  with check (
+    lower(auth.jwt() ->> 'email') = lower(email)
+    and status = 'pending'
+    and club_id = current_club_id()
+  );
+
+drop policy if exists "excom_applications president decide" on excom_applications;
+create policy "excom_applications president decide" on excom_applications
+  for update to authenticated
+  using (
+    club_id = current_club_id()
+    and exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email')
+        and status = 'approved'
+        and id = current_club_id()
+    )
+  );
+
+drop policy if exists "members authenticated select" on members;
+create policy "members authenticated select" on members
+  for select to authenticated using (club_id = current_club_id());
+
+drop policy if exists "members vpe, treasurer, or president write" on members;
+create policy "members vpe, treasurer, or president write" on members
+  for all to authenticated
+  using (
+    club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('VPE', 'Ass. VPE', 'Treasurer', 'Ass. Treasurer')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "role_history authenticated select" on role_history;
+create policy "role_history authenticated select" on role_history
+  for select to authenticated using (club_id = current_club_id());
+
+drop policy if exists "role_history vpe or president insert" on role_history;
+create policy "role_history vpe or president insert" on role_history
+  for insert to authenticated
+  with check (
+    club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('VPE', 'Ass. VPE')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "meetings authenticated select" on meetings;
+create policy "meetings authenticated select" on meetings
+  for select to authenticated using (club_id = current_club_id());
+
+drop policy if exists "meetings vpe or president write" on meetings;
+create policy "meetings vpe or president write" on meetings
+  for all to authenticated
+  using (
+    club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('VPE', 'Ass. VPE')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "meetings vppr insert" on meetings;
+create policy "meetings vppr insert" on meetings
+  for insert to authenticated
+  with check (
+    club_id = current_club_id()
+    and exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email')
+        and role in ('VPPR', 'Ass. VPPR')
+        and club_id = current_club_id()
+    )
+  );
+
+drop policy if exists "meetings vppr update" on meetings;
+create policy "meetings vppr update" on meetings
+  for update to authenticated
+  using (
+    club_id = current_club_id()
+    and exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email')
+        and role in ('VPPR', 'Ass. VPPR')
+        and club_id = current_club_id()
+    )
+  )
+  with check (
+    club_id = current_club_id()
+    and exists (
+      select 1 from excom_appointments
+      where lower(email) = lower(auth.jwt() ->> 'email')
+        and role in ('VPPR', 'Ass. VPPR')
+        and club_id = current_club_id()
+    )
+  );
+
+drop policy if exists "assignments authenticated select" on meeting_role_assignments;
+create policy "assignments authenticated select" on meeting_role_assignments
+  for select to authenticated using (club_id = current_club_id());
+
+drop policy if exists "assignments vpe or president insert" on meeting_role_assignments;
+create policy "assignments vpe or president insert" on meeting_role_assignments
+  for insert to authenticated
+  with check (
+    club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('VPE', 'Ass. VPE')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "assignments update" on meeting_role_assignments;
+create policy "assignments update" on meeting_role_assignments
+  for update to authenticated
+  using (
+    club_id = current_club_id()
+    and (
+      (status = 'open' and role_id not in ('po', 'saa'))
+      or lower(taken_by_email) = lower(auth.jwt() ->> 'email')
+      or (status = 'auto' and taken_by_email is null and role_id not in ('po', 'saa'))
+      or exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('VPE', 'Ass. VPE')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  )
+  with check (
+    club_id = current_club_id()
+    and (
+      lower(taken_by_email) = lower(auth.jwt() ->> 'email')
+      or (taken_by_email is null and role_id not in ('po', 'saa'))
+      or exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('VPE', 'Ass. VPE')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "assignments vpe or president delete" on meeting_role_assignments;
+create policy "assignments vpe or president delete" on meeting_role_assignments
+  for delete to authenticated
+  using (
+    club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('VPE', 'Ass. VPE')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "agendas authenticated select" on agendas;
+create policy "agendas authenticated select" on agendas
+  for select to authenticated using (club_id = current_club_id());
+
+drop policy if exists "agendas vpe or president write" on agendas;
+create policy "agendas vpe or president write" on agendas
+  for all to authenticated
+  using (
+    club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('VPE', 'Ass. VPE')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "member_renewals authenticated select" on member_renewals;
+create policy "member_renewals authenticated select" on member_renewals
+  for select to authenticated using (club_id = current_club_id());
+
+drop policy if exists "member_renewals treasurer or president write" on member_renewals;
+create policy "member_renewals treasurer or president write" on member_renewals
+  for all to authenticated
+  using (
+    club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('Treasurer', 'Ass. Treasurer')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "club_page_photos vppr or president write" on club_page_photos;
+create policy "club_page_photos vppr or president write" on club_page_photos
+  for all to authenticated
+  using (
+    club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('VPPR', 'Ass. VPPR')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "excom_profiles vppr or president write" on excom_profiles;
+create policy "excom_profiles vppr or president write" on excom_profiles
+  for all to authenticated
+  using (
+    club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('VPPR', 'Ass. VPPR')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "club_content_blocks vppr or president write" on club_content_blocks;
+create policy "club_content_blocks vppr or president write" on club_content_blocks
+  for all to authenticated
+  using (
+    club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('VPPR', 'Ass. VPPR')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "meeting_photos authenticated select" on meeting_photos;
+create policy "meeting_photos authenticated select" on meeting_photos
+  for select to authenticated using (club_id = current_club_id());
+
+drop policy if exists "meeting_photos vppr or president write" on meeting_photos;
+create policy "meeting_photos vppr or president write" on meeting_photos
+  for all to authenticated
+  using (
+    club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('VPPR', 'Ass. VPPR')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "attendance authenticated select" on attendance;
+create policy "attendance authenticated select" on attendance
+  for select to authenticated using (club_id = current_club_id());
+
+drop policy if exists "attendance secretary or president write" on attendance;
+create policy "attendance secretary or president write" on attendance
+  for all to authenticated
+  using (
+    club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('Secretary', 'Ass. Secretary')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  )
+  with check (
+    club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('Secretary', 'Ass. Secretary')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "moms authenticated select" on moms;
+create policy "moms authenticated select" on moms
+  for select to authenticated using (club_id = current_club_id());
+
+drop policy if exists "moms secretary or president write" on moms;
+create policy "moms secretary or president write" on moms
+  for all to authenticated
+  using (
+    club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('Secretary', 'Ass. Secretary')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  )
+  with check (
+    club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('Secretary', 'Ass. Secretary')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "polls authenticated select" on polls;
+create policy "polls authenticated select" on polls
+  for select to authenticated using (club_id = current_club_id());
+
+drop policy if exists "polls saa or president write" on polls;
+create policy "polls saa or president write" on polls
+  for all to authenticated
+  using (
+    club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role = 'SAA'
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  )
+  with check (
+    club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role = 'SAA'
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "poll_votes authenticated select" on poll_votes;
+create policy "poll_votes authenticated select" on poll_votes
+  for select to authenticated using (club_id = current_club_id());
+
+drop policy if exists "poll_votes self insert" on poll_votes;
+create policy "poll_votes self insert" on poll_votes
+  for insert to authenticated
+  with check (
+    lower(voter_email) = lower(auth.jwt() ->> 'email')
+    and club_id = current_club_id()
+  );
+
+drop policy if exists "excom_points authenticated select" on excom_points;
+create policy "excom_points authenticated select" on excom_points
+  for select to authenticated using (club_id = current_club_id());
+
+drop policy if exists "excom_points self role insert" on excom_points;
+create policy "excom_points self role insert" on excom_points
+  for insert to authenticated
+  with check (
+    club_id = current_club_id()
+    and (
+      lower(email) = lower(auth.jwt() ->> 'email')
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "member_points authenticated select" on member_points;
+create policy "member_points authenticated select" on member_points
+  for select to authenticated using (club_id = current_club_id());
+
+drop policy if exists "member_points self or president insert" on member_points;
+create policy "member_points self or president insert" on member_points
+  for insert to authenticated
+  with check (
+    club_id = current_club_id()
+    and (
+      lower(member_email) = lower(auth.jwt() ->> 'email')
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+      or exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('VPM', 'Ass. VPM')
+          and club_id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "feedback self or president select" on feedback;
+create policy "feedback self or president select" on feedback
+  for select to authenticated
+  using (
+    lower(author_email) = lower(auth.jwt() ->> 'email')
+    or (
+      club_id = current_club_id()
+      and exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "feedback self insert" on feedback;
+create policy "feedback self insert" on feedback
+  for insert to authenticated
+  with check (
+    lower(author_email) = lower(auth.jwt() ->> 'email')
+    and club_id = current_club_id()
+  );
+
+drop policy if exists "feedback president update" on feedback;
+create policy "feedback president update" on feedback
+  for update to authenticated
+  using (
+    club_id = current_club_id()
+    and exists (
+      select 1 from clubs
+      where lower(president_email) = lower(auth.jwt() ->> 'email')
+        and status = 'approved'
+        and id = current_club_id()
+    )
+  );
+
+drop policy if exists "role_notifications recipient select" on role_notifications;
+create policy "role_notifications recipient select" on role_notifications
+  for select to authenticated
+  using (
+    lower(recipient_email) = lower(auth.jwt() ->> 'email')
+    or (
+      club_id = current_club_id()
+      and exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  );
+
+drop policy if exists "role_notifications authenticated insert" on role_notifications;
+create policy "role_notifications authenticated insert" on role_notifications
+  for insert to authenticated
+  with check (club_id = current_club_id());
+
+drop policy if exists "role_notifications recipient update" on role_notifications;
+create policy "role_notifications recipient update" on role_notifications
+  for update to authenticated
+  using (lower(recipient_email) = lower(auth.jwt() ->> 'email'));
