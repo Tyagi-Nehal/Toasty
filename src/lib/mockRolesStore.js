@@ -215,19 +215,23 @@ function buildRolesObject(assignments) {
   return roles
 }
 
-// "My role" now matches the signed-in account's real email first (set on
+// "My roles" now matches the signed-in account's real email first (set on
 // self-select, or a VPE override that provided one); falls back to
 // matching by name for auto-assigned roles, since the real member roster
 // (mockRosterStore.js) has no emails — a same-named duplicate could
 // false-match here, a known limitation for a small pilot, not bulletproof.
-function deriveMyRoleId(assignments, account) {
-  if (!account) return null
-  const mine = assignments.find(
-    (a) =>
-      (a.taken_by_email && a.taken_by_email.toLowerCase() === account.email?.toLowerCase()) ||
-      (!a.taken_by_email && a.taken_by_name === account.name),
-  )
-  return mine?.role_id ?? null
+// Returns every matching role, not just the first — a shortage of role
+// players can mean the VPE genuinely gives one person two roles for the
+// same meeting, and both need to show up as theirs to accept/decline.
+function deriveMyRoleIds(assignments, account) {
+  if (!account) return []
+  return assignments
+    .filter(
+      (a) =>
+        (a.taken_by_email && a.taken_by_email.toLowerCase() === account.email?.toLowerCase()) ||
+        (!a.taken_by_email && a.taken_by_name === account.name),
+    )
+    .map((a) => a.role_id)
 }
 
 // No-catch-up, no-recursion fetch — the building block both the public
@@ -278,7 +282,7 @@ async function fetchRawViews() {
       autoAssignCutoffLabel: formatCutoffLabel(autoAssignCutoff),
       pastCutoff: autoAssignCutoff ? Date.now() >= autoAssignCutoff.getTime() : true,
       roles: buildRolesObject(meetingAssignments),
-      myRoleId: deriveMyRoleId(meetingAssignments, account),
+      myRoleIds: deriveMyRoleIds(meetingAssignments, account),
     }
   })
 }
@@ -400,12 +404,17 @@ export async function selectRole(meetingId, roleId) {
   logAction(`You self-selected ${roleName(roleId)} for ${meeting.dateLabel}`)
 }
 
-export async function declineMyRole(meetingId) {
+// roleId is now explicit, not implicitly "whichever role is mine" — a
+// person can hold more than one role for the same meeting (a shortage of
+// role players can mean the VPE genuinely doubles someone up), so the
+// caller has to say which of their roles this decline is for. Still
+// verifies roleId is actually among the account's own roles for this
+// meeting before touching anything.
+export async function declineMyRole(meetingId, roleId) {
   const account = getAccount()
   const meeting = await getMeeting(meetingId)
-  const myRoleId = meeting?.myRoleId
-  if (!myRoleId) return
-  if (VPE_ONLY_ROLE_IDS.includes(myRoleId)) {
+  if (!roleId || !meeting?.myRoleIds?.includes(roleId)) return
+  if (VPE_ONLY_ROLE_IDS.includes(roleId)) {
     throw new Error('This role is managed by the VPE — ask them to reassign it.')
   }
 
@@ -413,7 +422,7 @@ export async function declineMyRole(meetingId) {
     .from('meeting_role_assignments')
     .update({ status: 'open', taken_by_name: null, taken_by_email: null, accepted_at: null })
     .eq('meeting_id', meetingId)
-    .eq('role_id', myRoleId)
+    .eq('role_id', roleId)
     .select()
   if (error) {
     console.error('[mockRolesStore] declineMyRole failed:', error.message)
@@ -423,7 +432,7 @@ export async function declineMyRole(meetingId) {
     throw new Error('Could not find your role for this meeting — try refreshing.')
   }
   await scoreRoleDecline(meeting, account)
-  logAction(`You declined ${roleName(myRoleId)} for ${meeting.dateLabel}`)
+  logAction(`You declined ${roleName(roleId)} for ${meeting.dateLabel}`)
 
   // Tell the VPE for real — the local log entry above only ever lands in
   // the declining member's own browser, never the VPE's.
@@ -431,7 +440,7 @@ export async function declineMyRole(meetingId) {
   if (vpeEmail) {
     await pushRoleNotificationTo(
       vpeEmail,
-      `${account?.name ?? 'A member'} declined their ${roleName(myRoleId)} role for ${meeting.dateLabel}.`,
+      `${account?.name ?? 'A member'} declined their ${roleName(roleId)} role for ${meeting.dateLabel}.`,
       meetingId,
     )
   }
@@ -441,17 +450,17 @@ export async function declineMyRole(meetingId) {
 // doesn't retroactively make it "self-selected", per the rule that only
 // a member's own pick counts as that), but also claims taken_by_email
 // for the caller, since auto-assign only ever records taken_by_name.
-export async function acceptAutoAssignedRole(meetingId) {
+// roleId is explicit for the same reason as declineMyRole above.
+export async function acceptAutoAssignedRole(meetingId, roleId) {
   const account = getAccount()
   const meeting = await getMeeting(meetingId)
-  const myRoleId = meeting?.myRoleId
-  if (!myRoleId) return
+  if (!roleId || !meeting?.myRoleIds?.includes(roleId)) return
 
   const { data, error } = await supabase
     .from('meeting_role_assignments')
     .update({ accepted_at: new Date().toISOString(), taken_by_email: account?.email })
     .eq('meeting_id', meetingId)
-    .eq('role_id', myRoleId)
+    .eq('role_id', roleId)
     .select()
   if (error) {
     console.error('[mockRolesStore] acceptAutoAssignedRole failed:', error.message)
@@ -460,7 +469,7 @@ export async function acceptAutoAssignedRole(meetingId) {
   if (!data || data.length === 0) {
     throw new Error('Could not find your role for this meeting — try refreshing.')
   }
-  logAction(`You accepted your auto-assigned ${roleName(myRoleId)} for ${meeting.dateLabel}`)
+  logAction(`You accepted your auto-assigned ${roleName(roleId)} for ${meeting.dateLabel}`)
 }
 
 // Status is always system-decided, never chosen by the VPE: a name
@@ -682,7 +691,7 @@ export function canFinalizeMeeting(meetings, meetingId) {
 // equality — a member's "name of record" isn't guaranteed stable over
 // time (e.g. a roster entry corrected from "Sarvajit" to "Sarvajit
 // Srivatsa" mid-way through this club's real history means older rows
-// captured the short form). Same known limitation as deriveMyRoleId
+// captured the short form). Same known limitation as deriveMyRoleIds
 // above: a same-named duplicate could false-match, acceptable for a
 // small pilot club, not bulletproof.
 export async function getRoleHistoryForEmail(email, name) {

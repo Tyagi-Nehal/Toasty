@@ -56,7 +56,7 @@ function StatusBadge({ role, roleId, isMine }) {
 export default function RoleSelectionPage() {
   const [meetings, setMeetings] = useState([])
   const [activeMeetingId, setActiveMeetingId] = useState(null)
-  const [isDeclineOpen, setIsDeclineOpen] = useState(false)
+  const [declineTarget, setDeclineTarget] = useState(null)
   const [membership, setMembership] = useState(null)
 
   function refresh() {
@@ -103,12 +103,12 @@ export default function RoleSelectionPage() {
     )
   }
 
-  const myRole = activeMeeting.myRoleId
-    ? getMeetingRoleEntries(activeMeeting.roles).find((r) => r.id === activeMeeting.myRoleId)
-    : null
-  const myRoleEntry = activeMeeting.myRoleId
-    ? activeMeeting.roles[activeMeeting.myRoleId]
-    : null
+  // A shortage of role players can mean the VPE genuinely gives one
+  // person two roles for the same meeting — every one of them shows up
+  // here, not just the first.
+  const myRoles = getMeetingRoleEntries(activeMeeting.roles).filter((r) =>
+    activeMeeting.myRoleIds?.includes(r.id),
+  )
 
   async function handleSelectRole(roleId) {
     try {
@@ -121,9 +121,9 @@ export default function RoleSelectionPage() {
 
   async function handleDeclineConfirm() {
     try {
-      await declineMyRole(activeMeetingId)
+      await declineMyRole(activeMeetingId, declineTarget)
       refresh()
-      setIsDeclineOpen(false)
+      setDeclineTarget(null)
     } catch (err) {
       window.alert(err.message)
     }
@@ -182,47 +182,51 @@ export default function RoleSelectionPage() {
 
         {!activeMeeting.cancelled && (
         <>
-        {/* My role card */}
-        {myRole && (
-          <div className="mt-6 rounded-3xl border border-primary/30 bg-white p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-                  {myRoleEntry.status === 'auto'
-                    ? myRoleEntry.isOverride
-                      ? 'Auto-assigned by VPE'
-                      : 'Auto-assigned'
-                    : 'Self-selected'}
-                </p>
-                <p className="mt-1 text-lg font-bold text-ink">{myRole.name}</p>
-                <p className="text-sm text-ink/60">{myRole.description}</p>
+        {/* My role card(s) — a shortage of role players can mean the VPE
+            genuinely gave this person more than one role for the meeting */}
+        {myRoles.map((role) => {
+          const entry = activeMeeting.roles[role.id]
+          return (
+            <div key={role.id} className="mt-6 rounded-3xl border border-primary/30 bg-white p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                    {entry.status === 'auto'
+                      ? entry.isOverride
+                        ? 'Auto-assigned by VPE'
+                        : 'Auto-assigned'
+                      : 'Self-selected'}
+                  </p>
+                  <p className="mt-1 text-lg font-bold text-ink">{role.name}</p>
+                  <p className="text-sm text-ink/60">{role.description}</p>
+                </div>
+                {VPE_ONLY_ROLE_IDS.includes(role.id) ? (
+                  <p className="flex items-center gap-1.5 text-xs text-ink/40">
+                    <ShieldCheck size={13} />
+                    Managed by the VPE
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setDeclineTarget(role.id)}
+                    disabled={activeMeeting.finalized || !isActiveMember}
+                    title={
+                      activeMeeting.finalized
+                        ? 'Roles for this meeting are finalized — ask the VPE to unlock it'
+                        : !isActiveMember
+                          ? 'Your membership is inactive — contact the Treasurer to renew'
+                          : undefined
+                    }
+                    className="flex items-center gap-1.5 rounded-full border border-accent/50 px-4 py-2 text-sm font-semibold text-ink/70 transition hover:bg-cream disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <X size={15} />
+                    Decline Role
+                  </button>
+                )}
               </div>
-              {VPE_ONLY_ROLE_IDS.includes(activeMeeting.myRoleId) ? (
-                <p className="flex items-center gap-1.5 text-xs text-ink/40">
-                  <ShieldCheck size={13} />
-                  Managed by the VPE
-                </p>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setIsDeclineOpen(true)}
-                  disabled={activeMeeting.finalized || !isActiveMember}
-                  title={
-                    activeMeeting.finalized
-                      ? 'Roles for this meeting are finalized — ask the VPE to unlock it'
-                      : !isActiveMember
-                        ? 'Your membership is inactive — contact the Treasurer to renew'
-                        : undefined
-                  }
-                  className="flex items-center gap-1.5 rounded-full border border-accent/50 px-4 py-2 text-sm font-semibold text-ink/70 transition hover:bg-cream disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <X size={15} />
-                  Decline Role
-                </button>
-              )}
             </div>
-          </div>
-        )}
+          )
+        })}
 
         {/* Role list — only roles actually on this meeting (Role
             Management can add/remove per meeting, e.g. no Table Topics
@@ -231,13 +235,17 @@ export default function RoleSelectionPage() {
           {getMeetingRoleEntries(activeMeeting.roles).map((role) => {
             const entry = activeMeeting.roles[role.id]
             const isVpeOnly = VPE_ONLY_ROLE_IDS.includes(role.id)
+            // Self-select still stays one-role-per-person — this only
+            // blocks a member picking a *second* role themselves. A VPE
+            // deliberately doubling someone up (role-player shortage)
+            // goes through Override/auto-assign, not this gate.
             const canSelect =
               entry.status === 'open' &&
               !isVpeOnly &&
-              !activeMeeting.myRoleId &&
+              myRoles.length === 0 &&
               !activeMeeting.finalized &&
               isActiveMember
-            const isMine = activeMeeting.myRoleId === role.id
+            const isMine = activeMeeting.myRoleIds?.includes(role.id) ?? false
 
             return (
               <div
@@ -285,12 +293,12 @@ export default function RoleSelectionPage() {
         )}
       </div>
 
-      {isDeclineOpen && myRole && (
+      {declineTarget && (
         <DeclineRoleModal
-          roleName={myRole.name}
+          roleName={myRoles.find((r) => r.id === declineTarget)?.name ?? ''}
           meetingLabel={`${activeMeeting.dateLabel}, ${activeMeeting.time}`}
           hoursUntilMeeting={activeMeeting.hoursUntilMeeting ?? 999}
-          onClose={() => setIsDeclineOpen(false)}
+          onClose={() => setDeclineTarget(null)}
           onConfirm={handleDeclineConfirm}
         />
       )}

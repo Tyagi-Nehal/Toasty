@@ -568,7 +568,7 @@ export async function scoreRoleDecline(meeting, account) {
 // has no email column at all). Returns null if the member never signed
 // up through the app themselves (e.g. a pre-existing member from the
 // original attendance-sheet seed) — same identity gap as
-// deriveMyRoleId's name-fallback in mockRolesStore.js.
+// deriveMyRoleIds's name-fallback in mockRolesStore.js.
 async function resolveMemberEmailByName(name) {
   const { data } = await supabase
     .from('member_signups')

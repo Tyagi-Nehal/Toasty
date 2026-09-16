@@ -52,7 +52,7 @@ export default function MemberDashboard() {
 
   const [meetings, setMeetings] = useState([])
   const [loadingMeeting, setLoadingMeeting] = useState(true)
-  const [isDeclineOpen, setIsDeclineOpen] = useState(false)
+  const [declineTarget, setDeclineTarget] = useState(null)
   const [notifications, setNotifications] = useState(() => getNotifications())
   const [membership, setMembership] = useState(null)
   const [points, setPoints] = useState(0)
@@ -82,15 +82,16 @@ export default function MemberDashboard() {
   }
 
   const upcoming = findNextActiveMeeting(meetings)
-  const myRole = upcoming?.myRoleId
-    ? getMeetingRoleEntries(upcoming.roles).find((r) => r.id === upcoming.myRoleId)
-    : null
-  const myRoleEntry = upcoming?.myRoleId ? upcoming.roles[upcoming.myRoleId] : null
-  const isVpeOnlyRole = upcoming?.myRoleId ? VPE_ONLY_ROLE_IDS.includes(upcoming.myRoleId) : false
+  // A shortage of role players can mean the VPE genuinely gives one
+  // person two roles for the same meeting — every one of them shows up
+  // here, not just the first.
+  const myRoles = upcoming
+    ? getMeetingRoleEntries(upcoming.roles).filter((r) => upcoming.myRoleIds?.includes(r.id))
+    : []
 
-  async function handleAccept() {
+  async function handleAccept(roleId) {
     try {
-      await acceptAutoAssignedRole(upcoming.id)
+      await acceptAutoAssignedRole(upcoming.id, roleId)
       refresh()
     } catch (err) {
       window.alert(err.message)
@@ -99,9 +100,9 @@ export default function MemberDashboard() {
 
   async function handleDeclineConfirm() {
     try {
-      await declineMyRole(upcoming.id)
+      await declineMyRole(upcoming.id, declineTarget)
       refresh()
-      setIsDeclineOpen(false)
+      setDeclineTarget(null)
     } catch (err) {
       window.alert(err.message)
     }
@@ -179,8 +180,8 @@ export default function MemberDashboard() {
                     {upcoming.time ? `, ${upcoming.time}` : ''}
                   </p>
 
-                  <div className="mt-4 rounded-2xl bg-cream p-4">
-                    {!myRole ? (
+                  {myRoles.length === 0 ? (
+                    <div className="mt-4 rounded-2xl bg-cream p-4">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <p className="text-sm text-ink/60">My Role</p>
@@ -198,73 +199,83 @@ export default function MemberDashboard() {
                           <ArrowRight size={14} />
                         </Link>
                       </div>
-                    ) : (
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm text-ink/60">My Role</p>
-                          <p className="font-semibold text-ink">{myRole.name}</p>
-                          {myRoleEntry.status === 'auto' && (
-                            <p className="mt-1 text-xs font-medium text-primary">
-                              {isVpeOnlyRole
-                                ? 'Assigned by the VPE'
-                                : myRoleEntry.isOverride
-                                  ? 'Auto-assigned by VPE'
-                                  : `Auto-assigned${myRoleEntry.acceptedAt ? ' · Confirmed' : ' · Awaiting your response'}`}
-                            </p>
-                          )}
-                        </div>
-                        {!isVpeOnlyRole &&
-                          myRoleEntry.status === 'auto' &&
-                          !myRoleEntry.acceptedAt &&
-                          (membership && !membership.isActive ? (
-                            <p className="text-xs font-medium text-ink/50">
-                              Your membership is inactive — contact the Treasurer to renew.
-                            </p>
-                          ) : (
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={handleAccept}
-                                className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
-                              >
-                                <Check size={15} />
-                                Accept
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setIsDeclineOpen(true)}
-                                className="flex items-center gap-1.5 rounded-full border border-accent/50 px-4 py-2 text-sm font-semibold text-ink/70 transition hover:bg-white"
-                              >
-                                <X size={15} />
-                                Decline
-                              </button>
+                    </div>
+                  ) : (
+                    <div className="mt-4 space-y-3">
+                      {myRoles.map((role) => {
+                        const entry = upcoming.roles[role.id]
+                        const isVpeOnlyRole = VPE_ONLY_ROLE_IDS.includes(role.id)
+                        return (
+                          <div key={role.id} className="rounded-2xl bg-cream p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm text-ink/60">My Role</p>
+                                <p className="font-semibold text-ink">{role.name}</p>
+                                {entry.status === 'auto' && (
+                                  <p className="mt-1 text-xs font-medium text-primary">
+                                    {isVpeOnlyRole
+                                      ? 'Assigned by the VPE'
+                                      : entry.isOverride
+                                        ? 'Auto-assigned by VPE'
+                                        : `Auto-assigned${entry.acceptedAt ? ' · Confirmed' : ' · Awaiting your response'}`}
+                                  </p>
+                                )}
+                              </div>
+                              {!isVpeOnlyRole &&
+                                entry.status === 'auto' &&
+                                !entry.acceptedAt &&
+                                (membership && !membership.isActive ? (
+                                  <p className="text-xs font-medium text-ink/50">
+                                    Your membership is inactive — contact the Treasurer to renew.
+                                  </p>
+                                ) : (
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAccept(role.id)}
+                                      className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
+                                    >
+                                      <Check size={15} />
+                                      Accept
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setDeclineTarget(role.id)}
+                                      className="flex items-center gap-1.5 rounded-full border border-accent/50 px-4 py-2 text-sm font-semibold text-ink/70 transition hover:bg-white"
+                                    >
+                                      <X size={15} />
+                                      Decline
+                                    </button>
+                                  </div>
+                                ))}
+                              {!isVpeOnlyRole && entry.status === 'auto' && entry.acceptedAt && (
+                                <span className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
+                                  <CheckCircle2 size={14} />
+                                  You're all set
+                                </span>
+                              )}
+                              {!isVpeOnlyRole &&
+                                entry.status === 'taken' &&
+                                (membership && !membership.isActive ? (
+                                  <p className="text-xs font-medium text-ink/50">
+                                    Your membership is inactive — contact the Treasurer to renew.
+                                  </p>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeclineTarget(role.id)}
+                                    className="flex items-center gap-1.5 rounded-full border border-accent/50 px-4 py-2 text-sm font-semibold text-ink/70 transition hover:bg-white"
+                                  >
+                                    <X size={15} />
+                                    Decline
+                                  </button>
+                                ))}
                             </div>
-                          ))}
-                        {!isVpeOnlyRole && myRoleEntry.status === 'auto' && myRoleEntry.acceptedAt && (
-                          <span className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
-                            <CheckCircle2 size={14} />
-                            You're all set
-                          </span>
-                        )}
-                        {!isVpeOnlyRole &&
-                          myRoleEntry.status === 'taken' &&
-                          (membership && !membership.isActive ? (
-                            <p className="text-xs font-medium text-ink/50">
-                              Your membership is inactive — contact the Treasurer to renew.
-                            </p>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setIsDeclineOpen(true)}
-                              className="flex items-center gap-1.5 rounded-full border border-accent/50 px-4 py-2 text-sm font-semibold text-ink/70 transition hover:bg-white"
-                            >
-                              <X size={15} />
-                              Decline
-                            </button>
-                          ))}
-                      </div>
-                    )}
-                  </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -326,12 +337,12 @@ export default function MemberDashboard() {
         </div>
       </div>
 
-      {isDeclineOpen && myRole && upcoming && (
+      {declineTarget && upcoming && (
         <DeclineRoleModal
-          roleName={myRole.name}
+          roleName={myRoles.find((r) => r.id === declineTarget)?.name ?? ''}
           meetingLabel={`${upcoming.dateLabel}, ${upcoming.time}`}
           hoursUntilMeeting={upcoming.hoursUntilMeeting ?? 999}
-          onClose={() => setIsDeclineOpen(false)}
+          onClose={() => setDeclineTarget(null)}
           onConfirm={handleDeclineConfirm}
         />
       )}
