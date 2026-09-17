@@ -26,20 +26,21 @@ function toApplication(row) {
 // the Sign Up form had the ExCom checkbox ticked. Not upserted — someone
 // can apply again (e.g. after a rejection) without being silently
 // ignored the way a unique-email upsert would.
-export async function submitExcomApplication({ role, name, email }) {
+export async function submitExcomApplication({ role, name, email, clubId }) {
   const normalizedEmail = normalizeEmail(email)
   if (!role || !name?.trim() || !normalizedEmail) return
   const { error } = await supabase
     .from('excom_applications')
-    .insert({ role, name: name.trim(), email: normalizedEmail })
+    .insert({ role, name: name.trim(), email: normalizedEmail, club_id: clubId })
   if (error) console.error('[mockExcomApplications] submitExcomApplication failed:', error.message)
 }
 
-export async function getPendingExcomApplications() {
+export async function getPendingExcomApplications(clubId) {
   const { data, error } = await supabase
     .from('excom_applications')
     .select('*')
     .eq('status', 'pending')
+    .eq('club_id', clubId)
     .order('submitted_at', { ascending: true })
   if (error) console.error('[mockExcomApplications] getPendingExcomApplications failed:', error.message)
   return (data ?? []).map(toApplication)

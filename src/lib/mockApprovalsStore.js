@@ -9,6 +9,7 @@
 
 import { getMembers } from './mockRosterStore.js'
 import { awardReferralPoints, awardVpmReferralBonus } from './mockPointsStore.js'
+import { getAccount } from './mockAuth.js'
 
 const LOG_KEY = 'toasty_approvals_log'
 const MAX_LOG_ENTRIES = 25
@@ -37,19 +38,21 @@ export function getApprovalsLog() {
 }
 
 export async function getReferralMembers() {
-  const members = await getMembers()
+  const members = await getMembers(getAccount()?.clubId)
   return members.map((m) => m.name)
 }
 
 export async function recordGuestAttended(memberName) {
-  await awardReferralPoints(memberName, 'guest_attended', 6)
+  const clubId = getAccount()?.clubId
+  await awardReferralPoints(memberName, 'guest_attended', 6, clubId)
   logAction(`${memberName}'s guest attended the meeting — +6 points`)
 }
 
 export async function recordGuestConverted(memberName) {
+  const clubId = getAccount()?.clubId
   await Promise.all([
-    awardReferralPoints(memberName, 'guest_converted', 8),
-    awardVpmReferralBonus(),
+    awardReferralPoints(memberName, 'guest_converted', 8, clubId),
+    awardVpmReferralBonus(clubId),
   ])
   logAction(
     `${memberName}'s guest converted to a member — +8 points to ${memberName}, +10 points to VPM`,

@@ -137,21 +137,21 @@ export default function ExComDashboard() {
 
   useEffect(() => {
     if (hasExcomRole('VPM')) {
-      getPendingSignups().then((signups) => setPendingSignupsCount(signups.length))
+      getPendingSignups(account?.clubId).then((signups) => setPendingSignupsCount(signups.length))
     }
     getMeetings().then((meetings) => {
       const upcoming = findNextActiveMeeting(meetings)
       setUpcomingMeeting(upcoming ?? meetings[meetings.length - 1] ?? null)
     })
     if (canSeeMembers) {
-      getRosterWithStatus().then((list) => {
+      getRosterWithStatus(account?.clubId).then((list) => {
         setMembers(list)
         setPendingRenewalsCount(list.filter((m) => m.paymentStatus !== 'paid').length)
       })
     }
     if (pointsRole && account?.email) {
-      getMonthlyPoints(pointsRole, account.email).then(setMonthlyPoints)
-      getMonthlyBreakdown(pointsRole, account.email).then(setPointsBreakdown)
+      getMonthlyPoints(pointsRole, account.email, account.clubId).then(setMonthlyPoints)
+      getMonthlyBreakdown(pointsRole, account.email, account.clubId).then(setPointsBreakdown)
     }
     if (hasExcomRole('President')) {
       getAllFeedback().then((items) => setUnreadFeedbackCount(items.filter((f) => !f.read).length))

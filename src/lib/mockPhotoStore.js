@@ -10,6 +10,7 @@ import { supabase } from './supabaseClient.js'
 import { uploadClubPhoto, deleteClubPhoto } from './storage.js'
 import { formatFullDate } from './mockRolesStore.js'
 import { scorePhotosSubmission } from './mockPointsStore.js'
+import { getAccount } from './mockAuth.js'
 
 const LOG_KEY = 'toasty_photo_upload_log'
 const MAX_LOG_ENTRIES = 25
@@ -39,17 +40,24 @@ export function getPhotoUploadLog() {
 
 // ---- Club page photos (public Club Home page sections) ----
 
-export async function getClubPagePhotos(section) {
+// clubId is optional — public pages that don't yet have real per-club
+// routing (ExcomPage.jsx/PastExcomPage.jsx, see the Phase 3 plan item on
+// dynamic ExCom pages) can still call this unfiltered, same behavior as
+// before this pass. ClubHomePage.jsx (which DOES have a real :clubId
+// route param) and every authenticated VPPR-editing call site should
+// pass it.
+export async function getClubPagePhotos(section, clubId) {
   let query = supabase.from('club_page_photos').select('*').order('uploaded_at', { ascending: false })
   if (section) query = query.eq('section', section)
+  if (clubId) query = query.eq('club_id', clubId)
   const { data, error } = await query
   if (error) console.error('[mockPhotoStore] getClubPagePhotos failed:', error.message)
   return (data ?? []).map((r) => ({ id: r.id, section: r.section, url: r.url }))
 }
 
-export async function addClubPagePhoto(section, file) {
-  const url = await uploadClubPhoto(file, `club-page/${section}`)
-  const { error } = await supabase.from('club_page_photos').insert({ section, url })
+export async function addClubPagePhoto(section, file, clubId) {
+  const url = await uploadClubPhoto(file, `club-page/${section}`, clubId)
+  const { error } = await supabase.from('club_page_photos').insert({ section, url, club_id: clubId })
   if (error) {
     console.error('[mockPhotoStore] addClubPagePhoto failed:', error.message)
     return
@@ -79,12 +87,15 @@ async function getContentBlockRow(id) {
   return data
 }
 
-export async function getContentBlocks(section) {
-  const { data, error } = await supabase
+// clubId optional, same reasoning as getClubPagePhotos above.
+export async function getContentBlocks(section, clubId) {
+  let query = supabase
     .from('club_content_blocks')
     .select('*')
     .eq('section', section)
     .order('created_at', { ascending: true })
+  if (clubId) query = query.eq('club_id', clubId)
+  const { data, error } = await query
   if (error) console.error('[mockPhotoStore] getContentBlocks failed:', error.message)
   return (data ?? []).map((r) => ({
     id: r.id,
@@ -96,16 +107,16 @@ export async function getContentBlocks(section) {
 
 // files: multiple photos per block, not just one — uploaded together and
 // stored as [{id, url}], same shape as meeting posters/group photos.
-export async function addContentBlock(section, { title, content, files }) {
+export async function addContentBlock(section, { title, content, files, clubId }) {
   const uploaded = await Promise.all(
     (files ?? []).map(async (file) => ({
       id: crypto.randomUUID(),
-      url: await uploadClubPhoto(file, `club-page/${section}`),
+      url: await uploadClubPhoto(file, `club-page/${section}`, clubId),
     })),
   )
   const { error } = await supabase
     .from('club_content_blocks')
-    .insert({ section, title, content: content || null, photo_urls: uploaded })
+    .insert({ section, title, content: content || null, photo_urls: uploaded, club_id: clubId })
   if (error) {
     console.error('[mockPhotoStore] addContentBlock failed:', error.message)
     throw new Error('Could not save this block — try again in a moment.')
@@ -129,10 +140,11 @@ export async function updateContentBlockText(id, section, { title, content }) {
 }
 
 export async function addContentBlockPhotos(id, section, files) {
+  const clubId = getAccount()?.clubId
   const uploaded = await Promise.all(
     files.map(async (file) => ({
       id: crypto.randomUUID(),
-      url: await uploadClubPhoto(file, `club-page/${section}`),
+      url: await uploadClubPhoto(file, `club-page/${section}`, clubId),
     })),
   )
   const existing = await getContentBlockRow(id)
@@ -173,8 +185,14 @@ export async function removeContentBlock(id, photoUrls) {
 
 // ---- ExCom profiles (photo + bio + contact, current and past) ----
 
-export async function getExcomProfiles() {
-  const { data, error } = await supabase.from('excom_profiles').select('*')
+// clubId optional, same reasoning as getClubPagePhotos above — the
+// public ExcomPage.jsx/PastExcomPage.jsx have no real per-club routing
+// yet (Phase 3), so they call this unfiltered; the authenticated VPPR
+// editor passes its own club.
+export async function getExcomProfiles(clubId) {
+  let query = supabase.from('excom_profiles').select('*')
+  if (clubId) query = query.eq('club_id', clubId)
+  const { data, error } = await query
   if (error) console.error('[mockPhotoStore] getExcomProfiles failed:', error.message)
   return (data ?? []).reduce((acc, r) => {
     acc[r.member_key] = {
@@ -193,7 +211,7 @@ export async function getExcomProfiles() {
 export async function upsertExcomProfile(
   memberKey,
   memberName,
-  { photoUrl, photoPosition, photoZoom, displayName, bio, phone, email },
+  { photoUrl, photoPosition, photoZoom, displayName, bio, phone, email, clubId },
 ) {
   const { error } = await supabase.from('excom_profiles').upsert(
     {
@@ -206,6 +224,7 @@ export async function upsertExcomProfile(
       phone: phone || null,
       email: email || null,
       updated_at: new Date().toISOString(),
+      club_id: clubId,
     },
     { onConflict: 'member_key' },
   )
@@ -284,6 +303,7 @@ async function upsertMeetingPhotosRow(meeting, patch) {
     certificates: existing?.certificates ?? [],
     ...patch,
     updated_at: new Date().toISOString(),
+    club_id: meeting.clubId,
   }
   const { error } = await supabase.from('meeting_photos').upsert(row, { onConflict: 'meeting_id' })
   if (error) {
@@ -310,7 +330,7 @@ export async function addMeetingPosters(meeting, files) {
   const uploaded = await Promise.all(
     files.map(async (file) => ({
       id: crypto.randomUUID(),
-      url: await uploadClubPhoto(file, `meetings/${meeting.id}/posters`),
+      url: await uploadClubPhoto(file, `meetings/${meeting.id}/posters`, meeting.clubId),
     })),
   )
   const existing = await getMeetingPhotos(meeting.id)
@@ -335,7 +355,7 @@ export async function addMeetingGroupPhotos(meeting, files) {
   const uploaded = await Promise.all(
     files.map(async (file) => ({
       id: crypto.randomUUID(),
-      url: await uploadClubPhoto(file, `meetings/${meeting.id}`),
+      url: await uploadClubPhoto(file, `meetings/${meeting.id}`, meeting.clubId),
     })),
   )
   const existing = await getMeetingPhotos(meeting.id)
@@ -381,7 +401,7 @@ export async function addMeetingCertificate(meeting, { category, winnerName, cer
   const existing = await getMeetingPhotos(meeting.id)
   const replaced = (existing?.certificates ?? []).find((c) => c.category === category)
   const certificateUrl = certificateFile
-    ? await uploadClubPhoto(certificateFile, `meetings/${meeting.id}/certificates`)
+    ? await uploadClubPhoto(certificateFile, `meetings/${meeting.id}/certificates`, meeting.clubId)
     : (replaced?.certificateUrl ?? null)
   const withoutSameCategory = (existing?.certificates ?? []).filter((c) => c.category !== category)
   const next = await upsertMeetingPhotosRow(meeting, {
@@ -400,7 +420,10 @@ export async function addMeetingCertificate(meeting, { category, winnerName, cer
 // date first (not upload/edit time — a meeting edited more recently
 // shouldn't jump ahead of a chronologically later one).
 export async function getAllMeetingPhotos(meetings) {
-  const { data, error } = await supabase.from('meeting_photos').select('*')
+  const { data, error } = await supabase
+    .from('meeting_photos')
+    .select('*')
+    .eq('club_id', getAccount()?.clubId)
   if (error) console.error('[mockPhotoStore] getAllMeetingPhotos failed:', error.message)
   const rows = data ?? []
   return rows

@@ -19,6 +19,7 @@ import {
 } from '../lib/mockAgendaStore.js'
 import { findNextActiveMeeting, getMeetings, renameMeeting } from '../lib/mockRolesStore.js'
 import { getMembers } from '../lib/mockRosterStore.js'
+import { getAccount } from '../lib/mockAuth.js'
 
 const inputClass =
   'w-full rounded-lg border border-accent/30 bg-cream px-2.5 py-1.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60'
@@ -222,7 +223,7 @@ export default function AgendaEditorPage() {
       const upcoming = findNextActiveMeeting(fetched)
       setActiveMeetingId((prev) => prev ?? upcoming?.id ?? fetched[fetched.length - 1]?.id ?? null)
     })
-    getMembers().then(setRoster)
+    getMembers(getAccount()?.clubId).then(setRoster)
   }, [])
 
   // Meeting numbers are VPE-editable (a skipped/rescheduled meeting can

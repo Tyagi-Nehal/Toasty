@@ -158,6 +158,7 @@ export async function buildPollFromAgenda() {
       released_at: null,
       closed_at: null,
       updated_at: new Date().toISOString(),
+      club_id: meeting.clubId,
     },
     { onConflict: 'meeting_id' },
   )
@@ -299,6 +300,7 @@ export async function submitVote(pollId, answers) {
     poll_id: pollId,
     voter_email: account?.email ?? null,
     answers,
+    club_id: account?.clubId,
   })
   if (error) console.error('[mockPollStore] submitVote failed:', error.message)
 }

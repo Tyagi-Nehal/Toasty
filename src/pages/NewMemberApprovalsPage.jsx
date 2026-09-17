@@ -35,6 +35,7 @@ import {
 import { acknowledgeVisitRequest, getVisitRequests } from '../lib/mockVisitRequests.js'
 import { getClubById } from '../lib/mockClubRegistry.js'
 import { draftVisitWelcomeEmail } from '../lib/mockEmailLog.js'
+import { getAccount } from '../lib/mockAuth.js'
 
 function timeAgo(isoString) {
   const diffMs = Date.now() - new Date(isoString).getTime()
@@ -64,8 +65,9 @@ export default function NewMemberApprovalsPage() {
   const [preregisterSaved, setPreregisterSaved] = useState(false)
 
   function refresh() {
-    getPendingSignups().then(setPending)
-    getApprovedSignups().then(setApproved)
+    const clubId = getAccount()?.clubId
+    getPendingSignups(clubId).then(setPending)
+    getApprovedSignups(clubId).then(setApproved)
     setLog(getApprovalsLog())
     setVisitRequests(getVisitRequests())
   }
@@ -116,7 +118,7 @@ export default function NewMemberApprovalsPage() {
     setPreregisterSaved(false)
     const validRows = preregisterRows.filter((r) => r.name.trim() && r.email.trim())
     for (const row of validRows) {
-      const result = await preregisterMember({ name: row.name, email: row.email })
+      const result = await preregisterMember({ name: row.name, email: row.email, clubId: getAccount()?.clubId })
       if (result?.error) {
         setPreregisterError(result.error)
         return

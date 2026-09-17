@@ -24,8 +24,8 @@ export default function RegisterExcomPage() {
   const [error, setError] = useState(null)
 
   function refresh() {
-    getExcomAppointments().then(setAppointments)
-    getPendingExcomApplications().then(setApplications)
+    getExcomAppointments(account?.clubId).then(setAppointments)
+    getPendingExcomApplications(account?.clubId).then(setApplications)
   }
 
   useEffect(() => {
@@ -54,6 +54,7 @@ export default function RegisterExcomPage() {
         name: row.name.trim(),
         email: row.email.trim().toLowerCase(),
         appointedByEmail: account?.email,
+        clubId: account?.clubId,
       })
       if (result?.error) {
         setError(result.error)
@@ -82,6 +83,7 @@ export default function RegisterExcomPage() {
       name: app.name,
       email: app.email,
       appointedByEmail: account?.email,
+      clubId: account?.clubId,
     })
     if (result?.error) {
       setError(result.error)

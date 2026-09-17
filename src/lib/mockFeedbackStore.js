@@ -8,6 +8,7 @@
 // that's what keeps submissions anonymous to the President, per spec.
 
 import { supabase } from './supabaseClient.js'
+import { getAccount } from './mockAuth.js'
 
 function normalizeEmail(email) {
   return (email ?? '').trim().toLowerCase()
@@ -30,6 +31,7 @@ export async function getAllFeedback() {
   const { data, error } = await supabase
     .from('feedback')
     .select('*')
+    .eq('club_id', getAccount()?.clubId)
     .order('submitted_at', { ascending: false })
   if (error) {
     console.error('[mockFeedbackStore] getAllFeedback failed:', error.message)
@@ -58,6 +60,7 @@ export async function submitFeedback({ subject, message, authorEmail }) {
     subject,
     message,
     author_email: normalizeEmail(authorEmail),
+    club_id: getAccount()?.clubId,
   })
   if (error) {
     console.error('[mockFeedbackStore] submitFeedback failed:', error.message)

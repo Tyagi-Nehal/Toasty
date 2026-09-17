@@ -21,7 +21,7 @@ import {
 import { getAttendanceStatsByMember } from './mockAttendanceStore.js'
 import { scoreExternalBooking, scoreVpeFinalize, scoreRoleDecline } from './mockPointsStore.js'
 import { getNameForRole, getEmailForRole } from './mockExcomRegistry.js'
-import { getApprovedClubs } from './mockClubRegistry.js'
+import { getClubById } from './mockClubRegistry.js'
 
 const LOG_KEY = 'toasty_role_notifications'
 const MAX_LOG_ENTRIES = 25
@@ -40,11 +40,10 @@ export const VPE_ONLY_ROLE_IDS = ['po', 'saa']
 // leaving them for the VPE to type in by hand every meeting (which
 // previously meant the per-meeting "SAA" could silently be someone
 // other than the actual appointed SAA).
-async function resolveFixedRoleAssignee(roleId) {
-  if (roleId === 'saa') return getNameForRole('SAA')
+async function resolveFixedRoleAssignee(roleId, clubId) {
+  if (roleId === 'saa') return getNameForRole('SAA', clubId)
   if (roleId === 'po') {
-    const clubs = await getApprovedClubs()
-    const club = clubs[0]
+    const club = await getClubById(clubId)
     return club?.presidentName ? { name: club.presidentName, email: club.presidentEmail } : null
   }
   return null
@@ -239,11 +238,12 @@ function deriveMyRoleIds(assignments, account) {
 // share, so the catch-up can read/write meeting data without looping back
 // into getMeetings() and re-triggering itself.
 async function fetchRawViews() {
-  const [{ data: meetings }, { data: assignments }] = await Promise.all([
-    supabase.from('meetings').select('*').order('meeting_date', { ascending: true }),
-    supabase.from('meeting_role_assignments').select('*'),
-  ])
   const account = getAccount()
+  const clubId = account?.clubId
+  const [{ data: meetings }, { data: assignments }] = await Promise.all([
+    supabase.from('meetings').select('*').eq('club_id', clubId).order('meeting_date', { ascending: true }),
+    supabase.from('meeting_role_assignments').select('*').eq('club_id', clubId),
+  ])
 
   return (meetings ?? []).map((m) => {
     const meetingAssignments = (assignments ?? []).filter((a) => a.meeting_id === m.id)
@@ -270,6 +270,7 @@ async function fetchRawViews() {
 
     return {
       id: m.id,
+      clubId: m.club_id,
       label: m.label,
       date: m.meeting_date,
       dateLabel: formatDateLabel(m.meeting_date),
@@ -332,6 +333,7 @@ async function runDueAutoAssignments(views) {
 // meeting. Self-healing: if the SAA appointment or President changes,
 // every still-open slot on the next fetch picks up the new person.
 async function fillFixedOfficerRoles(views) {
+  const clubId = getAccount()?.clubId
   const upcoming = views.filter(
     (m) => !m.cancelled && !m.finalized && (m.hoursUntilMeeting ?? -1) >= 0,
   )
@@ -339,7 +341,7 @@ async function fillFixedOfficerRoles(views) {
   for (const roleId of VPE_ONLY_ROLE_IDS) {
     const openOnes = upcoming.filter((m) => m.roles[roleId]?.status === 'open')
     if (openOnes.length === 0) continue
-    const assignee = await resolveFixedRoleAssignee(roleId)
+    const assignee = await resolveFixedRoleAssignee(roleId, clubId)
     if (!assignee?.name) continue
     for (const meeting of openOnes) {
       const { error } = await supabase
@@ -436,7 +438,7 @@ export async function declineMyRole(meetingId, roleId) {
 
   // Tell the VPE for real — the local log entry above only ever lands in
   // the declining member's own browser, never the VPE's.
-  const vpeEmail = await getEmailForRole('VPE')
+  const vpeEmail = await getEmailForRole('VPE', account?.clubId)
   if (vpeEmail) {
     await pushRoleNotificationTo(
       vpeEmail,
@@ -501,7 +503,7 @@ export async function overrideRole(meetingId, roleId, { takenBy, takenByEmail })
       ? `VPE manually assigned ${roleName(roleId)} to ${takenBy} for ${meeting.dateLabel}`
       : `VPE reopened ${roleName(roleId)} for ${meeting.dateLabel}`,
   )
-  if (takenBy) await scoreExternalBooking(takenBy, takenByEmail)
+  if (takenBy) await scoreExternalBooking(takenBy, takenByEmail, meeting.clubId)
 }
 
 // Lets the VPE add a role that isn't currently on this meeting at all —
@@ -513,7 +515,7 @@ export async function addMeetingRole(meetingId, roleId) {
   const { error } = await supabase
     .from('meeting_role_assignments')
     .upsert(
-      { meeting_id: meetingId, role_id: roleId, status: 'open' },
+      { meeting_id: meetingId, role_id: roleId, status: 'open', club_id: getAccount()?.clubId },
       { onConflict: 'meeting_id,role_id', ignoreDuplicates: true },
     )
   if (error) {
@@ -549,6 +551,7 @@ export async function removeMeetingRole(meetingId, roleId) {
 // getMeeting/getMeetings) so the automatic Saturday-cutoff catch-up in
 // getMeetings() can call this without looping back into itself.
 async function runAutoAssign(meetingId, trigger) {
+  const clubId = getAccount()?.clubId
   const meeting = await getMeetingRaw(meetingId)
   const usedNames = new Set(
     Object.values(meeting.roles)
@@ -557,9 +560,9 @@ async function runAutoAssign(meetingId, trigger) {
   )
 
   const [members, roleHistory, attendanceStats] = await Promise.all([
-    getMembers(),
-    getRoleHistory(),
-    getAttendanceStatsByMember(),
+    getMembers(clubId),
+    getRoleHistory(clubId),
+    getAttendanceStatsByMember(clubId),
   ])
 
   let filledCount = 0
@@ -610,7 +613,7 @@ async function runAutoAssign(meetingId, trigger) {
       continue
     }
     actuallyFilledCount += 1
-    await recordRoleAssignment(assignment.name, assignment.email, assignment.roleId)
+    await recordRoleAssignment(assignment.name, assignment.email, assignment.roleId, clubId)
   }
   filledCount = actuallyFilledCount
 
@@ -702,6 +705,7 @@ export async function getRoleHistoryForEmail(email, name) {
     .from('meeting_role_assignments')
     .select('role_id, taken_by_name, taken_by_email, meetings(meeting_date, label)')
     .neq('status', 'open')
+    .eq('club_id', getAccount()?.clubId)
   if (error) {
     console.error('[mockRolesStore] getRoleHistoryForEmail failed:', error.message)
     return []
@@ -809,12 +813,13 @@ export async function rescheduleMeeting(meetingId, newDate) {
 // at creation and never recomputed, so it stays stable even as more
 // early meetings get backfilled later, possibly out of order.
 export async function createMeetingForDate(date, time) {
+  const clubId = getAccount()?.clubId
   const meetings = await getMeetings()
   const position = meetings.filter((m) => m.date && m.date < date).length + 1
   const label = `Meeting ${position}`
   const { data, error } = await supabase
     .from('meetings')
-    .insert({ label, meeting_date: date, time: time || '5:15 PM', finalized: false })
+    .insert({ label, meeting_date: date, time: time || '5:15 PM', finalized: false, club_id: clubId })
     .select('id')
     .single()
   if (error) {
@@ -835,7 +840,7 @@ export async function createMeetingForDate(date, time) {
   // default role is inserted 'open'.
   const fixedAssignees = {}
   for (const roleId of VPE_ONLY_ROLE_IDS) {
-    fixedAssignees[roleId] = await resolveFixedRoleAssignee(roleId)
+    fixedAssignees[roleId] = await resolveFixedRoleAssignee(roleId, clubId)
   }
   const rows = DEFAULT_ROLE_IDS.map((roleId) => {
     const assignee = fixedAssignees[roleId]
@@ -846,8 +851,9 @@ export async function createMeetingForDate(date, time) {
           status: 'auto',
           taken_by_name: assignee.name,
           taken_by_email: assignee.email ?? null,
+          club_id: clubId,
         }
-      : { meeting_id: data.id, role_id: roleId, status: 'open' }
+      : { meeting_id: data.id, role_id: roleId, status: 'open', club_id: clubId }
   })
   const { error: rowsError } = await supabase.from('meeting_role_assignments').insert(rows)
   if (rowsError) {

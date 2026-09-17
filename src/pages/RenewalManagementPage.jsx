@@ -10,6 +10,7 @@ import {
 } from '../lib/mockRosterStore.js'
 import { getExcomAppointments } from '../lib/mockExcomRegistry.js'
 import { getApprovedSignups } from '../lib/mockMemberSignups.js'
+import { getAccount } from '../lib/mockAuth.js'
 
 const filters = ['All', 'Paid', 'Unpaid']
 
@@ -89,19 +90,20 @@ export default function RenewalManagementPage() {
   // hand. ensureRosterMember is a no-op for anyone already on the roster,
   // so re-running this on every load is harmless.
   async function reconcileRoster() {
+    const clubId = getAccount()?.clubId
     const [appointments, signups] = await Promise.all([
-      getExcomAppointments(),
-      getApprovedSignups(),
+      getExcomAppointments(clubId),
+      getApprovedSignups(clubId),
     ])
     await Promise.all([
-      ...appointments.map((a) => ensureRosterMember(a.name, a.email)),
-      ...signups.map((s) => ensureRosterMember(s.name, s.email)),
+      ...appointments.map((a) => ensureRosterMember(a.name, a.email, clubId)),
+      ...signups.map((s) => ensureRosterMember(s.name, s.email, clubId)),
     ])
   }
 
   async function refresh() {
     await reconcileRoster()
-    getRosterWithStatus().then(setMembers)
+    getRosterWithStatus(getAccount()?.clubId).then(setMembers)
     setLog(getRosterRenewalLog())
   }
 

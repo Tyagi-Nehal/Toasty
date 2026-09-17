@@ -119,10 +119,10 @@ export default function ClubHomePage() {
   }, [])
 
   useEffect(() => {
-    getClubPagePhotos('hero').then(setHeroPhotos)
-    getContentBlocks('story').then(setStoryBlocks)
-    getContentBlocks('achievements').then(setAchievementBlocks)
-  }, [])
+    getClubPagePhotos('hero', clubId).then(setHeroPhotos)
+    getContentBlocks('story', clubId).then(setStoryBlocks)
+    getContentBlocks('achievements', clubId).then(setAchievementBlocks)
+  }, [clubId])
 
   // React Router doesn't scroll to the URL hash on its own (that's a native
   // full-page-load behavior), and the sections it targets render async

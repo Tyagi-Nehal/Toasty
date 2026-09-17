@@ -19,7 +19,6 @@ import { getAccount, hasExcomRole, getDisplayRole } from '../lib/mockAuth.js'
 import { supabase } from '../lib/supabaseClient.js'
 import { getNotifications, markAllRead } from '../lib/mockNotificationsStore.js'
 import { notificationIcons, defaultNotificationIcon } from './notificationMeta.js'
-import { getApprovedClubs } from '../lib/mockClubRegistry.js'
 
 function timeAgo(isoString) {
   const diffMs = Date.now() - new Date(isoString).getTime()
@@ -60,17 +59,13 @@ export default function MemberLayout({ children }) {
   const navigate = useNavigate()
   const location = useLocation()
   const account = getAccount()
-  const [clubHomeLink, setClubHomeLink] = useState('/')
-
-  // Signed-in members belong to this deployment's one club, so the logo
-  // should take them straight back to its page, not the generic
-  // "find your club" landing page. Falls back to '/' while loading or
-  // if for some reason no approved club is found yet.
-  useEffect(() => {
-    getApprovedClubs().then((clubs) => {
-      if (clubs[0]?.id) setClubHomeLink(`/club/${clubs[0].id}`)
-    })
-  }, [])
+  // Straight back to this member's own club page, not a hardcoded
+  // "whichever club happens to be first" — was getApprovedClubs()[0]
+  // before club_id existed on the account, which meant a second club's
+  // members would land on the first club's page instead of their own.
+  // Falls back to '/' (the generic "find your club" landing page) while
+  // still loading or for an account with no club on file yet.
+  const clubHomeLink = account?.clubId ? `/club/${account.clubId}` : '/'
   const isExcomMember = (account?.excomRoles?.length ?? 0) > 0
   const navLinks = [
     ...baseNavLinks,

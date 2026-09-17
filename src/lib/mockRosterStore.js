@@ -35,11 +35,12 @@ export function getRosterRenewalLog() {
 // Active members only — this is the pool attendance rosters and role
 // auto-assign draw from, so an inactive member is excluded everywhere
 // this feeds, not just hidden with a badge.
-export async function getMembers() {
+export async function getMembers(clubId) {
   const { data, error } = await supabase
     .from('members')
     .select('*')
     .eq('is_active', true)
+    .eq('club_id', clubId)
     .order('name')
   if (error) console.error('[mockRosterStore] getMembers failed:', error.message)
   return (data ?? []).map((m) => ({
@@ -59,14 +60,14 @@ export async function getMembers() {
 // re-appointment or a typo. A no-op if that email is already on the
 // roster — never resets an existing member's active/payment status or
 // name, only ever adds the row so the Treasurer has someone to activate.
-export async function ensureRosterMember(name, email) {
+export async function ensureRosterMember(name, email, clubId) {
   const trimmedName = (name ?? '').trim()
   const normalizedEmail = (email ?? '').trim().toLowerCase()
   if (!trimmedName || !normalizedEmail) return
   const { error } = await supabase
     .from('members')
     .upsert(
-      { name: trimmedName, email: normalizedEmail },
+      { name: trimmedName, email: normalizedEmail, club_id: clubId },
       { onConflict: 'email', ignoreDuplicates: true },
     )
   if (error) console.error('[mockRosterStore] ensureRosterMember failed:', error.message)
@@ -75,8 +76,12 @@ export async function ensureRosterMember(name, email) {
 // Every roster member regardless of active status, with their payment/
 // term info — for the Treasurer's Renewal Management page. getMembers()
 // above deliberately excludes inactive members everywhere else.
-export async function getRosterWithStatus() {
-  const { data, error } = await supabase.from('members').select('*').order('name')
+export async function getRosterWithStatus(clubId) {
+  const { data, error } = await supabase
+    .from('members')
+    .select('*')
+    .eq('club_id', clubId)
+    .order('name')
   if (error) {
     console.error('[mockRosterStore] getRosterWithStatus failed:', error.message)
     return []
@@ -167,10 +172,11 @@ export async function updateRosterRenewal(
 }
 
 // Most-recent-first, so callers can just take the first match per member.
-export async function getRoleHistory() {
+export async function getRoleHistory(clubId) {
   const { data, error } = await supabase
     .from('role_history')
     .select('*')
+    .eq('club_id', clubId)
     .order('meeting_date', { ascending: false })
   if (error) console.error('[mockRosterStore] getRoleHistory failed:', error.message)
   return (data ?? []).map((r) => ({
@@ -181,12 +187,13 @@ export async function getRoleHistory() {
   }))
 }
 
-export async function recordRoleAssignment(memberName, memberEmail, roleId) {
+export async function recordRoleAssignment(memberName, memberEmail, roleId, clubId) {
   const { error } = await supabase.from('role_history').insert({
     member_name: memberName,
     member_email: memberEmail,
     role_id: roleId,
     meeting_date: new Date().toISOString().slice(0, 10),
+    club_id: clubId,
   })
   if (error) console.error('[mockRosterStore] recordRoleAssignment failed:', error.message)
 }

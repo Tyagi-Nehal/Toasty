@@ -86,7 +86,8 @@ function toStatus(row) {
 // getExcomAppointments() is ordered oldest-first and is applied second,
 // so the most recent appointment's name is what's kept.
 export async function getApprovedClubMembers() {
-  const [signups, excom] = await Promise.all([getApprovedSignups(), getExcomAppointments()])
+  const clubId = getAccount()?.clubId
+  const [signups, excom] = await Promise.all([getApprovedSignups(clubId), getExcomAppointments(clubId)])
   const byEmail = new Map()
   for (const s of signups) {
     const email = normalizeEmail(s.email)
@@ -150,6 +151,7 @@ export async function updateMemberRenewal(
       membership_end: membershipEnd || null,
       cycle_label: cycleLabel || null,
       updated_at: new Date().toISOString(),
+      club_id: getAccount()?.clubId,
     },
     { onConflict: 'email' },
   )
@@ -158,5 +160,5 @@ export async function updateMemberRenewal(
     return
   }
   logAction(`Treasurer updated renewal details for ${memberName}`)
-  await scoreRenewal(normalizedEmail, Boolean(existingRow))
+  await scoreRenewal(normalizedEmail, Boolean(existingRow), getAccount()?.clubId)
 }

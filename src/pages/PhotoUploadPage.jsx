@@ -43,6 +43,7 @@ import {
   updateContentBlockText,
   upsertExcomProfile,
 } from '../lib/mockPhotoStore.js'
+import { getAccount } from '../lib/mockAuth.js'
 
 const CLUB_PAGE_SECTIONS = [
   { id: 'hero', label: 'Main Banner' },
@@ -81,7 +82,7 @@ function MainBannerUploader() {
   const [uploading, setUploading] = useState(false)
 
   function refresh() {
-    getClubPagePhotos('hero').then(setPhotos)
+    getClubPagePhotos('hero', getAccount()?.clubId).then(setPhotos)
   }
 
   useEffect(() => {
@@ -94,7 +95,7 @@ function MainBannerUploader() {
     if (files.length === 0) return
     setUploading(true)
     for (const file of files) {
-      await addClubPagePhoto('hero', file)
+      await addClubPagePhoto('hero', file, getAccount()?.clubId)
     }
     setUploading(false)
     refresh()
@@ -166,7 +167,7 @@ function ContentBlocksEditor({ section }) {
   const [saving, setSaving] = useState(false)
 
   function refresh() {
-    getContentBlocks(section).then(setBlocks)
+    getContentBlocks(section, getAccount()?.clubId).then(setBlocks)
   }
 
   useEffect(() => {
@@ -206,7 +207,7 @@ function ContentBlocksEditor({ section }) {
     setSavingPhotos(true)
     try {
       await addContentBlockPhotos(editingId, section, files)
-      const fresh = await getContentBlocks(section)
+      const fresh = await getContentBlocks(section, getAccount()?.clubId)
       setExistingPhotos(fresh.find((b) => b.id === editingId)?.photoUrls ?? [])
       setBlocks(fresh)
     } catch (err) {
@@ -244,6 +245,7 @@ function ContentBlocksEditor({ section }) {
           title: title.trim(),
           content: content.trim(),
           files: stagedFiles.map((s) => s.file),
+          clubId: getAccount()?.clubId,
         })
       }
       setFormOpen(false)
@@ -984,7 +986,7 @@ function ExcomProfilesTab({ refreshLog }) {
   const [photoPreview, setPhotoPreview] = useState(null)
 
   function refresh() {
-    getExcomProfiles().then(setProfiles)
+    getExcomProfiles(getAccount()?.clubId).then(setProfiles)
   }
 
   useEffect(() => {
@@ -1028,7 +1030,7 @@ function ExcomProfilesTab({ refreshLog }) {
     setSaving(true)
     let photoUrl = selectedProfile?.photoUrl ?? null
     if (photoFile) {
-      photoUrl = await uploadClubPhoto(photoFile, 'excom-profiles')
+      photoUrl = await uploadClubPhoto(photoFile, 'excom-profiles', getAccount()?.clubId)
     }
     // Only save a display-name override when it actually differs from
     // the roster's own name — typing it back to match just clears the
@@ -1042,6 +1044,7 @@ function ExcomProfilesTab({ refreshLog }) {
       bio: bioDraft,
       phone,
       email,
+      clubId: getAccount()?.clubId,
     })
     setSaving(false)
     setPhotoFile(null)

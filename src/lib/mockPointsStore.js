@@ -37,10 +37,10 @@ function normalizeEmail(email) {
 // canonical "the" role holder via getEmailForRole: each function below
 // now credits whoever's actually doing the work, whether that's the
 // primary role or a specific associate.
-async function getActingEmailForRole(baseRole) {
+async function getActingEmailForRole(baseRole, clubId) {
   const acting = normalizeEmail(getAccount()?.email)
   if (!acting) return null
-  const held = await getHeldRoleForEmailAndBase(acting, baseRole)
+  const held = await getHeldRoleForEmailAndBase(acting, baseRole, clubId)
   return held ? acting : null
 }
 
@@ -98,7 +98,7 @@ function getPrecedingTuesdayDeadline(meetingDateStr) {
   return tuesday
 }
 
-async function awardPoints({ role, email, meetingId, category, points, note, subjectEmail }) {
+async function awardPoints({ role, email, meetingId, category, points, note, subjectEmail, clubId }) {
   const normalized = normalizeEmail(email)
   if (!normalized || !points) return
   const { error } = await supabase.from('excom_points').insert({
@@ -109,6 +109,7 @@ async function awardPoints({ role, email, meetingId, category, points, note, sub
     points,
     note: note ?? null,
     subject_email: subjectEmail ? normalizeEmail(subjectEmail) : null,
+    club_id: clubId,
   })
   // Scoring is a side effect of a real action (submitting a MOM, etc.) —
   // it should never fail or block that action, only log if it does.
@@ -118,7 +119,7 @@ async function awardPoints({ role, email, meetingId, category, points, note, sub
 // Skips if this exact (role, email, category, meeting) has already been
 // scored — makes every per-meeting category safe to call again on a
 // re-submit/edit without double-awarding.
-async function awardPointsOncePerMeeting({ role, email, meetingId, category, points, note }) {
+async function awardPointsOncePerMeeting({ role, email, meetingId, category, points, note, clubId }) {
   const normalized = normalizeEmail(email)
   if (!normalized || !meetingId) return
   const { data: existing } = await supabase
@@ -130,13 +131,21 @@ async function awardPointsOncePerMeeting({ role, email, meetingId, category, poi
     .limit(1)
     .maybeSingle()
   if (existing) return
-  await awardPoints({ role, email: normalized, meetingId, category, points, note })
+  await awardPoints({ role, email: normalized, meetingId, category, points, note, clubId })
 }
 
 // Caps how many *events* (not points) count per month — e.g. only the
 // first 3 new-member registrations in a month earn points, a 4th still
 // happens for real but doesn't add more that month.
-async function awardPointsWithMonthlyEventCap({ role, email, category, points, note, maxEventsPerMonth }) {
+async function awardPointsWithMonthlyEventCap({
+  role,
+  email,
+  category,
+  points,
+  note,
+  maxEventsPerMonth,
+  clubId,
+}) {
   const normalized = normalizeEmail(email)
   if (!normalized) return
   const { start, end } = getCurrentMonthRange()
@@ -146,10 +155,11 @@ async function awardPointsWithMonthlyEventCap({ role, email, category, points, n
     .eq('role', role)
     .eq('email', normalized)
     .eq('category', category)
+    .eq('club_id', clubId)
     .gte('awarded_at', start)
     .lt('awarded_at', end)
   if ((count ?? 0) >= maxEventsPerMonth) return
-  await awardPoints({ role, email: normalized, meetingId: null, category, points, note })
+  await awardPoints({ role, email: normalized, meetingId: null, category, points, note, clubId })
 }
 
 // Same monthly event cap, but also deduped per subject (e.g. the member
@@ -166,6 +176,7 @@ async function awardPointsWithMonthlySubjectCap({
   points,
   note,
   maxEventsPerMonth,
+  clubId,
 }) {
   const normalized = normalizeEmail(email)
   const normalizedSubject = normalizeEmail(subjectEmail)
@@ -178,6 +189,7 @@ async function awardPointsWithMonthlySubjectCap({
     .eq('role', role)
     .eq('category', category)
     .eq('subject_email', normalizedSubject)
+    .eq('club_id', clubId)
     .gte('awarded_at', start)
     .lt('awarded_at', end)
     .limit(1)
@@ -190,6 +202,7 @@ async function awardPointsWithMonthlySubjectCap({
     .eq('role', role)
     .eq('email', normalized)
     .eq('category', category)
+    .eq('club_id', clubId)
     .gte('awarded_at', start)
     .lt('awarded_at', end)
   if ((count ?? 0) >= maxEventsPerMonth) return
@@ -202,10 +215,11 @@ async function awardPointsWithMonthlySubjectCap({
     points,
     note,
     subjectEmail: normalizedSubject,
+    clubId,
   })
 }
 
-export async function getMonthlyPoints(role, email) {
+export async function getMonthlyPoints(role, email, clubId) {
   const normalized = normalizeEmail(email)
   if (!normalized) return 0
   const { start, end } = getCurrentMonthRange()
@@ -214,6 +228,7 @@ export async function getMonthlyPoints(role, email) {
     .select('points')
     .eq('role', role)
     .eq('email', normalized)
+    .eq('club_id', clubId)
     .gte('awarded_at', start)
     .lt('awarded_at', end)
   if (error) {
@@ -223,7 +238,7 @@ export async function getMonthlyPoints(role, email) {
   return (data ?? []).reduce((sum, row) => sum + row.points, 0)
 }
 
-export async function getMonthlyBreakdown(role, email) {
+export async function getMonthlyBreakdown(role, email, clubId) {
   const normalized = normalizeEmail(email)
   if (!normalized) return []
   const { start, end } = getCurrentMonthRange()
@@ -232,6 +247,7 @@ export async function getMonthlyBreakdown(role, email) {
     .select('category, points')
     .eq('role', role)
     .eq('email', normalized)
+    .eq('club_id', clubId)
     .gte('awarded_at', start)
     .lt('awarded_at', end)
   if (error) {
@@ -253,7 +269,7 @@ export async function getMonthlyBreakdown(role, email) {
 // not required to get there, since VPE can't control whether outside
 // guests actually show up to book.
 export async function scoreVpeFinalize(meeting) {
-  const vpeEmail = await getActingEmailForRole('VPE')
+  const vpeEmail = await getActingEmailForRole('VPE', meeting?.clubId)
   if (!vpeEmail || !meeting) return
 
   const takenNames = Object.values(meeting.roles ?? {})
@@ -267,6 +283,7 @@ export async function scoreVpeFinalize(meeting) {
       category: 'no_repetition',
       points: 2,
       note: `No role repetition for ${meeting.dateLabel ?? meeting.date}`,
+      clubId: meeting.clubId,
     })
   }
 
@@ -282,6 +299,7 @@ export async function scoreVpeFinalize(meeting) {
       category: 'finalize_agenda',
       points: 18,
       note: `Finalized + agenda sent by Tuesday for ${meeting.dateLabel ?? meeting.date}`,
+      clubId: meeting.clubId,
     })
   }
 }
@@ -294,10 +312,10 @@ export async function scoreVpeFinalize(meeting) {
 // picking a real member from the roster dropdown, so this no longer
 // needs to fuzzy-match the typed name against the roster itself. Called
 // from overrideRole() whenever the VPE assigns someone via Override.
-export async function scoreExternalBooking(takenByName, takenByEmail) {
+export async function scoreExternalBooking(takenByName, takenByEmail, clubId) {
   const trimmedName = (takenByName ?? '').trim()
   if (!trimmedName || takenByEmail) return
-  const vpeEmail = await getActingEmailForRole('VPE')
+  const vpeEmail = await getActingEmailForRole('VPE', clubId)
   if (!vpeEmail) return
 
   await awardPointsWithMonthlySubjectCap({
@@ -308,6 +326,7 @@ export async function scoreExternalBooking(takenByName, takenByEmail) {
     points: 5,
     note: `Booked an external guest, ${trimmedName}, into a role`,
     maxEventsPerMonth: 4,
+    clubId,
   })
 }
 
@@ -321,7 +340,7 @@ export async function scoreMomSubmission(meeting, mom, submittedAt) {
   if (!meeting) return
   const scheduled = getMeetingDateTime(meeting)
 
-  const secretaryEmail = await getActingEmailForRole('Secretary')
+  const secretaryEmail = await getActingEmailForRole('Secretary', meeting.clubId)
   if (secretaryEmail && isWithin48HoursAfter(submittedAt, scheduled)) {
     await awardPointsOncePerMeeting({
       role: 'Secretary',
@@ -330,13 +349,14 @@ export async function scoreMomSubmission(meeting, mom, submittedAt) {
       category: 'mom_on_time',
       points: 10,
       note: `MOM submitted within 48h for ${meeting.dateLabel ?? meeting.date}`,
+      clubId: meeting.clubId,
     })
   }
 
   if (mom?.startTime && scheduled) {
     const actualStart = timeOnDate(meeting.date, mom.startTime)
     if (actualStart && actualStart <= scheduled) {
-      const saaEmail = await getEmailForRole('SAA')
+      const saaEmail = await getEmailForRole('SAA', meeting.clubId)
       if (saaEmail) {
         await awardPointsOncePerMeeting({
           role: 'SAA',
@@ -345,6 +365,7 @@ export async function scoreMomSubmission(meeting, mom, submittedAt) {
           category: 'on_time_start',
           points: 20,
           note: `Meeting started on time for ${meeting.dateLabel ?? meeting.date}`,
+          clubId: meeting.clubId,
         })
       }
     }
@@ -354,7 +375,7 @@ export async function scoreMomSubmission(meeting, mom, submittedAt) {
 // Secretary: attendance marked within 48h. Called from submitAttendance().
 export async function scoreAttendanceSubmission(meeting, submittedAt) {
   if (!meeting) return
-  const secretaryEmail = await getActingEmailForRole('Secretary')
+  const secretaryEmail = await getActingEmailForRole('Secretary', meeting.clubId)
   if (!secretaryEmail) return
   const scheduled = getMeetingDateTime(meeting)
   if (!isWithin48HoursAfter(submittedAt, scheduled)) return
@@ -365,6 +386,7 @@ export async function scoreAttendanceSubmission(meeting, submittedAt) {
     category: 'attendance_on_time',
     points: 10,
     note: `Attendance marked within 48h for ${meeting.dateLabel ?? meeting.date}`,
+    clubId: meeting.clubId,
   })
 }
 
@@ -376,7 +398,7 @@ export async function scoreAttendanceSubmission(meeting, submittedAt) {
 // top rather than something needed to get there.
 export async function scorePhotosSubmission(meeting, submittedAt) {
   if (!meeting) return
-  const vpprEmail = await getActingEmailForRole('VPPR')
+  const vpprEmail = await getActingEmailForRole('VPPR', meeting.clubId)
   if (!vpprEmail) return
   const scheduled = getMeetingDateTime(meeting)
   if (!isWithin48HoursAfter(submittedAt, scheduled)) return
@@ -399,6 +421,7 @@ export async function scorePhotosSubmission(meeting, submittedAt) {
     .eq('role', 'VPPR')
     .eq('email', normalized)
     .eq('category', 'photos_on_time')
+    .eq('club_id', meeting.clubId)
     .gte('awarded_at', start)
     .lt('awarded_at', end)
   const monthTotal = (monthRows ?? []).reduce((sum, row) => sum + row.points, 0)
@@ -412,6 +435,7 @@ export async function scorePhotosSubmission(meeting, submittedAt) {
     category: 'photos_on_time',
     points: Math.min(20, remaining),
     note: `Photos submitted within 48h for ${meeting.dateLabel ?? meeting.date}`,
+    clubId: meeting.clubId,
   })
 }
 
@@ -424,8 +448,8 @@ export async function scorePhotosSubmission(meeting, submittedAt) {
 // same as any role in a month with zero meetings), but makes hitting
 // parity realistic with any recruitment activity at all, not a lot of
 // it. Then checks the shared growth bonus. Called from approveSignup().
-export async function scoreSignupApproval() {
-  const vpmEmail = await getActingEmailForRole('VPM')
+export async function scoreSignupApproval(clubId) {
+  const vpmEmail = await getActingEmailForRole('VPM', clubId)
   if (vpmEmail) {
     await awardPointsWithMonthlyEventCap({
       role: 'VPM',
@@ -434,34 +458,37 @@ export async function scoreSignupApproval() {
       points: 80,
       note: 'New member registered',
       maxEventsPerMonth: 1,
+      clubId,
     })
   }
-  await checkGrowthBonus()
+  await checkGrowthBonus(clubId)
 }
 
 // Feeds the same shared growth bonus — an ExCom appointment counts as
 // club growth too. Called from registerExcomMember().
-export async function scoreExcomAppointment() {
-  await checkGrowthBonus()
+export async function scoreExcomAppointment(clubId) {
+  await checkGrowthBonus(clubId)
 }
 
-// VPM + VPPR + Treasurer each get 5, once per calendar month, the first
-// time any new approval (signup or ExCom appointment) happens that month.
-async function checkGrowthBonus() {
+// VPM + VPPR + Treasurer each get 5, once per calendar month per club,
+// the first time any new approval (signup or ExCom appointment) happens
+// that month for that club.
+async function checkGrowthBonus(clubId) {
   const { start, end } = getCurrentMonthRange()
   const { data: existing } = await supabase
     .from('excom_points')
     .select('id')
     .eq('category', 'growth_bonus')
+    .eq('club_id', clubId)
     .gte('awarded_at', start)
     .lt('awarded_at', end)
     .limit(1)
   if (existing && existing.length > 0) return
 
   const [vpmEmail, vpprEmail, treasurerEmail] = await Promise.all([
-    getEmailForRole('VPM'),
-    getEmailForRole('VPPR'),
-    getEmailForRole('Treasurer'),
+    getEmailForRole('VPM', clubId),
+    getEmailForRole('VPPR', clubId),
+    getEmailForRole('Treasurer', clubId),
   ])
   const recipients = [
     { role: 'VPM', email: vpmEmail },
@@ -476,6 +503,7 @@ async function checkGrowthBonus() {
       category: 'growth_bonus',
       points: 5,
       note: 'Club membership grew this month',
+      clubId,
     })
   }
 }
@@ -556,6 +584,7 @@ export async function scoreRoleDecline(meeting, account) {
     category: 'role_decline',
     points: penalty.points,
     note: `Declined a role for ${meeting.dateLabel ?? meeting.date} (${penalty.label.toLowerCase()})`,
+    club_id: meeting.clubId,
   })
   // Scoring is a side effect of the real decline — it should never fail
   // or block that action, only log if it does.
@@ -569,11 +598,12 @@ export async function scoreRoleDecline(meeting, account) {
 // up through the app themselves (e.g. a pre-existing member from the
 // original attendance-sheet seed) — same identity gap as
 // deriveMyRoleIds's name-fallback in mockRolesStore.js.
-async function resolveMemberEmailByName(name) {
+async function resolveMemberEmailByName(name, clubId) {
   const { data } = await supabase
     .from('member_signups')
     .select('email')
     .eq('status', 'approved')
+    .eq('club_id', clubId)
     .ilike('name', name)
     .limit(1)
     .maybeSingle()
@@ -586,10 +616,10 @@ async function resolveMemberEmailByName(name) {
 // the row is still recorded by name for audit purposes, it just won't
 // surface in that member's own "points this month" total until their
 // real email is known.
-export async function awardReferralPoints(memberName, category, points) {
+export async function awardReferralPoints(memberName, category, points, clubId) {
   const trimmedName = (memberName ?? '').trim()
   if (!trimmedName) return
-  const email = await resolveMemberEmailByName(trimmedName)
+  const email = await resolveMemberEmailByName(trimmedName, clubId)
   const { error } = await supabase.from('member_points').insert({
     member_email: email,
     member_name: trimmedName,
@@ -600,6 +630,7 @@ export async function awardReferralPoints(memberName, category, points) {
       category === 'guest_attended'
         ? `${trimmedName}'s guest attended a meeting`
         : `${trimmedName}'s guest converted to a member`,
+    club_id: clubId,
   })
   if (error) console.error('[mockPointsStore] awardReferralPoints failed:', error.message)
 }
@@ -607,8 +638,8 @@ export async function awardReferralPoints(memberName, category, points) {
 // VPM's own +10 bonus when a referred guest converts — a real ExCom
 // role with a real email, no identity gap here, so this goes into
 // excom_points like every other VPM category.
-export async function awardVpmReferralBonus() {
-  const vpmEmail = await getActingEmailForRole('VPM')
+export async function awardVpmReferralBonus(clubId) {
+  const vpmEmail = await getActingEmailForRole('VPM', clubId)
   if (!vpmEmail) return
   await awardPoints({
     role: 'VPM',
@@ -617,11 +648,12 @@ export async function awardVpmReferralBonus() {
     category: 'guest_converted_bonus',
     points: 10,
     note: 'A member-referred guest converted to a member',
+    clubId,
   })
 }
 
-export async function scoreRenewal(memberEmail, hadExistingRow) {
-  const treasurerEmail = await getActingEmailForRole('Treasurer')
+export async function scoreRenewal(memberEmail, hadExistingRow, clubId) {
+  const treasurerEmail = await getActingEmailForRole('Treasurer', clubId)
   if (!treasurerEmail) return
   if (hadExistingRow) {
     await awardPointsWithMonthlySubjectCap({
@@ -632,6 +664,7 @@ export async function scoreRenewal(memberEmail, hadExistingRow) {
       points: 20,
       note: 'Renewal of an existing member',
       maxEventsPerMonth: 4,
+      clubId,
     })
   } else {
     await awardPointsWithMonthlySubjectCap({
@@ -642,6 +675,7 @@ export async function scoreRenewal(memberEmail, hadExistingRow) {
       points: 15,
       note: 'Renewal of a new member',
       maxEventsPerMonth: 3,
+      clubId,
     })
   }
 }

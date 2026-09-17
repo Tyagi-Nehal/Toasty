@@ -2122,3 +2122,33 @@ drop policy if exists "role_notifications recipient update" on role_notification
 create policy "role_notifications recipient update" on role_notifications
   for update to authenticated
   using (lower(recipient_email) = lower(auth.jwt() ->> 'email'));
+
+-- Phase 2 multi-tenancy: club-photos storage paths are now namespaced
+-- as {clubId}/{folder}/{uuid}.jpg (src/lib/storage.js) instead of a flat
+-- {folder}/{uuid}.jpg with no club segment. Existing objects uploaded
+-- under the old flat layout keep working (public read is unconditional
+-- on bucket_id, and nothing deletes/moves them) — this only tightens the
+-- write policy so a new upload's own path prefix must match the
+-- uploader's current_club_id(), the same way every other table's
+-- `with check` does. storage.foldername(name) splits "a/b/c.jpg" into
+-- {'a','b'}, so [1] is the first path segment.
+drop policy if exists "club-photos vppr or president write" on storage.objects;
+create policy "club-photos vppr or president write" on storage.objects
+  for all to authenticated
+  using (
+    bucket_id = 'club-photos'
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email') and role in ('VPPR', 'Ass. VPPR')
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+      )
+    )
+  )
+  with check (
+    bucket_id = 'club-photos'
+    and (storage.foldername(name))[1] = current_club_id()
+  );

@@ -21,7 +21,7 @@ export async function getSubmittedMOM(meetingId) {
 }
 
 export async function getAllSubmittedMOMs() {
-  const { data, error } = await supabase.from('moms').select('*')
+  const { data, error } = await supabase.from('moms').select('*').eq('club_id', getAccount()?.clubId)
   if (error) console.error('[mockMOMStore] getAllSubmittedMOMs failed:', error.message)
   return (data ?? []).reduce((acc, row) => {
     acc[row.meeting_id] = { ...row.content, submittedAt: row.submitted_at }
@@ -38,6 +38,7 @@ export async function saveSubmittedMOM(meetingId, mom, meta) {
       content: { ...mom, ...meta },
       submitted_at: submittedAt,
       submitted_by_email: account?.email ?? null,
+      club_id: account?.clubId,
     },
     { onConflict: 'meeting_id' },
   )

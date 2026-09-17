@@ -50,10 +50,11 @@ function toAppointment(row) {
   }
 }
 
-export async function getExcomAppointments() {
+export async function getExcomAppointments(clubId) {
   const { data } = await supabase
     .from('excom_appointments')
     .select('*')
+    .eq('club_id', clubId)
     .order('appointed_at', { ascending: true })
   return (data ?? []).map(toAppointment)
 }
@@ -62,7 +63,7 @@ export async function getExcomAppointments() {
 // and building the result from the already-known input avoids depending
 // on being able to read the row straight back (an RLS/permission gap here
 // broke club/president submissions earlier this session).
-export async function registerExcomMember({ role, name, email, appointedByEmail }) {
+export async function registerExcomMember({ role, name, email, appointedByEmail, clubId }) {
   const normalizedEmail = normalizeEmail(email)
   const normalizedAppointer = normalizeEmail(appointedByEmail)
 
@@ -72,8 +73,11 @@ export async function registerExcomMember({ role, name, email, appointedByEmail 
   // the most-recently-appointed one would ever actually be used by
   // anything role-specific. Associate roles are exempt on purpose:
   // multiple people can hold "Ass. VPPR" at once, each individually.
+  // club_id scoping here is required, not defensive belt-and-braces: two
+  // clubs both have a "VPE" — without it, Club B's President appointing
+  // their own VPE would silently delete Club A's VPE appointment too.
   if (!role.startsWith('Ass. ')) {
-    await supabase.from('excom_appointments').delete().eq('role', role)
+    await supabase.from('excom_appointments').delete().eq('role', role).eq('club_id', clubId)
   }
 
   const { error } = await supabase.from('excom_appointments').insert({
@@ -81,14 +85,15 @@ export async function registerExcomMember({ role, name, email, appointedByEmail 
     name,
     email: normalizedEmail,
     appointed_by_email: normalizedAppointer,
+    club_id: clubId,
   })
   if (error) return { error: error.message ?? 'Something went wrong. Please try again.' }
 
   // An ExCom appointee is a real active person in the club — make sure
   // they actually exist on the roster, or the Treasurer would have
   // nobody to mark them Paid/active for (see ensureRosterMember).
-  await ensureRosterMember(name, normalizedEmail)
-  await scoreExcomAppointment()
+  await ensureRosterMember(name, normalizedEmail, clubId)
+  await scoreExcomAppointment(clubId)
 
   return {
     role,
@@ -105,13 +110,14 @@ export async function removeExcomMember(id) {
 
 // Returns the role for a pre-registered email, or null if none exists.
 // If someone was registered for multiple roles, the most recent wins.
-export async function getRoleForEmail(email) {
+export async function getRoleForEmail(email, clubId) {
   const normalized = normalizeEmail(email)
   if (!normalized) return null
   const { data, error } = await supabase
     .from('excom_appointments')
     .select('role')
     .eq('email', normalized)
+    .eq('club_id', clubId)
     .order('appointed_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -120,16 +126,18 @@ export async function getRoleForEmail(email) {
 }
 
 // Reverse of getRoleForEmail — the email currently holding a given role
-// (most recent appointment wins). Used to attribute ExCom points to
-// whoever actually holds a role, even when the President performs the
-// triggering action on that role's behalf (see mockPointsStore.js) —
-// crediting getAccount()'s email directly would wrongly give the
-// President points meant for e.g. the VPM.
-export async function getEmailForRole(role) {
+// (most recent appointment wins), within one specific club (two clubs
+// can both have a "VPE" — without clubId this would be ambiguous). Used
+// to attribute ExCom points to whoever actually holds a role, even when
+// the President performs the triggering action on that role's behalf
+// (see mockPointsStore.js) — crediting getAccount()'s email directly
+// would wrongly give the President points meant for e.g. the VPM.
+export async function getEmailForRole(role, clubId) {
   const { data } = await supabase
     .from('excom_appointments')
     .select('email')
     .eq('role', role)
+    .eq('club_id', clubId)
     .order('appointed_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -137,16 +145,16 @@ export async function getEmailForRole(role) {
 }
 
 // Whether `email` currently holds baseRole itself OR its "Ass. baseRole"
-// variant — used by mockPointsStore.js to credit whichever specific
-// person (primary or associate) actually performed an action, instead
-// of always crediting one canonical "the" role holder via
+// variant within clubId — used by mockPointsStore.js to credit whichever
+// specific person (primary or associate) actually performed an action,
+// instead of always crediting one canonical "the" role holder via
 // getEmailForRole. Returns the exact role string held (e.g. 'VPPR' or
 // 'Ass. VPPR') so the caller can tell which one it was, or null if this
 // email doesn't currently hold either — including the President, who
 // isn't in excom_appointments at all, so acting on a role's behalf
 // correctly earns nobody points (see the isSelfAction design this
 // replaces).
-export async function getHeldRoleForEmailAndBase(email, baseRole) {
+export async function getHeldRoleForEmailAndBase(email, baseRole, clubId) {
   const normalized = normalizeEmail(email)
   if (!normalized) return null
   const candidateRoles = ASSOCIATE_ELIGIBLE_ROLES.includes(baseRole)
@@ -156,6 +164,7 @@ export async function getHeldRoleForEmailAndBase(email, baseRole) {
     .from('excom_appointments')
     .select('role')
     .eq('email', normalized)
+    .eq('club_id', clubId)
     .in('role', candidateRoles)
     .limit(1)
     .maybeSingle()
@@ -166,11 +175,12 @@ export async function getHeldRoleForEmailAndBase(email, baseRole) {
 // auto-fill the per-meeting SAA role slot to whoever actually holds the
 // SAA appointment (see mockRolesStore.js's resolveFixedRoleAssignee),
 // instead of the VPE re-typing a name every meeting.
-export async function getNameForRole(role) {
+export async function getNameForRole(role, clubId) {
   const { data } = await supabase
     .from('excom_appointments')
     .select('name, email')
     .eq('role', role)
+    .eq('club_id', clubId)
     .order('appointed_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -178,39 +188,52 @@ export async function getNameForRole(role) {
 }
 
 // Returns every distinct role registered to this email (most-recent
-// first), instead of just the single most-recent one — lets one email
-// hold multiple ExCom roles at once, e.g. for testing several role
-// dashboards without needing a separate real Google account per role.
-// Runs on every sign-in (mockAuth.js) and decides whether a real officer
-// gets recognized as one at all — logging a failure here matters for the
-// same reason as verifyPresident's above: an unchecked error used to be
-// silently identical to "holds no roles," demoting any real ExCom
-// officer to the generic pending-member flow on a mere network hiccup.
+// first) plus the club it belongs to, instead of just the single
+// most-recent role — lets one email hold multiple ExCom roles at once,
+// e.g. for testing several role dashboards without needing a separate
+// real Google account per role. Deliberately NOT club-scoped by a
+// caller-supplied clubId — this is the bootstrapping call that
+// discovers which club (if any) this email belongs to in the first
+// place, called from mockAuth.js's syncAccountFromSupabaseUser on every
+// sign-in. If an email somehow holds appointments in more than one club
+// (not a supported scenario yet — see the plan's "one email, one club"
+// design note), the most recently appointed row's club wins, same
+// most-recent-wins convention already used for role/name resolution
+// below. Logging a failure here matters for the same reason as
+// verifyPresident's above: an unchecked error used to be silently
+// identical to "holds no roles," demoting any real ExCom officer to the
+// generic pending-member flow on a mere network hiccup.
 export async function getRolesForEmail(email) {
   const normalized = normalizeEmail(email)
-  if (!normalized) return []
+  if (!normalized) return { roles: [], clubId: null }
   const { data, error } = await supabase
     .from('excom_appointments')
-    .select('role')
+    .select('role, club_id')
     .eq('email', normalized)
     .order('appointed_at', { ascending: false })
   if (error) console.error('[mockExcomRegistry] getRolesForEmail failed:', error.message)
-  return [...new Set((data ?? []).map((row) => row.role))]
+  const rows = data ?? []
+  return {
+    roles: [...new Set(rows.map((row) => row.role))],
+    clubId: rows[0]?.club_id ?? null,
+  }
 }
 
-// Every { role: name } pair registered for this email — powers
-// role-aware display names for accounts holding multiple ExCom roles
-// under one shared email (see setActiveRoleOverride in mockAuth.js).
-// Without this, an email registered under 3 roles would show whichever
-// role's name was appointed most recently for every role, not the name
-// that was actually registered for the role currently being acted as.
-export async function getNamesByRoleForEmail(email) {
+// Every { role: name } pair registered for this email within clubId —
+// powers role-aware display names for accounts holding multiple ExCom
+// roles under one shared email (see setActiveRoleOverride in
+// mockAuth.js). Without this, an email registered under 3 roles would
+// show whichever role's name was appointed most recently for every
+// role, not the name that was actually registered for the role
+// currently being acted as.
+export async function getNamesByRoleForEmail(email, clubId) {
   const normalized = normalizeEmail(email)
   if (!normalized) return {}
   const { data } = await supabase
     .from('excom_appointments')
     .select('role, name')
     .eq('email', normalized)
+    .eq('club_id', clubId)
     .order('appointed_at', { ascending: true })
   const names = {}
   for (const row of data ?? []) {

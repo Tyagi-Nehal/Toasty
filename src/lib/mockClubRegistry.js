@@ -212,9 +212,17 @@ export async function rejectPresident(id) {
 // checked), demoting them to the generic pending-member flow with no
 // trace of why. Logging it doesn't recover the failed check, but makes a
 // transient failure diagnosable instead of looking like a data problem.
+// Multi-club: being a verified president (this table) isn't enough on
+// its own to grant President dashboard access — they also need to
+// actually be the current president of a real approved club (clubs
+// table), which is where clubId/clubName (and therefore which club's
+// data they administer) actually comes from. A verified-but-clubless
+// president has nothing to administer yet, so this now returns
+// verified:false for them too — see syncAccountFromSupabaseUser in
+// mockAuth.js, which is the only caller.
 export async function verifyPresident(email) {
   const normalizedEmail = (email ?? '').trim().toLowerCase()
-  if (!normalizedEmail) return { verified: false, name: null }
+  if (!normalizedEmail) return { verified: false, name: null, clubId: null, clubName: null }
   const { data, error } = await supabase
     .from('president_verifications')
     .select('name')
@@ -222,7 +230,18 @@ export async function verifyPresident(email) {
     .eq('email', normalizedEmail)
     .maybeSingle()
   if (error) console.error('[mockClubRegistry] verifyPresident failed:', error.message)
-  return { verified: !!data, name: data?.name ?? null }
+  if (!data) return { verified: false, name: null, clubId: null, clubName: null }
+
+  const { data: club, error: clubError } = await supabase
+    .from('clubs')
+    .select('id, name')
+    .eq('status', 'approved')
+    .eq('president_email', normalizedEmail)
+    .maybeSingle()
+  if (clubError) console.error('[mockClubRegistry] verifyPresident club lookup failed:', clubError.message)
+  if (!club) return { verified: false, name: data.name, clubId: null, clubName: null }
+
+  return { verified: true, name: data.name, clubId: club.id, clubName: club.name }
 }
 
 export async function isVerifiedPresident(email) {

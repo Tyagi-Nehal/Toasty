@@ -24,6 +24,7 @@
 import { supabase } from './supabaseClient.js'
 import { getMeeting } from './mockRolesStore.js'
 import { pushNotification } from './mockNotificationsStore.js'
+import { getAccount } from './mockAuth.js'
 
 const LOG_KEY = 'toasty_agenda_history'
 const MAX_LOG_ENTRIES = 25
@@ -162,6 +163,7 @@ function toRow(meetingId, agenda) {
     updated_at: new Date().toISOString(),
     sent_at: agenda.sentAt ?? null,
     sent_snapshot: agenda.sentSnapshot ?? null,
+    club_id: getAccount()?.clubId,
   }
 }
 

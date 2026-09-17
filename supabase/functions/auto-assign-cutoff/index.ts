@@ -111,12 +111,38 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
 
+  // Multi-club: there's no single global "next meeting" once more than
+  // one club exists — each club has its own next meeting, own roster,
+  // own role history and attendance. Everything below runs once per
+  // approved club, entirely scoped to that club's own rows, so one
+  // club's members can never be considered for another club's roles.
+  const { data: clubs, error: clubsError } = await supabase
+    .from('clubs')
+    .select('id')
+    .eq('status', 'approved')
+  if (clubsError) {
+    return new Response(JSON.stringify({ error: clubsError.message }), { status: 500 })
+  }
+
+  const results = []
+  for (const club of clubs ?? []) {
+    results.push(await runForClub(supabase, club.id))
+  }
+
+  return new Response(JSON.stringify({ results }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  })
+})
+
+async function runForClub(supabase: ReturnType<typeof createClient>, clubId: string) {
   const { data: meetings, error: meetingsError } = await supabase
     .from('meetings')
     .select('*')
+    .eq('club_id', clubId)
     .order('meeting_date', { ascending: true })
   if (meetingsError) {
-    return new Response(JSON.stringify({ error: meetingsError.message }), { status: 500 })
+    return { clubId, ran: false, reason: meetingsError.message }
   }
 
   const now = Date.now()
@@ -133,7 +159,8 @@ Deno.serve(async (req) => {
     }
   })
 
-  // Only the single next active (uncancelled, upcoming) meeting.
+  // Only the single next active (uncancelled, upcoming) meeting — for
+  // this club.
   const next = views.find((m) => !m.cancelled && (m.hoursUntilMeeting ?? -1) >= 0) ?? null
 
   const isDue =
@@ -144,25 +171,20 @@ Deno.serve(async (req) => {
     now - next.autoAssignCutoff.getTime() <= DUE_WINDOW_MS
 
   if (!isDue) {
-    return new Response(JSON.stringify({ ran: false, reason: 'not due' }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return { clubId, ran: false, reason: 'not due' }
   }
 
   const { data: assignments } = await supabase
     .from('meeting_role_assignments')
     .select('*')
     .eq('meeting_id', next!.id)
+    .eq('club_id', clubId)
 
   const openRoles = (assignments ?? []).filter(
     (a) => a.status === 'open' && !VPE_ONLY_ROLE_IDS.includes(a.role_id),
   )
   if (openRoles.length === 0) {
-    return new Response(JSON.stringify({ ran: false, reason: 'no open roles' }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return { clubId, ran: false, reason: 'no open roles' }
   }
 
   const usedNames = new Set(
@@ -170,9 +192,13 @@ Deno.serve(async (req) => {
   )
 
   const [{ data: members }, { data: roleHistory }, { data: attendanceRows }] = await Promise.all([
-    supabase.from('members').select('*').order('name'),
-    supabase.from('role_history').select('*').order('meeting_date', { ascending: false }),
-    supabase.from('attendance').select('member_name, present'),
+    supabase.from('members').select('*').eq('club_id', clubId).order('name'),
+    supabase
+      .from('role_history')
+      .select('*')
+      .eq('club_id', clubId)
+      .order('meeting_date', { ascending: false }),
+    supabase.from('attendance').select('member_name, present').eq('club_id', clubId),
   ])
 
   const attendanceStats: AttendanceStats = {}
@@ -209,11 +235,9 @@ Deno.serve(async (req) => {
       member_email: assignment.email,
       role_id: assignment.roleId,
       meeting_date: next!.meeting_date,
+      club_id: clubId,
     })
   }
 
-  return new Response(
-    JSON.stringify({ ran: true, meetingId: next!.id, filledCount }),
-    { status: 200, headers: { 'Content-Type': 'application/json' } },
-  )
-})
+  return { clubId, ran: true, meetingId: next!.id, filledCount }
+}

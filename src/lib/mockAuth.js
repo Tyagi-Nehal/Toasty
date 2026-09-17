@@ -48,13 +48,18 @@ export async function syncAccountFromSupabaseUser(user) {
   const requestedExcomRole = sessionStorage.getItem(REQUESTED_EXCOM_ROLE_KEY)
   sessionStorage.removeItem(REQUESTED_EXCOM_ROLE_KEY)
 
-  const { verified: isPresident, name: presidentName } = await verifyPresident(email)
-  const roles = isPresident ? ['President'] : await getRolesForEmail(email)
+  const { verified: isPresident, name: presidentName, clubId: presidentClubId, clubName: presidentClubName } =
+    await verifyPresident(email)
+  const { roles, clubId: excomClubId } = isPresident
+    ? { roles: ['President'], clubId: presidentClubId }
+    : await getRolesForEmail(email)
 
-  let status, resolvedName
+  let status, resolvedName, clubId, clubName
   let excomRoleNames = {}
   if (roles.length > 0) {
-    excomRoleNames = isPresident ? { President: presidentName } : await getNamesByRoleForEmail(email)
+    clubId = isPresident ? presidentClubId : excomClubId
+    clubName = isPresident ? presidentClubName : null
+    excomRoleNames = isPresident ? { President: presidentName } : await getNamesByRoleForEmail(email, clubId)
     // If a role's already been picked for this session (see
     // setActiveRoleOverride below), use that role's own registered name —
     // not just whichever role was appointed most recently for this email —
@@ -73,6 +78,8 @@ export async function syncAccountFromSupabaseUser(user) {
     })
     resolvedName = signup.name || googleName || email
     status = signup.status
+    clubId = signup.clubId ?? null
+    clubName = null
     // A pending application, reviewed by the President — separate from
     // (and in addition to) the general member signup above, which the
     // VPM reviews. Only fires once, right after the Sign Up form is
@@ -82,6 +89,7 @@ export async function syncAccountFromSupabaseUser(user) {
         role: requestedExcomRole,
         name: typedName || googleName || email,
         email,
+        clubId,
       })
     }
   }
@@ -93,9 +101,18 @@ export async function syncAccountFromSupabaseUser(user) {
     excomRoles: roles,
     excomRoleNames,
     appliedForExcom,
+    clubId,
+    clubName,
   }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(account))
   return account
+}
+
+// The signed-in account's own club id — the one place every store file
+// should pull "which club am I acting in" from, mirroring the existing
+// getAccount() convention already used directly inside store files.
+export function getMyClubId() {
+  return getAccount()?.clubId ?? null
 }
 
 // Testing convenience: when one email holds multiple ExCom roles (see

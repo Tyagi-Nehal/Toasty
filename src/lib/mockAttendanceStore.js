@@ -30,7 +30,7 @@ export async function getRecentMeetingsForAttendance(limit = 5) {
 // absentees, same UX the old fake page had — just against real data now).
 export async function getAttendanceForMeeting(meetingId) {
   const [members, { data: rows }] = await Promise.all([
-    getMembers(),
+    getMembers(getAccount()?.clubId),
     supabase.from('attendance').select('*').eq('meeting_id', meetingId),
   ])
   const byEmail = new Map((rows ?? []).map((r) => [r.member_email, r.present]))
@@ -64,6 +64,7 @@ export async function submitAttendance(meetingId, entries, meeting) {
     present,
     submitted_by_email: account?.email ?? null,
     updated_at: submittedAt,
+    club_id: account?.clubId,
   }))
   const { error } = await supabase
     .from('attendance')
@@ -77,8 +78,11 @@ export async function submitAttendance(meetingId, entries, meeting) {
 
 // { [memberEmail]: { present, total } } across every recorded meeting — the
 // shape mockRosterStore.scoreMemberForRole's attendanceStats param expects.
-export async function getAttendanceStatsByMember() {
-  const { data, error } = await supabase.from('attendance').select('member_email, present')
+export async function getAttendanceStatsByMember(clubId) {
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('member_email, present')
+    .eq('club_id', clubId)
   if (error) {
     console.error('[mockAttendanceStore] getAttendanceStatsByMember failed:', error.message)
     return {}

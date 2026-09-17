@@ -32,12 +32,15 @@ function downscaleToBlob(file, { maxDimension = 1600, quality = 0.82 } = {}) {
   })
 }
 
-// Uploads a photo into club-photos/{folder}/{uuid}.jpg and returns its
-// public URL. `folder` just keeps uploads organized in the bucket
-// (e.g. 'club-page/hero', 'meetings/<meetingId>', 'excom-profiles').
-export async function uploadClubPhoto(file, folder, options) {
+// Uploads a photo into club-photos/{clubId}/{folder}/{uuid}.jpg and
+// returns its public URL. `folder` just keeps uploads organized within a
+// club's own namespace (e.g. 'club-page/hero', 'meetings/<meetingId>',
+// 'excom-profiles'). The clubId prefix keeps a second club's uploads out
+// of the first club's path entirely — a bucket-level RLS `with check`
+// validates it matches the uploader's own current_club_id().
+export async function uploadClubPhoto(file, folder, clubId, options) {
   const blob = await downscaleToBlob(file, options)
-  const path = `${folder}/${crypto.randomUUID()}.jpg`
+  const path = `${clubId}/${folder}/${crypto.randomUUID()}.jpg`
   const { error } = await supabase.storage.from('club-photos').upload(path, blob, {
     contentType: 'image/jpeg',
   })

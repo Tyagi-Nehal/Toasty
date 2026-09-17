@@ -129,7 +129,7 @@ export default function RoleManagementPage() {
 
   useEffect(() => {
     refresh()
-    getMembers().then(setRoster)
+    getMembers(getAccount()?.clubId).then(setRoster)
   }, [])
 
   async function handleAutoAssign() {
