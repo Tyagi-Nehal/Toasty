@@ -2227,3 +2227,72 @@ create policy "club_mentors vppr or president write" on club_mentors
 
 grant select on club_mentors to anon;
 grant select, insert, update, delete on club_mentors to authenticated;
+
+-- One person can preside over multiple clubs at once (e.g. a founder
+-- running two chapters) — drop the earlier constraint that assumed
+-- "one president email = one club", and give current_club_id() a way to
+-- know *which* of a multi-president's clubs they're currently acting as.
+drop index if exists clubs_president_email_unique;
+
+-- Remembers which club a multi-club president (or, generically, anyone
+-- affiliated with more than one club) last chose to act as — read by
+-- current_club_id() below, written by the club-switcher UI
+-- (switchActiveClub in mockAuth.js). One row per email; a person with
+-- only one club never needs a row here at all, since current_club_id()
+-- falls back to its original single-match resolution when there's
+-- nothing stored (or nothing valid stored) for them.
+create table if not exists user_active_club (
+  email text primary key,
+  club_id text not null references clubs(id),
+  updated_at timestamptz not null default now()
+);
+
+alter table user_active_club enable row level security;
+
+drop policy if exists "user_active_club own row" on user_active_club;
+create policy "user_active_club own row" on user_active_club
+  for all to authenticated
+  using (email = lower(auth.jwt() ->> 'email'))
+  with check (email = lower(auth.jwt() ->> 'email'));
+
+grant select, insert, update on user_active_club to authenticated;
+
+-- Resolves the signed-in caller's own *active* club. If they've picked
+-- one (user_active_club) and it's actually one of theirs, honor that —
+-- this is what makes a multi-club president's switcher work. Otherwise
+-- falls back to the original priority order (approved president, then
+-- ExCom appointment, then member signup), unchanged from before, so a
+-- single-club person's resolution is identical to what it's always been.
+-- `order by id` on the president branch (rather than `limit 1` with no
+-- order) makes the no-selection-yet fallback deterministic once a
+-- second club exists for the same president, instead of depending on
+-- whatever order Postgres happens to return rows in.
+create or replace function current_club_id()
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (select uac.club_id from user_active_club uac
+       where uac.email = lower(auth.jwt() ->> 'email')
+         and uac.club_id in (
+           select id from clubs
+             where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+           union
+           select club_id from excom_appointments
+             where lower(email) = lower(auth.jwt() ->> 'email')
+           union
+           select club_id from member_signups
+             where lower(email) = lower(auth.jwt() ->> 'email')
+         )),
+    (select id from clubs
+       where lower(president_email) = lower(auth.jwt() ->> 'email') and status = 'approved'
+       order by id limit 1),
+    (select club_id from excom_appointments
+       where lower(email) = lower(auth.jwt() ->> 'email') order by appointed_at desc limit 1),
+    (select club_id from member_signups
+       where lower(email) = lower(auth.jwt() ->> 'email') limit 1)
+  );
+$$;

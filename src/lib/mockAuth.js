@@ -1,5 +1,5 @@
 import { getRolesForEmail, getNamesByRoleForEmail, ASSOCIATE_ELIGIBLE_ROLES } from './mockExcomRegistry.js'
-import { verifyPresident } from './mockClubRegistry.js'
+import { verifyPresident, setActiveClub } from './mockClubRegistry.js'
 import { getOrCreateSignupStatus } from './mockMemberSignups.js'
 import { submitExcomApplication } from './mockExcomApplications.js'
 
@@ -48,8 +48,13 @@ export async function syncAccountFromSupabaseUser(user) {
   const requestedExcomRole = sessionStorage.getItem(REQUESTED_EXCOM_ROLE_KEY)
   sessionStorage.removeItem(REQUESTED_EXCOM_ROLE_KEY)
 
-  const { verified: isPresident, name: presidentName, clubId: presidentClubId, clubName: presidentClubName } =
-    await verifyPresident(email)
+  const {
+    verified: isPresident,
+    name: presidentName,
+    clubId: presidentClubId,
+    clubName: presidentClubName,
+    clubs: presidentClubs,
+  } = await verifyPresident(email)
   const { roles, clubId: excomClubId } = isPresident
     ? { roles: ['President'], clubId: presidentClubId }
     : await getRolesForEmail(email)
@@ -103,9 +108,30 @@ export async function syncAccountFromSupabaseUser(user) {
     appliedForExcom,
     clubId,
     clubName,
+    // Only populated for a president of more than one approved club —
+    // MemberLayout.jsx's club switcher only renders when this has more
+    // than one entry, so a single-club president (everyone today) sees
+    // no UI change at all.
+    presidentClubs: isPresident && presidentClubs.length > 1 ? presidentClubs : [],
   }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(account))
   return account
+}
+
+// Switches which of a multi-club president's clubs is "active" — writes
+// the choice server-side (user_active_club, read by every RLS query's
+// current_club_id() from then on) and updates the local account cache to
+// match. Callers should reload the page after this so already-loaded
+// data (roles, roster, points, everything) re-fetches under the new
+// club instead of showing a stale mix of the old and new club's data.
+export async function switchActiveClub(clubId) {
+  const account = getAccount()
+  if (!account) return
+  const target = account.presidentClubs?.find((c) => c.id === clubId)
+  if (!target) return
+  await setActiveClub(account.email, clubId)
+  const updated = { ...account, clubId: target.id, clubName: target.name }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
 }
 
 // The signed-in account's own club id — the one place every store file

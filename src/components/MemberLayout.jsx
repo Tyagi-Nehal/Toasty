@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import {
   Bell,
+  Building2,
   ChevronDown,
   LogOut,
   LayoutDashboard,
@@ -15,7 +16,7 @@ import {
 } from 'lucide-react'
 import Logo from './Logo.jsx'
 import Avatar from './Avatar.jsx'
-import { getAccount, hasExcomRole, getDisplayRole } from '../lib/mockAuth.js'
+import { getAccount, hasExcomRole, getDisplayRole, switchActiveClub } from '../lib/mockAuth.js'
 import { supabase } from '../lib/supabaseClient.js'
 import { getNotifications, markAllRead } from '../lib/mockNotificationsStore.js'
 import { notificationIcons, defaultNotificationIcon } from './notificationMeta.js'
@@ -50,6 +51,68 @@ const baseNavLinks = [
 // ExCom tab's quick actions (see ExComDashboard.jsx) — not duplicated
 // here as their own top-level tabs.
 const excomNavLinks = []
+
+// Only rendered when account.presidentClubs has more than one entry
+// (mockAuth.js only populates it in that case) — a president of a
+// single club, everyone today, sees nothing here at all. Switching
+// writes the choice server-side (current_club_id() reads it on every
+// RLS query from then on), then reloads the page so every already-
+// loaded store/page re-fetches under the new club instead of showing a
+// stale mix of the old and new club's data.
+function ClubSwitcher({ account }) {
+  const [open, setOpen] = useState(false)
+  const [switching, setSwitching] = useState(false)
+
+  async function handleSwitch(clubId) {
+    if (clubId === account.clubId || switching) {
+      setOpen(false)
+      return
+    }
+    setSwitching(true)
+    await switchActiveClub(clubId)
+    window.location.reload()
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        disabled={switching}
+        className="flex items-center gap-1.5 rounded-full border border-accent/30 bg-white px-3 py-1.5 text-xs font-semibold text-ink/70 transition hover:border-primary/50 disabled:opacity-50"
+      >
+        <Building2 size={13} className="text-primary" />
+        <span className="max-w-[9rem] truncate">{account.clubName ?? 'Switch club'}</span>
+        <ChevronDown size={13} />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 z-20 mt-2 w-56 rounded-xl border border-accent/30 bg-white p-1.5 shadow-lg">
+            <p className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink/40">
+              Acting as president of
+            </p>
+            {account.presidentClubs.map((club) => (
+              <button
+                key={club.id}
+                type="button"
+                onClick={() => handleSwitch(club.id)}
+                className={`block w-full truncate rounded-lg px-2.5 py-2 text-left text-sm transition ${
+                  club.id === account.clubId
+                    ? 'bg-primary/10 font-semibold text-primary'
+                    : 'text-ink hover:bg-cream'
+                }`}
+              >
+                {club.name}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 
 export default function MemberLayout({ children }) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -94,7 +157,10 @@ export default function MemberLayout({ children }) {
     <div className="min-h-screen bg-cream">
       <header className="sticky top-0 z-40 border-b border-accent/30 bg-cream/90 backdrop-blur print:hidden">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <Logo to={clubHomeLink} />
+          <div className="flex shrink-0 items-center gap-3">
+            <Logo to={clubHomeLink} />
+            {account?.presidentClubs?.length > 1 && <ClubSwitcher account={account} />}
+          </div>
 
           <nav className="hidden items-center gap-1 lg:flex">
             {navLinks.map(({ to, label, icon: Icon }) => {
