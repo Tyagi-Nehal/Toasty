@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Award, Briefcase, Building2, Mail, Phone, UsersRound } from 'lucide-react'
+import { Award, Building2, UsersRound } from 'lucide-react'
 import PublicNavbar from '../components/PublicNavbar.jsx'
 import Footer from '../components/Footer.jsx'
 import Avatar from '../components/Avatar.jsx'
@@ -57,23 +57,7 @@ export default function MentorPage() {
                       {mentor.experience}
                     </p>
                   )}
-                  {mentor.organization && (
-                    <p className="flex items-center gap-1.5">
-                      <Briefcase size={13} className="shrink-0 text-primary" />
-                      {mentor.organization}
-                    </p>
-                  )}
                 </div>
-
-                {(mentor.email || mentor.phone) && (
-                  <a
-                    href={mentor.email ? `mailto:${mentor.email}` : `tel:${mentor.phone}`}
-                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-cream shadow-md shadow-primary/20 transition hover:bg-primary-dark"
-                  >
-                    {mentor.email ? <Mail size={15} /> : <Phone size={15} />}
-                    Contact Mentor
-                  </a>
-                )}
               </div>
             ))}
           </div>

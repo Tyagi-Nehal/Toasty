@@ -1236,9 +1236,6 @@ function MentorsTab({ refreshLog }) {
   const [designation, setDesignation] = useState('')
   const [clubName, setClubName] = useState('')
   const [experience, setExperience] = useState('')
-  const [organization, setOrganization] = useState('')
-  const [email, setEmail] = useState('')
-  const [phone, setPhone] = useState('')
   const [existingPhotoUrl, setExistingPhotoUrl] = useState(null)
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(null)
@@ -1258,9 +1255,6 @@ function MentorsTab({ refreshLog }) {
     setDesignation('')
     setClubName('')
     setExperience('')
-    setOrganization('')
-    setEmail('')
-    setPhone('')
     setExistingPhotoUrl(null)
     setPhotoFile(null)
     setPhotoPreview(null)
@@ -1273,9 +1267,6 @@ function MentorsTab({ refreshLog }) {
     setDesignation(mentor.designation ?? '')
     setClubName(mentor.clubName ?? '')
     setExperience(mentor.experience ?? '')
-    setOrganization(mentor.organization ?? '')
-    setEmail(mentor.email ?? '')
-    setPhone(mentor.phone ?? '')
     setExistingPhotoUrl(mentor.photoUrl ?? null)
     setPhotoFile(null)
     setPhotoPreview(null)
@@ -1299,9 +1290,6 @@ function MentorsTab({ refreshLog }) {
         designation: designation.trim(),
         clubName: clubName.trim(),
         experience: experience.trim(),
-        organization: organization.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
         photoFile,
         clubId: getAccount()?.clubId,
       }
@@ -1431,38 +1419,6 @@ function MentorsTab({ refreshLog }) {
                 value={experience}
                 onChange={(e) => setExperience(e.target.value)}
                 placeholder="e.g. 8+ years"
-                className="mt-1.5 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <label className="mt-4 block text-xs font-medium text-ink/60">Organization</label>
-          <input
-            type="text"
-            value={organization}
-            onChange={(e) => setOrganization(e.target.value)}
-            placeholder="e.g. Works at Infosys"
-            className="mt-1.5 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
-          />
-
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="text-xs font-medium text-ink/60">Phone</label>
-              <input
-                type="text"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="e.g. +91 98765 43210"
-                className="mt-1.5 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-ink/60">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
                 className="mt-1.5 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
               />
             </div>

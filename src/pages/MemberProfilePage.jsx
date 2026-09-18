@@ -226,10 +226,8 @@ export default function MemberProfilePage() {
               <Avatar name={myMentor.name} size={44} />
               <div>
                 <p className="font-semibold text-ink">{myMentor.name}</p>
-                {(myMentor.email || myMentor.phone) && (
-                  <p className="text-xs text-ink/60">
-                    {myMentor.email ?? myMentor.phone}
-                  </p>
+                {myMentor.designation && (
+                  <p className="text-xs text-ink/60">{myMentor.designation}</p>
                 )}
               </div>
             </div>

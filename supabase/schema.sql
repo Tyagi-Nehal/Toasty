@@ -2166,14 +2166,18 @@ create table if not exists club_mentors (
   designation text,
   club_name text,
   experience text,
-  organization text,
-  email text,
-  phone text,
   photo_url text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 create index if not exists club_mentors_club_id_idx on club_mentors(club_id);
+
+-- organization/email/phone were part of the original design but dropped
+-- before any real mentor data existed — the mentor cards only need
+-- name/designation/home club/experience/photo.
+alter table club_mentors drop column if exists organization;
+alter table club_mentors drop column if exists email;
+alter table club_mentors drop column if exists phone;
 
 alter table club_mentors enable row level security;
 
