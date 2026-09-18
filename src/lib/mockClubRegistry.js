@@ -149,11 +149,29 @@ export async function submitClubRegistration(form) {
 }
 
 export async function approveClub(id) {
-  await supabase.from('clubs').update({ status: 'approved' }).eq('id', id)
+  const { error } = await supabase.from('clubs').update({ status: 'approved' }).eq('id', id)
+  if (error) {
+    console.error('[mockClubRegistry] approveClub failed:', error.message)
+    // Most likely cause: clubs_president_email_unique — this club's
+    // president email is already the approved president of another club.
+    // Toasty's "one email = one club" design (current_club_id()'s own
+    // resolution depends on this) means that can't be allowed, but the
+    // founder needs to actually see why, not just watch the button do
+    // nothing.
+    throw new Error(
+      error.code === '23505'
+        ? "Can't approve — this club's president email is already the president of another approved club. Toasty only supports one club per president email today."
+        : `Could not approve this club: ${error.message}`,
+    )
+  }
 }
 
 export async function rejectClub(id) {
-  await supabase.from('clubs').update({ status: 'rejected' }).eq('id', id)
+  const { error } = await supabase.from('clubs').update({ status: 'rejected' }).eq('id', id)
+  if (error) {
+    console.error('[mockClubRegistry] rejectClub failed:', error.message)
+    throw new Error(`Could not reject this club: ${error.message}`)
+  }
 }
 
 // --- President verification -------------------------------------------
@@ -197,11 +215,25 @@ export async function getPendingPresidents() {
 }
 
 export async function approvePresident(id) {
-  await supabase.from('president_verifications').update({ status: 'approved' }).eq('id', id)
+  const { error } = await supabase
+    .from('president_verifications')
+    .update({ status: 'approved' })
+    .eq('id', id)
+  if (error) {
+    console.error('[mockClubRegistry] approvePresident failed:', error.message)
+    throw new Error(`Could not approve this president: ${error.message}`)
+  }
 }
 
 export async function rejectPresident(id) {
-  await supabase.from('president_verifications').update({ status: 'rejected' }).eq('id', id)
+  const { error } = await supabase
+    .from('president_verifications')
+    .update({ status: 'rejected' })
+    .eq('id', id)
+  if (error) {
+    console.error('[mockClubRegistry] rejectPresident failed:', error.message)
+    throw new Error(`Could not reject this president: ${error.message}`)
+  }
 }
 
 // Single round-trip when a caller needs both pieces at once (e.g. login).

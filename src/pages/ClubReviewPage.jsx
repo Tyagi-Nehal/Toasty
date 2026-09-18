@@ -71,23 +71,39 @@ export default function ClubReviewPage() {
   }
 
   async function handleApproveClub(id) {
-    await approveClub(id)
-    refresh()
+    try {
+      await approveClub(id)
+      refresh()
+    } catch (err) {
+      window.alert(err.message)
+    }
   }
 
   async function handleRejectClub(id) {
-    await rejectClub(id)
-    refresh()
+    try {
+      await rejectClub(id)
+      refresh()
+    } catch (err) {
+      window.alert(err.message)
+    }
   }
 
   async function handleApprovePresident(id) {
-    await approvePresident(id)
-    refresh()
+    try {
+      await approvePresident(id)
+      refresh()
+    } catch (err) {
+      window.alert(err.message)
+    }
   }
 
   async function handleRejectPresident(id) {
-    await rejectPresident(id)
-    refresh()
+    try {
+      await rejectPresident(id)
+      refresh()
+    } catch (err) {
+      window.alert(err.message)
+    }
   }
 
   return (
