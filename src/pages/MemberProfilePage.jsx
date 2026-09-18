@@ -226,8 +226,8 @@ export default function MemberProfilePage() {
               <Avatar name={myMentor.name} size={44} />
               <div>
                 <p className="font-semibold text-ink">{myMentor.name}</p>
-                {myMentor.designation && (
-                  <p className="text-xs text-ink/60">{myMentor.designation}</p>
+                {myMentor.achievements && (
+                  <p className="text-xs text-ink/60">{myMentor.achievements}</p>
                 )}
               </div>
             </div>

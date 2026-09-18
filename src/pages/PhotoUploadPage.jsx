@@ -1252,7 +1252,7 @@ function MentorsTab({ refreshLog }) {
   const [editingId, setEditingId] = useState(null)
   const [title, setTitle] = useState('')
   const [name, setName] = useState('')
-  const [designation, setDesignation] = useState('')
+  const [achievements, setAchievements] = useState('')
   const [clubName, setClubName] = useState('')
   const [experience, setExperience] = useState('')
   const [existingPhotoUrl, setExistingPhotoUrl] = useState(null)
@@ -1272,7 +1272,7 @@ function MentorsTab({ refreshLog }) {
     setEditingId(null)
     setTitle('')
     setName('')
-    setDesignation('')
+    setAchievements('')
     setClubName('')
     setExperience('')
     setExistingPhotoUrl(null)
@@ -1286,7 +1286,7 @@ function MentorsTab({ refreshLog }) {
     const { title: parsedTitle, rest } = parseMentorName(mentor.name)
     setTitle(parsedTitle)
     setName(rest)
-    setDesignation(mentor.designation ?? '')
+    setAchievements(mentor.achievements ?? '')
     setClubName(mentor.clubName ?? '')
     setExperience(mentor.experience ?? '')
     setExistingPhotoUrl(mentor.photoUrl ?? null)
@@ -1309,7 +1309,7 @@ function MentorsTab({ refreshLog }) {
     try {
       const payload = {
         name: title ? `${title} ${name.trim()}` : name.trim(),
-        designation: designation.trim(),
+        achievements: achievements.trim(),
         clubName: clubName.trim(),
         experience: experience.trim(),
         photoFile,
@@ -1356,8 +1356,8 @@ function MentorsTab({ refreshLog }) {
           )}
           <div className="min-w-0 flex-1">
             <p className="truncate font-semibold text-ink">{mentor.name}</p>
-            {mentor.designation && (
-              <p className="truncate text-xs text-ink/50">{mentor.designation}</p>
+            {mentor.achievements && (
+              <p className="truncate text-xs text-ink/50">{mentor.achievements}</p>
             )}
           </div>
           <button
@@ -1427,13 +1427,15 @@ function MentorsTab({ refreshLog }) {
             />
           </div>
 
-          <label className="mt-4 block text-xs font-medium text-ink/60">Designation</label>
-          <input
-            type="text"
-            value={designation}
-            onChange={(e) => setDesignation(e.target.value)}
-            placeholder="e.g. Distinguished Toastmaster"
-            className="mt-1.5 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
+          <label className="mt-4 block text-xs font-medium text-ink/60">
+            Toastmasters achievements
+          </label>
+          <textarea
+            rows={3}
+            value={achievements}
+            onChange={(e) => setAchievements(e.target.value)}
+            placeholder="e.g. Distinguished Toastmaster, 2x Area Director, Club Founder..."
+            className="mt-1.5 w-full resize-none rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
           />
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">

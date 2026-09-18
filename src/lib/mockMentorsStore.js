@@ -27,7 +27,7 @@ function toMentor(row) {
   return {
     id: row.id,
     name: row.name,
-    designation: row.designation,
+    achievements: row.achievements,
     clubName: row.club_name,
     experience: row.experience,
     photoUrl: row.photo_url,
@@ -46,12 +46,12 @@ export async function getMentors(clubId) {
   return (data ?? []).map(toMentor)
 }
 
-export async function addMentor({ name, designation, clubName, experience, photoFile, clubId }) {
+export async function addMentor({ name, achievements, clubName, experience, photoFile, clubId }) {
   const photoUrl = photoFile ? await uploadClubPhoto(photoFile, 'mentors', clubId) : null
   const { error } = await supabase.from('club_mentors').insert({
     club_id: clubId,
     name,
-    designation: designation || null,
+    achievements: achievements || null,
     club_name: clubName || null,
     experience: experience || null,
     photo_url: photoUrl,
@@ -65,7 +65,7 @@ export async function addMentor({ name, designation, clubName, experience, photo
 
 export async function updateMentor(
   id,
-  { name, designation, clubName, experience, photoFile, existingPhotoUrl, clubId },
+  { name, achievements, clubName, experience, photoFile, existingPhotoUrl, clubId },
 ) {
   let photoUrl = existingPhotoUrl ?? null
   if (photoFile) {
@@ -76,7 +76,7 @@ export async function updateMentor(
     .from('club_mentors')
     .update({
       name,
-      designation: designation || null,
+      achievements: achievements || null,
       club_name: clubName || null,
       experience: experience || null,
       photo_url: photoUrl,

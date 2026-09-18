@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Award, Building2, UsersRound } from 'lucide-react'
+import { Award, UsersRound } from 'lucide-react'
 import PublicNavbar from '../components/PublicNavbar.jsx'
 import Footer from '../components/Footer.jsx'
 import Avatar from '../components/Avatar.jsx'
@@ -36,26 +36,21 @@ export default function MentorPage() {
                   <Avatar name={mentor.name} size={52} />
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-ink">{mentor.name}</p>
-                    {mentor.designation && (
-                      <p className="truncate text-sm text-ink/60">
-                        {mentor.designation}
-                      </p>
+                    {mentor.clubName && (
+                      <p className="truncate text-sm text-ink/60">{mentor.clubName}</p>
                     )}
                   </div>
                 </div>
 
-                <div className="mt-4 space-y-1.5 border-t border-accent/20 pt-4 text-xs text-ink/60">
-                  {mentor.clubName && (
-                    <p className="flex items-center gap-1.5">
-                      <Building2 size={13} className="shrink-0 text-primary" />
-                      {mentor.clubName}
-                    </p>
-                  )}
+                <div className="mt-4 space-y-2 border-t border-accent/20 pt-4 text-xs text-ink/60">
                   {mentor.experience && (
                     <p className="flex items-center gap-1.5">
                       <Award size={13} className="shrink-0 text-primary" />
                       {mentor.experience}
                     </p>
+                  )}
+                  {mentor.achievements && (
+                    <p className="leading-relaxed">{mentor.achievements}</p>
                   )}
                 </div>
               </div>

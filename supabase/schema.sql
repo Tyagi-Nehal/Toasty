@@ -2163,7 +2163,7 @@ create table if not exists club_mentors (
   id bigint generated always as identity primary key,
   club_id text not null references clubs(id),
   name text not null,
-  designation text,
+  achievements text,
   club_name text,
   experience text,
   photo_url text,
@@ -2174,10 +2174,26 @@ create index if not exists club_mentors_club_id_idx on club_mentors(club_id);
 
 -- organization/email/phone were part of the original design but dropped
 -- before any real mentor data existed — the mentor cards only need
--- name/designation/home club/experience/photo.
+-- name/achievements/home club/experience/photo.
 alter table club_mentors drop column if exists organization;
 alter table club_mentors drop column if exists email;
 alter table club_mentors drop column if exists phone;
+
+-- designation (a short title like "Distinguished Toastmaster") was
+-- replaced with a free-text "what have they achieved in Toastmasters"
+-- field — a mentor's accomplishments matter more here than a title.
+-- Guarded (unlike a plain rename) so this is a no-op on a fresh install,
+-- where the table above is already created with `achievements` and no
+-- `designation` column exists to rename.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_name = 'club_mentors' and column_name = 'designation'
+  ) then
+    alter table club_mentors rename column designation to achievements;
+  end if;
+end $$;
 
 alter table club_mentors enable row level security;
 
