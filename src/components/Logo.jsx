@@ -5,9 +5,9 @@ export default function Logo({ className = '', to = '/' }) {
   return (
     <Link
       to={to}
-      className={`flex items-center gap-2 font-extrabold text-xl text-ink ${className}`}
+      className={`flex shrink-0 items-center gap-2 whitespace-nowrap font-extrabold text-xl text-ink ${className}`}
     >
-      <img src={mascot} alt="" className="h-12 w-12 object-contain" />
+      <img src={mascot} alt="" className="h-12 w-12 shrink-0 object-contain" />
       <span>
         Toast<span className="text-primary">y</span>
       </span>
