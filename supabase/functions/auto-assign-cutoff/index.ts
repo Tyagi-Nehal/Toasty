@@ -2,7 +2,7 @@
 // whenever a VPE/President's session happens to load the page" trigger in
 // src/lib/mockRolesStore.js (runDueAutoAssignments/getMeetings). That
 // approach never fires at all if nobody with the right role opens the
-// app after the Saturday 9 AM cutoff. This function does the identical
+// app after that club's own 9 AM cutoff. This function does the identical
 // check and identical scoring, but runs on a real schedule (see the
 // README in this folder) regardless of whether anyone's using the app.
 //
@@ -46,16 +46,17 @@ interface AttendanceStats {
   [memberName: string]: { present: number; total: number }
 }
 
-// Members self-select freely up to the Saturday before the meeting,
-// 9:00 AM; whatever's still open after that is fair game for
-// auto-assign. Identical to getAutoAssignCutoff in mockRolesStore.js.
+// Members self-select freely until 9:00 AM two days after each club's
+// own previous meeting (a Friday-meeting club: open until 9 AM Sunday);
+// whatever's still open after that is fair game for auto-assign. Every
+// club meets weekly, so "2 days after the meeting weekday" always lands
+// exactly 5 days before the *next* occurrence of that weekday
+// (7 - 2 = 5) — true for every weekday, so this is just the meeting date
+// minus 5 days. Identical to getAutoAssignCutoff in mockRolesStore.js.
 function getAutoAssignCutoff(meetingDate: string | null): Date | null {
   if (!meetingDate) return null
-  const meeting = new Date(`${meetingDate}T00:00:00`)
-  const day = meeting.getDay() // Sun=0 .. Sat=6
-  const daysBack = day === 6 ? 7 : (day + 1) % 7
-  const cutoff = new Date(meeting)
-  cutoff.setDate(cutoff.getDate() - daysBack)
+  const cutoff = new Date(`${meetingDate}T00:00:00`)
+  cutoff.setDate(cutoff.getDate() - 5)
   cutoff.setHours(9, 0, 0, 0)
   return cutoff
 }

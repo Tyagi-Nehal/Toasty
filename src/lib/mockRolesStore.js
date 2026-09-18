@@ -164,19 +164,23 @@ export function formatFullDate(meetingDate) {
   })
 }
 
-// Members self-select freely up to the Saturday before the meeting,
-// 9:00 AM; whatever's still open after that is fair game for
-// auto-assign. Computed as the most recent Saturday strictly before the
-// meeting date — not a fixed "-5 days" offset — so a rescheduled meeting
-// on any day of the week still gets a real preceding-Saturday cutoff
-// instead of landing on some arbitrary weekday.
+// Members self-select freely until 9:00 AM two days after each club's
+// own previous meeting; whatever's still open after that is fair game
+// for auto-assign. E.g. a club that meets every Friday has roles open
+// until 9 AM the following Sunday, ahead of its next Friday meeting; a
+// club that meets every Monday has roles open until 9 AM Wednesday.
+// Every club's meeting cadence is weekly (7 days), so "2 days after the
+// meeting weekday" always lands exactly 5 days before the *next*
+// occurrence of that same weekday (7 - 2 = 5) — this holds for every
+// weekday alike, so it's simply the meeting date minus 5 days, no need
+// to special-case any particular day or look up a club's declared
+// meeting weekday separately. (Not clubs.meeting_day-driven on purpose —
+// deriving straight from this specific meeting's own date also means a
+// one-off rescheduled meeting still gets a correct cutoff.)
 function getAutoAssignCutoff(meetingDate) {
   if (!meetingDate) return null
-  const meeting = new Date(`${meetingDate}T00:00:00`)
-  const day = meeting.getDay() // Sun=0 .. Sat=6
-  const daysBack = day === 6 ? 7 : (day + 1) % 7
-  const cutoff = new Date(meeting)
-  cutoff.setDate(cutoff.getDate() - daysBack)
+  const cutoff = new Date(`${meetingDate}T00:00:00`)
+  cutoff.setDate(cutoff.getDate() - 5)
   cutoff.setHours(9, 0, 0, 0)
   return cutoff
 }
@@ -293,7 +297,8 @@ async function getMeetingRaw(meetingId) {
   return views.find((m) => m.id === meetingId)
 }
 
-// Best-effort catch-up for the "no autoassign till Saturday 9 AM" rule —
+// Best-effort catch-up for the "no autoassign till 9 AM, 2 days after
+// the previous meeting" rule —
 // there's no backend/cron in this app, so this runs opportunistically
 // whenever a VPE or President's session fetches meetings, instead of at
 // the exact cutoff instant. Gating to VPE/President isn't just a design
@@ -320,7 +325,7 @@ async function runDueAutoAssignments(views) {
     Date.now() - next.autoAssignCutoff.getTime() <= DUE_WINDOW_MS &&
     Object.values(next.roles).some((r) => r.status === 'open')
   if (!isDue) return false
-  await runAutoAssign(next.id, 'the Saturday 9 AM cutoff')
+  await runAutoAssign(next.id, 'the 9 AM cutoff')
   return true
 }
 
@@ -548,7 +553,7 @@ export async function removeMeetingRole(meetingId, roleId) {
 // instead of the old random-placeholder-name shift. Every successful
 // pick is also recorded to role_history, so the algorithm's own output
 // becomes next time's input. Uses getMeetingRaw (not the public
-// getMeeting/getMeetings) so the automatic Saturday-cutoff catch-up in
+// getMeeting/getMeetings) so the automatic cutoff catch-up in
 // getMeetings() can call this without looping back into itself.
 async function runAutoAssign(meetingId, trigger) {
   const clubId = getAccount()?.clubId

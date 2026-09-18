@@ -35,12 +35,16 @@ supabase functions deploy auto-assign-cutoff
 Easiest: Supabase Dashboard → your project → **Integrations → Cron Jobs**
 → New cron job → pick this function, schedule e.g. every hour
 (`0 * * * *`), and set the `x-cron-secret` header to the same value from
-step 2. The function is idempotent-safe to run more often than the
-"real" Saturday 9 AM cutoff — it checks `pastCutoff` + a 14-day recency
-window + "still has open roles" every time, so running it hourly (or
-even more often) just means it fires *close to* the real cutoff instead
-of at 9:00:00 exactly, without ever double-assigning a meeting that's
-already filled.
+step 2. Every club has its own cutoff, on whatever day of the week falls
+2 days after that club's own meeting day (see the comment on
+`getAutoAssignCutoff` below) — so this same hourly, every-day-of-the-week
+schedule already covers every club without needing to know any of their
+individual cutoff days. The function is idempotent-safe to run more
+often than any one club's "real" 9 AM cutoff — it checks `pastCutoff` +
+a 14-day recency window + "still has open roles" every time, per club,
+so running it hourly (or even more often) just means it fires *close to*
+each real cutoff instead of at 9:00:00 exactly, without ever
+double-assigning a meeting that's already filled.
 
 Alternative (raw SQL, if you'd rather not use the dashboard UI): enable
 the `pg_cron` and `pg_net` extensions, then run this in the SQL Editor
