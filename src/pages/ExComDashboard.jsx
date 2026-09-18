@@ -274,23 +274,39 @@ export default function ExComDashboard() {
             {visibleQuickActions.length > 0 && (
               <div className="rounded-3xl border border-accent/30 bg-white p-6">
                 <h2 className="text-sm font-semibold text-ink">Quick Actions</h2>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {visibleQuickActions.flatMap((group) => group.actions).map(
-                    ({ to, label, icon: Icon }) => (
-                      <Link
-                        key={to}
-                        to={to}
-                        className="flex items-center gap-3 rounded-2xl border border-accent/30 p-4 transition hover:border-primary hover:shadow-sm"
-                      >
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/20 text-primary">
-                          <Icon size={17} />
-                        </div>
-                        <span className="text-sm font-semibold text-ink">
-                          {label}
-                        </span>
-                      </Link>
-                    ),
-                  )}
+                {/* A President sees every role's actions at once (hasExcomRole
+                    short-circuits true for them) — grouped under each role's
+                    own heading here so it's clear who's actually responsible
+                    for what, instead of one undifferentiated grid. A plain
+                    single-role ExCom member only ever has one group, so the
+                    heading is skipped for them — it'd just repeat their own
+                    role, already shown elsewhere on this page. */}
+                <div className="mt-4 space-y-5">
+                  {visibleQuickActions.map((group) => (
+                    <div key={group.role}>
+                      {visibleQuickActions.length > 1 && (
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-primary/70">
+                          {group.role} Tasks
+                        </p>
+                      )}
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {group.actions.map(({ to, label, icon: Icon }) => (
+                          <Link
+                            key={to}
+                            to={to}
+                            className="flex items-center gap-3 rounded-2xl border border-accent/30 p-4 transition hover:border-primary hover:shadow-sm"
+                          >
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/20 text-primary">
+                              <Icon size={17} />
+                            </div>
+                            <span className="text-sm font-semibold text-ink">
+                              {label}
+                            </span>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
