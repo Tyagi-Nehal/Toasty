@@ -2152,3 +2152,58 @@ create policy "club-photos vppr or president write" on storage.objects
     bucket_id = 'club-photos'
     and (storage.foldername(name))[1] = current_club_id()
   );
+
+-- VPPR-managed mentors list, shown on the public /mentors page. Was a
+-- hardcoded static file (src/data/mentors.js) with no admin UI at all,
+-- so it always stayed empty. Structured like excom_profiles (photo +
+-- contact fields) but an open-ended, VPPR-added list rather than a
+-- fixed set of known member_keys, so it gets its own add/remove rows
+-- instead of upserting against a fixed key.
+create table if not exists club_mentors (
+  id bigint generated always as identity primary key,
+  club_id text not null references clubs(id),
+  name text not null,
+  designation text,
+  club_name text,
+  experience text,
+  organization text,
+  email text,
+  phone text,
+  photo_url text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists club_mentors_club_id_idx on club_mentors(club_id);
+
+alter table club_mentors enable row level security;
+
+-- Public, logged-out /mentors page reads this — same reasoning as the
+-- club_page_photos/excom_profiles public-select policies above.
+drop policy if exists "club_mentors public select" on club_mentors;
+create policy "club_mentors public select" on club_mentors
+  for select using (true);
+
+drop policy if exists "club_mentors vppr or president write" on club_mentors;
+create policy "club_mentors vppr or president write" on club_mentors
+  for all to authenticated
+  using (
+    club_id = current_club_id()
+    and (
+      exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('VPPR', 'Ass. VPPR')
+          and club_id = current_club_id()
+      )
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+    )
+  )
+  with check (club_id = current_club_id());
+
+grant select on club_mentors to anon;
+grant select, insert, update, delete on club_mentors to authenticated;

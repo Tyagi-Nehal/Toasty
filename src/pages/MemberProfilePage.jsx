@@ -15,7 +15,7 @@ import { getRosterStatusForEmail } from '../lib/mockRosterStore.js'
 import { getRoleHistoryForEmail } from '../lib/mockRolesStore.js'
 import { getMemberPointsSummary } from '../lib/mockPointsStore.js'
 import { roleCatalog } from '../data/roleCatalog.js'
-import { mentors } from '../data/mentors.js'
+import { getMentors } from '../lib/mockMentorsStore.js'
 
 // Real member_points categories only (Phase 1: role_decline penalty,
 // referral bonuses) — "Role completion"/"Attendance"/"Recognition" from
@@ -47,7 +47,7 @@ export default function MemberProfilePage() {
   const [renewal, setRenewal] = useState(null)
   const [roleHistory, setRoleHistory] = useState([])
   const [points, setPoints] = useState({ total: 0, thisMonth: 0, byCategory: [] })
-  const myMentor = mentors[0] ?? null
+  const [myMentor, setMyMentor] = useState(null)
 
   useEffect(() => {
     if (account?.email) {
@@ -55,6 +55,7 @@ export default function MemberProfilePage() {
       getRoleHistoryForEmail(account.email, account.name).then(setRoleHistory)
       getMemberPointsSummary(account.email).then(setPoints)
     }
+    getMentors(account?.clubId).then((list) => setMyMentor(list[0] ?? null))
   }, [])
 
   return (

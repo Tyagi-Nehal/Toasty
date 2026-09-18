@@ -1,11 +1,21 @@
+import { useEffect, useState } from 'react'
 import { Award, Briefcase, Building2, Mail, Phone, UsersRound } from 'lucide-react'
 import PublicNavbar from '../components/PublicNavbar.jsx'
 import Footer from '../components/Footer.jsx'
 import Avatar from '../components/Avatar.jsx'
-import { mentors } from '../data/mentors.js'
+import { getMentors } from '../lib/mockMentorsStore.js'
 
 // Public — reachable from the club page's navbar without signing in.
+// No real per-club routing here yet (same as ExcomPage.jsx/
+// PastExcomPage.jsx), so getMentors() is called unfiltered — a Phase 3
+// item once /mentors gets a real :clubId route.
 export default function MentorPage() {
+  const [mentors, setMentors] = useState([])
+
+  useEffect(() => {
+    getMentors().then(setMentors)
+  }, [])
+
   return (
     <div className="min-h-screen bg-cream">
       <PublicNavbar showMemberPageLinks />
