@@ -60,6 +60,24 @@ const TABS = [
   { id: 'mentors', label: 'Mentors', icon: GraduationCap },
 ]
 
+// Same TM/DTM title convention as the agenda editor (AgendaEditorPage.jsx's
+// TITLES) — stored as a "TM Jane Doe" / "DTM Jane Doe" prefix on the name
+// itself rather than a separate column, so every reader of mentor.name
+// (the public /mentors page, the member profile's "My Mentor" card)
+// automatically shows it with no extra plumbing.
+const MENTOR_TITLES = ['', 'TM', 'DTM']
+
+// Splits a stored name like "DTM Jane Doe" back into { title, rest } for
+// editing. No match (a name saved before this existed, or a title-less
+// mentor) falls back to no title rather than guessing 'TM'.
+function parseMentorName(fullName) {
+  for (const title of MENTOR_TITLES) {
+    if (!title) continue
+    if (fullName.startsWith(`${title} `)) return { title, rest: fullName.slice(title.length + 1) }
+  }
+  return { title: '', rest: fullName }
+}
+
 const CERT_CATEGORIES = [
   'Best Main Role Taker',
   'Best Auxiliary Role Player',
@@ -1232,6 +1250,7 @@ function MentorsTab({ refreshLog }) {
   const [mentors, setMentors] = useState([])
   const [formOpen, setFormOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
+  const [title, setTitle] = useState('')
   const [name, setName] = useState('')
   const [designation, setDesignation] = useState('')
   const [clubName, setClubName] = useState('')
@@ -1251,6 +1270,7 @@ function MentorsTab({ refreshLog }) {
 
   function startAdd() {
     setEditingId(null)
+    setTitle('')
     setName('')
     setDesignation('')
     setClubName('')
@@ -1263,7 +1283,9 @@ function MentorsTab({ refreshLog }) {
 
   function startEdit(mentor) {
     setEditingId(mentor.id)
-    setName(mentor.name)
+    const { title: parsedTitle, rest } = parseMentorName(mentor.name)
+    setTitle(parsedTitle)
+    setName(rest)
     setDesignation(mentor.designation ?? '')
     setClubName(mentor.clubName ?? '')
     setExperience(mentor.experience ?? '')
@@ -1286,7 +1308,7 @@ function MentorsTab({ refreshLog }) {
     setSaving(true)
     try {
       const payload = {
-        name: name.trim(),
+        name: title ? `${title} ${name.trim()}` : name.trim(),
         designation: designation.trim(),
         clubName: clubName.trim(),
         experience: experience.trim(),
@@ -1384,13 +1406,26 @@ function MentorsTab({ refreshLog }) {
           </div>
 
           <label className="mt-5 block text-xs font-medium text-ink/60">Name</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Jane Doe, DTM"
-            className="mt-1.5 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
-          />
+          <div className="mt-1.5 flex gap-2">
+            <select
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-24 shrink-0 rounded-xl border border-accent/40 bg-cream px-2.5 py-2.5 text-sm text-ink focus:border-primary focus:outline-none"
+            >
+              {MENTOR_TITLES.map((t) => (
+                <option key={t} value={t}>
+                  {t || 'No title'}
+                </option>
+              ))}
+            </select>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Jane Doe"
+              className="w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
+            />
+          </div>
 
           <label className="mt-4 block text-xs font-medium text-ink/60">Designation</label>
           <input
