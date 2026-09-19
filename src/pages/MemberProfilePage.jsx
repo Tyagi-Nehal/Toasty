@@ -11,11 +11,10 @@ import {
 import MemberLayout from '../components/MemberLayout.jsx'
 import Avatar from '../components/Avatar.jsx'
 import { getAccount } from '../lib/mockAuth.js'
-import { getRosterStatusForEmail } from '../lib/mockRosterStore.js'
+import { getRosterStatusForEmail, getMyMentor } from '../lib/mockRosterStore.js'
 import { getRoleHistoryForEmail } from '../lib/mockRolesStore.js'
 import { getMemberPointsSummary } from '../lib/mockPointsStore.js'
 import { roleCatalog } from '../data/roleCatalog.js'
-import { getMentors } from '../lib/mockMentorsStore.js'
 
 // Real member_points categories only (Phase 1: role_decline penalty,
 // referral bonuses) — "Role completion"/"Attendance"/"Recognition" from
@@ -55,7 +54,7 @@ export default function MemberProfilePage() {
       getRoleHistoryForEmail(account.email, account.name).then(setRoleHistory)
       getMemberPointsSummary(account.email).then(setPoints)
     }
-    getMentors(account?.clubId).then((list) => setMyMentor(list[0] ?? null))
+    if (account?.email) getMyMentor(account.email).then(setMyMentor)
   }, [])
 
   return (

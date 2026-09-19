@@ -2296,3 +2296,12 @@ as $$
        where lower(email) = lower(auth.jwt() ->> 'email') limit 1)
   );
 $$;
+
+-- VPE-assigned mentor for a roster member — lets the VPE pair members up
+-- with one of the club's real mentors (club_mentors, added earlier) from
+-- a dedicated Assign Mentors page, instead of every member seeing the
+-- same first mentor on their profile. on delete set null: removing a
+-- mentor from club_mentors shouldn't fail or cascade-delete the member
+-- row, just leave them unassigned again.
+alter table members add column if not exists mentor_id bigint references club_mentors(id) on delete set null;
+create index if not exists members_mentor_id_idx on members(mentor_id);

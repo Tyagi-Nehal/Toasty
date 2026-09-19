@@ -4,6 +4,7 @@ import {
   ClipboardCheck,
   FileEdit,
   FileText,
+  GraduationCap,
   ImagePlus,
   Inbox,
   ListChecks,
@@ -84,6 +85,7 @@ const quickActionsByRole = [
     actions: [
       { to: '/agenda-editor', label: 'Edit Agenda', icon: FileEdit },
       { to: '/role-management', label: 'View Role Status', icon: ListChecks },
+      { to: '/assign-mentors', label: 'Assign Mentors', icon: GraduationCap },
     ],
   },
   {

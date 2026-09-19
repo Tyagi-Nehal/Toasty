@@ -95,7 +95,48 @@ export async function getRosterWithStatus(clubId) {
     membershipStart: m.membership_start,
     membershipEnd: m.membership_end,
     cycleLabel: m.cycle_label,
+    mentorId: m.mentor_id,
   }))
+}
+
+// VPE's Assign Mentors page — every roster member (regardless of active
+// status, same reasoning as getRosterWithStatus above) alongside which
+// club_mentors row they're currently paired with, if any. The embedded
+// `club_mentors(name)` select rides the new members.mentor_id FK
+// (PostgREST resolves it automatically), so this is one round trip
+// instead of fetching members and mentors separately and joining in JS.
+export async function getRosterWithMentors(clubId) {
+  const { data, error } = await supabase
+    .from('members')
+    .select('*, club_mentors(id, name)')
+    .eq('club_id', clubId)
+    .order('name')
+  if (error) {
+    console.error('[mockRosterStore] getRosterWithMentors failed:', error.message)
+    return []
+  }
+  return (data ?? []).map((m) => ({
+    name: m.name,
+    email: m.email,
+    mentorId: m.mentor_id,
+    mentorName: m.club_mentors?.name ?? null,
+  }))
+}
+
+// Sets (or clears, with mentorId null) which mentor a member is paired
+// with. clubId is a belt-and-suspenders scope on top of RLS (which
+// already restricts this to the caller's own club via current_club_id())
+// — matches the pattern every other roster-write function here uses.
+export async function assignMentor(email, mentorId, clubId) {
+  const { error } = await supabase
+    .from('members')
+    .update({ mentor_id: mentorId })
+    .eq('email', email)
+    .eq('club_id', clubId)
+  if (error) {
+    console.error('[mockRosterStore] assignMentor failed:', error.message)
+    throw new Error('Could not save this mentor assignment — try again in a moment.')
+  }
 }
 
 // One member's own roster status, by email — used by MemberDashboard.jsx/
@@ -136,6 +177,36 @@ export async function getRosterStatusForEmail(email) {
     membershipStart: data.membership_start,
     membershipEnd: data.membership_end,
     cycleLabel: data.cycle_label,
+  }
+}
+
+// The member-facing "My Mentor" card (MemberProfilePage.jsx) — this
+// specific member's actual assigned mentor (via the VPE's Assign
+// Mentors page), not just "the club's first mentor" like before this
+// feature existed. Returns null for no roster row or no assignment yet,
+// same shape mockMentorsStore.js's toMentor produces so the existing
+// card renders it unchanged.
+export async function getMyMentor(email) {
+  const normalized = (email ?? '').trim().toLowerCase()
+  if (!normalized) return null
+  const { data, error } = await supabase
+    .from('members')
+    .select('club_mentors(*)')
+    .eq('email', normalized)
+    .maybeSingle()
+  if (error) {
+    console.error('[mockRosterStore] getMyMentor failed:', error.message)
+    return null
+  }
+  const row = data?.club_mentors
+  if (!row) return null
+  return {
+    id: row.id,
+    name: row.name,
+    achievements: row.achievements,
+    clubName: row.club_name,
+    experience: row.experience,
+    photoUrl: row.photo_url,
   }
 }
 
