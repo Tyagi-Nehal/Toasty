@@ -2344,3 +2344,12 @@ create policy "member_points self or president insert" on member_points
       )
     )
   );
+
+-- President points, real source #1: Feedback Inbox responsiveness.
+-- resolved_at lets us tell *when* a feedback item was marked resolved,
+-- not just that it currently is — needed to score "within 48h of
+-- submission" the same way MOM/attendance/photos already do for other
+-- roles. Cleared back to null if a President un-resolves an item (see
+-- toggleResolved in mockFeedbackStore.js), so re-resolving later scores
+-- against the new resolve time, not a stale one.
+alter table feedback add column if not exists resolved_at timestamptz;

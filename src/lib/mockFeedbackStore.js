@@ -9,6 +9,7 @@
 
 import { supabase } from './supabaseClient.js'
 import { getAccount } from './mockAuth.js'
+import { scoreFeedbackResponse } from './mockPointsStore.js'
 
 function normalizeEmail(email) {
   return (email ?? '').trim().toLowerCase()
@@ -73,12 +74,24 @@ export async function markRead(id) {
   if (error) console.error('[mockFeedbackStore] markRead failed:', error.message)
 }
 
-export async function toggleResolved(id, currentlyResolved) {
+// Takes the full feedback item (not just id/resolved) — scoring the
+// President's response needs its submittedAt, and resolved_at needs to
+// be cleared (not just left stale) on an un-resolve so a later
+// re-resolve scores against the real new resolve time.
+export async function toggleResolved(item) {
+  const resolving = !item.resolved
+  const resolvedAt = resolving ? new Date().toISOString() : null
   const { error } = await supabase
     .from('feedback')
-    .update({ resolved: !currentlyResolved })
-    .eq('id', id)
-  if (error) console.error('[mockFeedbackStore] toggleResolved failed:', error.message)
+    .update({ resolved: resolving, resolved_at: resolvedAt })
+    .eq('id', item.id)
+  if (error) {
+    console.error('[mockFeedbackStore] toggleResolved failed:', error.message)
+    return
+  }
+  if (resolving) {
+    await scoreFeedbackResponse(item.id, item.submittedAt, resolvedAt, getAccount()?.clubId)
+  }
 }
 
 export async function setPresidentNote(id, note) {

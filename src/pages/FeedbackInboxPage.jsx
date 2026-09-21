@@ -32,7 +32,7 @@ export default function FeedbackInboxPage() {
   }
 
   async function handleToggleResolved(item) {
-    await toggleResolved(item.id, item.resolved)
+    await toggleResolved(item)
     refresh()
   }
 

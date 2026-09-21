@@ -49,6 +49,7 @@ const excomCategoryLabels = {
   growth_bonus: 'Club growth bonus',
   renewal_new_member: 'New-member renewals',
   renewal_existing_member: 'Existing-member renewals',
+  feedback_resolved: 'Resolved feedback within 48h',
 }
 
 const paymentStatusLabel = { paid: 'Paid', pending: 'Pending', overdue: 'Overdue' }

@@ -25,6 +25,7 @@ import {
   recordGuestConverted,
   getApprovalsLog,
 } from '../lib/mockApprovalsStore.js'
+import { getUnmatchedReferralPoints } from '../lib/mockPointsStore.js'
 import {
   getPendingSignups,
   getApprovedSignups,
@@ -60,6 +61,7 @@ export default function NewMemberApprovalsPage() {
   const [referralMembers, setReferralMembers] = useState([])
   const [referralMember, setReferralMember] = useState('')
   const [referralFeedback, setReferralFeedback] = useState(null)
+  const [unmatchedReferralPoints, setUnmatchedReferralPoints] = useState([])
   const [preregisterRows, setPreregisterRows] = useState([])
   const [preregisterError, setPreregisterError] = useState(null)
   const [preregisterSaved, setPreregisterSaved] = useState(false)
@@ -70,6 +72,7 @@ export default function NewMemberApprovalsPage() {
     getApprovedSignups(clubId).then(setApproved)
     setLog(getApprovalsLog())
     setVisitRequests(getVisitRequests())
+    getUnmatchedReferralPoints(clubId).then(setUnmatchedReferralPoints)
   }
 
   useEffect(() => {
@@ -130,15 +133,21 @@ export default function NewMemberApprovalsPage() {
   }
 
   async function handleGuestAttended() {
-    await recordGuestAttended(referralMember)
-    setReferralFeedback(`${referralMember} awarded +6 points for their guest attending.`)
+    const { matched } = await recordGuestAttended(referralMember)
+    setReferralFeedback(
+      matched
+        ? `${referralMember} awarded +6 points for their guest attending.`
+        : `⚠️ ${referralMember} awarded +6 points, but no matching member account was found — the points won't show on their profile until their name matches how they signed up. See "Unmatched referral points" below.`,
+    )
     refresh()
   }
 
   async function handleGuestConverted() {
-    await recordGuestConverted(referralMember)
+    const { matched } = await recordGuestConverted(referralMember)
     setReferralFeedback(
-      `${referralMember} awarded +8 points, VPM awarded +10 points — guest converted to member.`,
+      matched
+        ? `${referralMember} awarded +8 points, VPM awarded +10 points — guest converted to member.`
+        : `⚠️ ${referralMember} awarded +8 points, but no matching member account was found — the points won't show on their profile until their name matches how they signed up. VPM still awarded +10 points. See "Unmatched referral points" below.`,
     )
     refresh()
   }
@@ -448,6 +457,34 @@ export default function NewMemberApprovalsPage() {
 
           {referralFeedback && (
             <p className="mt-3 text-sm font-medium text-primary">{referralFeedback}</p>
+          )}
+
+          {unmatchedReferralPoints.length > 0 && (
+            <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <div className="flex items-center gap-1.5 text-sm font-semibold text-amber-800">
+                <AlertCircle size={15} />
+                Unmatched referral points ({unmatchedReferralPoints.length})
+              </div>
+              <p className="mt-1 text-xs text-amber-700">
+                These referral points were awarded by name but couldn't be matched to a real
+                member account, so they don't show up on anyone's profile. Usually means the
+                name here doesn't exactly match how that member signed up — fix the name and
+                re-award if needed.
+              </p>
+              <ul className="mt-3 space-y-1.5">
+                {unmatchedReferralPoints.map((row) => (
+                  <li key={row.id} className="flex items-center justify-between text-sm">
+                    <span className="text-amber-900">
+                      {row.member_name} —{' '}
+                      {row.category === 'guest_attended' ? 'guest attended' : 'guest converted'}
+                    </span>
+                    <span className="font-medium text-amber-900">
+                      +{row.points} pts · {timeAgo(row.awarded_at)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
 

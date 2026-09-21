@@ -42,19 +42,24 @@ export async function getReferralMembers() {
   return members.map((m) => m.name)
 }
 
+// Returns { matched } so the caller (NewMemberApprovalsPage.jsx) can
+// warn the VPM right away when the points couldn't be attached to a
+// real member email — see awardReferralPoints in mockPointsStore.js.
 export async function recordGuestAttended(memberName) {
   const clubId = getAccount()?.clubId
-  await awardReferralPoints(memberName, 'guest_attended', 6, clubId)
+  const { matched } = await awardReferralPoints(memberName, 'guest_attended', 6, clubId)
   logAction(`${memberName}'s guest attended the meeting — +6 points`)
+  return { matched }
 }
 
 export async function recordGuestConverted(memberName) {
   const clubId = getAccount()?.clubId
-  await Promise.all([
+  const [{ matched }] = await Promise.all([
     awardReferralPoints(memberName, 'guest_converted', 8, clubId),
     awardVpmReferralBonus(clubId),
   ])
   logAction(
     `${memberName}'s guest converted to a member — +8 points to ${memberName}, +10 points to VPM`,
   )
+  return { matched }
 }

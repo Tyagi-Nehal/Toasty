@@ -44,6 +44,23 @@ async function getActingEmailForRole(baseRole, clubId) {
   return held ? acting : null
 }
 
+// Same idea as getActingEmailForRole above, but the President isn't an
+// excom_appointments row at all — their role comes from clubs.
+// president_email (see verifyPresident in mockClubRegistry.js), so this
+// checks that table directly instead.
+async function getActingPresidentEmail(clubId) {
+  const acting = normalizeEmail(getAccount()?.email)
+  if (!acting || !clubId) return null
+  const { data } = await supabase
+    .from('clubs')
+    .select('id')
+    .eq('id', clubId)
+    .eq('status', 'approved')
+    .ilike('president_email', acting)
+    .maybeSingle()
+  return data ? acting : null
+}
+
 function getCurrentMonthRange() {
   const now = new Date()
   const start = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -736,9 +753,13 @@ async function resolveMemberEmailByName(name, clubId) {
 // the row is still recorded by name for audit purposes, it just won't
 // surface in that member's own "points this month" total until their
 // real email is known.
+// Returns { matched } so the caller (mockApprovalsStore.js) can tell the
+// VPM right away when a referral's points couldn't be attached to a real
+// member email, instead of that only being discoverable later via
+// getUnmatchedReferralPoints below.
 export async function awardReferralPoints(memberName, category, points, clubId) {
   const trimmedName = (memberName ?? '').trim()
-  if (!trimmedName) return
+  if (!trimmedName) return { matched: false }
   const email = await resolveMemberEmailByName(trimmedName, clubId)
   const { error } = await supabase.from('member_points').insert({
     member_email: email,
@@ -753,6 +774,7 @@ export async function awardReferralPoints(memberName, category, points, clubId) 
     club_id: clubId,
   })
   if (error) console.error('[mockPointsStore] awardReferralPoints failed:', error.message)
+  return { matched: Boolean(email) }
 }
 
 // VPM's own +10 bonus when a referred guest converts — a real ExCom
@@ -798,4 +820,55 @@ export async function scoreRenewal(memberEmail, hadExistingRow, clubId) {
       clubId,
     })
   }
+}
+
+// President: responded to a Feedback Inbox item within 48h of it being
+// submitted — the first real, automatic President point source (was
+// always 0 before; the Feedback Inbox/poll/discretionary sources were
+// planned but never built). Deduped per feedback item forever (via
+// awardPointsWithMonthlySubjectCap's subject-cap check, keyed by a
+// synthetic "feedback-<id>" subject — feedback items have no email of
+// their own to key off), capped at 4/month so this reaches the same
+// ~80-point ceiling every other role has on routine work. Called from
+// toggleResolved() in mockFeedbackStore.js, only on the transition into
+// resolved (never on un-resolve, and never again if re-resolved after
+// being un-resolved past the 48h window).
+export async function scoreFeedbackResponse(feedbackId, submittedAt, resolvedAt, clubId) {
+  const presidentEmail = await getActingPresidentEmail(clubId)
+  if (!presidentEmail || !submittedAt || !resolvedAt) return
+  const diffMs = new Date(resolvedAt).getTime() - new Date(submittedAt).getTime()
+  if (diffMs < 0 || diffMs > 48 * 60 * 60 * 1000) return
+  await awardPointsWithMonthlySubjectCap({
+    role: 'President',
+    email: presidentEmail,
+    subjectEmail: `feedback-${feedbackId}`,
+    category: 'feedback_resolved',
+    points: 20,
+    note: 'Resolved a Feedback Inbox item within 48h',
+    maxEventsPerMonth: 4,
+    clubId,
+  })
+}
+
+// Referral points (guest_attended/guest_converted) can end up with no
+// real member_email attached — resolveMemberEmailByName only matches a
+// member who signed up through the app themselves; an older/seed member
+// (added straight to the roster, never signed up) has no email on file
+// to match. Those rows are still recorded (by name, for audit purposes)
+// but never show up in that member's own "points this month" total,
+// which is easy to miss. Surfaces them to the VPM (New Member Approvals
+// page) so a name mismatch can be caught and fixed.
+export async function getUnmatchedReferralPoints(clubId) {
+  const { data, error } = await supabase
+    .from('member_points')
+    .select('id, member_name, category, points, awarded_at')
+    .is('member_email', null)
+    .in('category', ['guest_attended', 'guest_converted'])
+    .eq('club_id', clubId)
+    .order('awarded_at', { ascending: false })
+  if (error) {
+    console.error('[mockPointsStore] getUnmatchedReferralPoints failed:', error.message)
+    return []
+  }
+  return data ?? []
 }
