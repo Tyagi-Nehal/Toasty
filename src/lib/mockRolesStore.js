@@ -25,6 +25,7 @@ import {
   scoreRoleDecline,
   scoreRoleCompletions,
   scoreRoleSelfSelect,
+  scorePresidentPresiding,
 } from './mockPointsStore.js'
 import { getNameForRole, getEmailForRole } from './mockExcomRegistry.js'
 import { getClubById } from './mockClubRegistry.js'
@@ -659,6 +660,7 @@ export async function finalizeMeeting(meetingId) {
   })
   await scoreVpeFinalize(meeting)
   await scoreRoleCompletions(meeting)
+  await scorePresidentPresiding(meeting)
 }
 
 // Reverses finalizeMeeting — re-opens the meeting for VPE edits (override,

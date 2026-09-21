@@ -9,7 +9,11 @@ import { supabase } from './supabaseClient.js'
 import { getMembers } from './mockRosterStore.js'
 import { getMeetings } from './mockRolesStore.js'
 import { getAccount } from './mockAuth.js'
-import { scoreAttendanceSubmission, scoreMeetingAttendance } from './mockPointsStore.js'
+import {
+  scoreAttendanceSubmission,
+  scoreMeetingAttendance,
+  scoreExcomAttendanceFloor,
+} from './mockPointsStore.js'
 
 // Meetings whose date has already arrived, most recent first, capped to a
 // short list. Uses meeting.date <= today (string compare), NOT
@@ -76,6 +80,7 @@ export async function submitAttendance(meetingId, entries, meeting) {
   if (meeting) {
     await scoreAttendanceSubmission(meeting, submittedAt)
     await scoreMeetingAttendance(meeting, entries)
+    await scoreExcomAttendanceFloor(meeting, entries)
   }
 }
 

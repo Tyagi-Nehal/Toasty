@@ -850,6 +850,56 @@ export async function scoreFeedbackResponse(feedbackId, submittedAt, resolvedAt,
   })
 }
 
+// President: presided over the meeting — PO ("Presiding Officer") is a
+// fixed role auto-filled to whoever's President (resolveFixedRoleAssignee
+// in mockRolesStore.js), the same way SAA is auto-filled, so this is an
+// objective fact about who held that slot rather than something gated on
+// who's currently signed in (same reasoning as SAA's on_time_start above).
+// Sized to reach the same ~80 ceiling at a routine 4 meetings/month.
+// Called from finalizeMeeting(), alongside scoreVpeFinalize/
+// scoreRoleCompletions.
+export async function scorePresidentPresiding(meeting) {
+  if (!meeting) return
+  const poEntry = meeting.roles?.po
+  if (!poEntry || poEntry.status === 'open' || !poEntry.takenByEmail) return
+  await awardPointsOncePerMeeting({
+    role: 'President',
+    email: poEntry.takenByEmail,
+    meetingId: meeting.id,
+    category: 'meeting_presided',
+    points: 20,
+    note: `Presided over ${meeting.dateLabel ?? meeting.date}`,
+    clubId: meeting.clubId,
+  })
+}
+
+// VPM/Treasurer: a baseline attendance floor so a role whose real duties
+// (a signup applying, a renewal coming due) don't happen every month isn't
+// stuck at 0 through no fault of the officer — smaller than the other
+// roles' routine categories since it's a floor, not a substitute for
+// actually doing the job. Called from scoreMeetingAttendance() (member
+// points) for every present entry, alongside the member-pool credit —
+// only fires for whoever genuinely holds VPM/Treasurer (or their "Ass."
+// variant) right now, via getHeldRoleForEmailAndBase.
+export async function scoreExcomAttendanceFloor(meeting, entries) {
+  if (!meeting) return
+  for (const entry of entries) {
+    if (!entry.present || !entry.email) continue
+    const held = await getHeldRoleForEmailAndBase(normalizeEmail(entry.email), 'VPM', meeting.clubId)
+      || await getHeldRoleForEmailAndBase(normalizeEmail(entry.email), 'Treasurer', meeting.clubId)
+    if (!held) continue
+    await awardPointsOncePerMeeting({
+      role: held,
+      email: entry.email,
+      meetingId: meeting.id,
+      category: 'excom_attendance',
+      points: 10,
+      note: `Attended ${meeting.dateLabel ?? meeting.date}`,
+      clubId: meeting.clubId,
+    })
+  }
+}
+
 // Referral points (guest_attended/guest_converted) can end up with no
 // real member_email attached — resolveMemberEmailByName only matches a
 // member who signed up through the app themselves; an older/seed member

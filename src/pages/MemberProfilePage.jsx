@@ -36,7 +36,7 @@ const categoryLabels = {
 
 // excom_points categories — a separate pool from member_points above,
 // earned only while actually holding an ExCom role (see
-// mockPointsStore.js). Same list as ExComDashboard.jsx's categoryLabels.
+// mockPointsStore.js).
 const excomCategoryLabels = {
   finalize_agenda: 'Finalized + agenda sent by Tuesday',
   no_repetition: 'No role repetition',
@@ -50,6 +50,8 @@ const excomCategoryLabels = {
   renewal_new_member: 'New-member renewals',
   renewal_existing_member: 'Existing-member renewals',
   feedback_resolved: 'Resolved feedback within 48h',
+  meeting_presided: 'Presided over the meeting',
+  excom_attendance: 'Attended the meeting',
 }
 
 const paymentStatusLabel = { paid: 'Paid', pending: 'Pending', overdue: 'Overdue' }

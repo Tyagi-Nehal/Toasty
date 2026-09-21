@@ -2353,3 +2353,36 @@ create policy "member_points self or president insert" on member_points
 -- toggleResolved in mockFeedbackStore.js), so re-resolving later scores
 -- against the new resolve time, not a stale one.
 alter table feedback add column if not exists resolved_at timestamptz;
+
+-- President points, real source #2: presiding over the meeting.
+-- ExCom points, real source: routine floor for VPM/Treasurer. Both are
+-- inserted by someone other than the credited person — meeting_presided
+-- is credited to the President but inserted by the VPE (from
+-- finalizeMeeting), excom_attendance is credited to VPM/Treasurer but
+-- inserted by the Secretary (from submitAttendance) — same gap the
+-- member_points policy above already had, now fixed the same way for
+-- excom_points: broaden the insert check to also allow whoever holds
+-- Secretary/Ass. Secretary/VPE/Ass. VPE to insert on someone else's
+-- behalf (see scorePresidentPresiding/scoreExcomAttendanceFloor in
+-- mockPointsStore.js).
+drop policy if exists "excom_points self role insert" on excom_points;
+create policy "excom_points self role insert" on excom_points
+  for insert to authenticated
+  with check (
+    club_id = current_club_id()
+    and (
+      lower(email) = lower(auth.jwt() ->> 'email')
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+      or exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('Secretary', 'Ass. Secretary', 'VPE', 'Ass. VPE')
+          and club_id = current_club_id()
+      )
+    )
+  );
