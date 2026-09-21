@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   Mail,
   ReceiptText,
   Star,
@@ -109,6 +110,7 @@ export default function MemberProfilePage() {
   const [myMentor, setMyMentor] = useState(null)
   const [excomMonthlyPoints, setExcomMonthlyPoints] = useState(0)
   const [excomPointsBreakdown, setExcomPointsBreakdown] = useState([])
+  const [showRoleHistory, setShowRoleHistory] = useState(false)
   const [memberLedger, setMemberLedger] = useState([])
   const [excomLedger, setExcomLedger] = useState([])
   const isExcomMember = (account?.excomRoles?.length ?? 0) > 0
@@ -239,12 +241,29 @@ export default function MemberProfilePage() {
             for completing/self-selecting them show in the breakdown above
             instead, keyed by meeting, not surfaced per-row here). */}
         <div className="mt-6 rounded-3xl border border-accent/30 bg-white p-6">
-          <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-            <CalendarDays size={16} className="text-primary" />
-            Role History
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowRoleHistory((v) => !v)}
+            aria-expanded={showRoleHistory}
+            className="flex w-full items-center justify-between gap-3 text-left"
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold text-ink">
+              <CalendarDays size={16} className="text-primary" />
+              Role History
+              <span className="rounded-full bg-cream px-2 py-0.5 text-xs font-semibold text-ink/60">
+                {roleHistory.length}
+              </span>
+            </span>
+            <span className="flex items-center gap-1 text-xs font-semibold text-primary">
+              {showRoleHistory ? 'Hide' : 'View history'}
+              <ChevronDown
+                size={14}
+                className={`transition-transform ${showRoleHistory ? 'rotate-180' : ''}`}
+              />
+            </span>
+          </button>
 
-          {roleHistory.length > 0 ? (
+          {!showRoleHistory ? null : roleHistory.length > 0 ? (
             <>
               {/* Desktop table */}
               <div className="mt-4 hidden overflow-hidden rounded-2xl border border-accent/20 sm:block">
