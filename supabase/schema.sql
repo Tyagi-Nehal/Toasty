@@ -2315,3 +2315,32 @@ create index if not exists members_mentor_id_idx on members(mentor_id);
 -- net._http_response, not in cron.job_run_details — pg_net only
 -- reports whether the HTTP call was dispatched, not what it returned).
 grant select on clubs to service_role;
+
+-- Member points, Phase 2: three new automatic categories for regular
+-- members (meeting_attended, role_completed, role_self_selected — see
+-- mockPointsStore.js). Two of these are inserted by someone other than
+-- the member themselves (the Secretary crediting every attendee, the
+-- VPE crediting every role-holder at finalize), which the existing
+-- insert policy didn't allow — it only ever let a member insert their
+-- own row (role_decline) or let VPM insert for a referred guest.
+drop policy if exists "member_points self or president insert" on member_points;
+create policy "member_points self or president insert" on member_points
+  for insert to authenticated
+  with check (
+    club_id = current_club_id()
+    and (
+      lower(member_email) = lower(auth.jwt() ->> 'email')
+      or exists (
+        select 1 from clubs
+        where lower(president_email) = lower(auth.jwt() ->> 'email')
+          and status = 'approved'
+          and id = current_club_id()
+      )
+      or exists (
+        select 1 from excom_appointments
+        where lower(email) = lower(auth.jwt() ->> 'email')
+          and role in ('VPM', 'Ass. VPM', 'Secretary', 'Ass. Secretary', 'VPE', 'Ass. VPE')
+          and club_id = current_club_id()
+      )
+    )
+  );

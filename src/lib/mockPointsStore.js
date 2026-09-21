@@ -524,10 +524,12 @@ async function checkGrowthBonus(clubId) {
 // dedup a Treasurer correcting one member's payment status three times
 // in a day would burn three of the month's capped slots on one person.
 // Member points (member_points table) — separate from excom_points
-// above, which is ExCom-officer scoring only. Phase 1 has exactly one
-// category: declining a self-selected/auto-assigned meeting role, tiered
-// by how close to the meeting the decline happens (points.js's
-// getDeclinePenalty). Called from declineMyRole().
+// above, which is ExCom-officer scoring only. Categories: role_decline
+// (a penalty, tiered by how close to the meeting the decline happens —
+// points.js's getDeclinePenalty, called from declineMyRole()),
+// guest_attended/guest_converted (referral bonuses, below), and the
+// three routine categories further down (meeting_attended,
+// role_completed, role_self_selected).
 export async function getMemberMonthlyPoints(email) {
   const normalized = normalizeEmail(email)
   if (!normalized) return 0
@@ -570,6 +572,99 @@ export async function getMemberPointsSummary(email) {
   for (const r of rows) byCategoryMap[r.category] = (byCategoryMap[r.category] ?? 0) + r.points
   const byCategory = Object.entries(byCategoryMap).map(([category, points]) => ({ category, points }))
   return { total, thisMonth, byCategory }
+}
+
+// Same "already scored this meeting" dedup as awardPointsOncePerMeeting
+// above, but against member_points (member_email/member_name, no role
+// column) instead of excom_points — safe to call again on a
+// re-submitted attendance sheet or a re-finalized meeting without
+// double-awarding.
+async function awardMemberPointsOncePerMeeting({ email, name, meetingId, category, points, note, clubId }) {
+  const normalized = normalizeEmail(email)
+  if (!normalized || !meetingId) return
+  const { data: existing } = await supabase
+    .from('member_points')
+    .select('id')
+    .eq('category', category)
+    .eq('meeting_id', meetingId)
+    .eq('member_email', normalized)
+    .limit(1)
+    .maybeSingle()
+  if (existing) return
+  const { error } = await supabase.from('member_points').insert({
+    member_email: normalized,
+    member_name: name ?? null,
+    meeting_id: meetingId,
+    category,
+    points,
+    note: note ?? null,
+    club_id: clubId,
+  })
+  if (error) console.error('[mockPointsStore] awardMemberPointsOncePerMeeting failed:', error.message)
+}
+
+// Member: attended a meeting — every roster member the Secretary marked
+// present when submitting attendance (getAttendanceForMeeting defaults
+// everyone to present; the Secretary unchecks absentees). No on-time
+// gate here (unlike the Secretary's own attendance_on_time bonus above)
+// — a member's attendance credit shouldn't depend on how promptly the
+// Secretary happened to submit the sheet. Called from submitAttendance().
+export async function scoreMeetingAttendance(meeting, entries) {
+  if (!meeting) return
+  for (const entry of entries) {
+    if (!entry.present) continue
+    await awardMemberPointsOncePerMeeting({
+      email: entry.email,
+      name: entry.name,
+      meetingId: meeting.id,
+      category: 'meeting_attended',
+      points: 5,
+      note: `Attended ${meeting.dateLabel ?? meeting.date}`,
+      clubId: meeting.clubId,
+    })
+  }
+}
+
+// Member: actually held a filled role (self-selected or auto-assigned,
+// PO/SAA included) when the VPE finalized the meeting — every filled
+// role counts as "completed" since there's no separate real-world
+// "did they actually show up and do it" signal beyond finalization
+// itself. Called from finalizeMeeting(), alongside scoreVpeFinalize.
+export async function scoreRoleCompletions(meeting) {
+  if (!meeting) return
+  for (const entry of Object.values(meeting.roles ?? {})) {
+    if (entry.status === 'open' || !entry.takenByEmail) continue
+    await awardMemberPointsOncePerMeeting({
+      email: entry.takenByEmail,
+      name: entry.takenBy,
+      meetingId: meeting.id,
+      category: 'role_completed',
+      points: 10,
+      note: `Completed a role for ${meeting.dateLabel ?? meeting.date}`,
+      clubId: meeting.clubId,
+    })
+  }
+}
+
+// Member: picked a role themselves before the auto-assign cutoff —
+// extra credit for initiative, on top of the role_completed points they
+// still earn at finalize for actually holding it. Called from
+// selectRole(); no dedup needed beyond the row itself — selectRole can
+// only ever succeed once per (meeting, role) since it requires the row
+// to still be 'open', so this can't double-fire for the same pick.
+export async function scoreRoleSelfSelect(meeting, account) {
+  const normalized = normalizeEmail(account?.email)
+  if (!normalized || !meeting) return
+  const { error } = await supabase.from('member_points').insert({
+    member_email: normalized,
+    member_name: account?.name ?? null,
+    meeting_id: meeting.id,
+    category: 'role_self_selected',
+    points: 5,
+    note: `Self-selected a role for ${meeting.dateLabel ?? meeting.date}`,
+    club_id: meeting.clubId,
+  })
+  if (error) console.error('[mockPointsStore] scoreRoleSelfSelect failed:', error.message)
 }
 
 export async function scoreRoleDecline(meeting, account) {

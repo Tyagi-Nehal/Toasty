@@ -16,14 +16,18 @@ import { getRoleHistoryForEmail } from '../lib/mockRolesStore.js'
 import { getMemberPointsSummary } from '../lib/mockPointsStore.js'
 import { roleCatalog } from '../data/roleCatalog.js'
 
-// Real member_points categories only (Phase 1: role_decline penalty,
-// referral bonuses) — "Role completion"/"Attendance"/"Recognition" from
-// the old mock data aren't things a member actually earns points for
-// yet, so this page no longer implies they are.
+// Real member_points categories only. Phase 1: role_decline penalty,
+// referral bonuses. Phase 2 added the three routine categories below —
+// attending, completing an assigned role, and self-selecting one early
+// — see scoreMeetingAttendance/scoreRoleCompletions/scoreRoleSelfSelect
+// in mockPointsStore.js.
 const categoryLabels = {
   role_decline: 'Role declines',
   guest_attended: 'Guest attended a meeting',
   guest_converted: 'Guest converted to member',
+  meeting_attended: 'Attended a meeting',
+  role_completed: 'Completed a role',
+  role_self_selected: 'Self-selected a role early',
 }
 
 const paymentStatusLabel = { paid: 'Paid', pending: 'Pending', overdue: 'Overdue' }
@@ -115,9 +119,9 @@ export default function MemberProfilePage() {
           )}
         </div>
 
-        {/* Role history — real assignments from the live role board, not
-            per-role points (regular members don't currently earn points
-            for holding a role — see getMemberPointsSummary above). */}
+        {/* Role history — real assignments from the live role board (points
+            for completing/self-selecting them show in the breakdown above
+            instead, keyed by meeting, not surfaced per-row here). */}
         <div className="mt-6 rounded-3xl border border-accent/30 bg-white p-6">
           <div className="flex items-center gap-2 text-sm font-semibold text-ink">
             <CalendarDays size={16} className="text-primary" />

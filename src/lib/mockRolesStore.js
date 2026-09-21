@@ -19,7 +19,13 @@ import {
   scoreMemberForRole,
 } from './mockRosterStore.js'
 import { getAttendanceStatsByMember } from './mockAttendanceStore.js'
-import { scoreExternalBooking, scoreVpeFinalize, scoreRoleDecline } from './mockPointsStore.js'
+import {
+  scoreExternalBooking,
+  scoreVpeFinalize,
+  scoreRoleDecline,
+  scoreRoleCompletions,
+  scoreRoleSelfSelect,
+} from './mockPointsStore.js'
 import { getNameForRole, getEmailForRole } from './mockExcomRegistry.js'
 import { getClubById } from './mockClubRegistry.js'
 
@@ -211,6 +217,7 @@ function buildRolesObject(assignments) {
     roles[a.role_id] = {
       status: a.status,
       ...(a.taken_by_name ? { takenBy: a.taken_by_name } : {}),
+      ...(a.taken_by_email ? { takenByEmail: a.taken_by_email } : {}),
       ...(a.accepted_at ? { acceptedAt: a.accepted_at } : {}),
       ...(a.is_override ? { isOverride: true } : {}),
     }
@@ -409,6 +416,7 @@ export async function selectRole(meetingId, roleId) {
     throw new Error('This role was just taken by someone else — refresh and try another.')
   }
   logAction(`You self-selected ${roleName(roleId)} for ${meeting.dateLabel}`)
+  await scoreRoleSelfSelect(meeting, account)
 }
 
 // roleId is now explicit, not implicitly "whichever role is mine" — a
@@ -650,6 +658,7 @@ export async function finalizeMeeting(meetingId) {
     link: '/roles',
   })
   await scoreVpeFinalize(meeting)
+  await scoreRoleCompletions(meeting)
 }
 
 // Reverses finalizeMeeting — re-opens the meeting for VPE edits (override,
