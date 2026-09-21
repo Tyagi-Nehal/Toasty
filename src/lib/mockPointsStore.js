@@ -900,6 +900,84 @@ export async function scoreExcomAttendanceFloor(meeting, entries) {
   }
 }
 
+// Which month's winners the dashboards should announce right now: the
+// month's last day (showing that month) through the 3rd of the next month
+// (still showing the month that just ended), so someone who doesn't open
+// the app on the exact last day still sees the result. null otherwise.
+export function getWinnerAnnouncementMonth(now = new Date()) {
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  if (now.getDate() === lastDay) return { year: now.getFullYear(), month: now.getMonth() }
+  if (now.getDate() <= 3) {
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    return { year: prev.getFullYear(), month: prev.getMonth() }
+  }
+  return null
+}
+
+function topScorers(totals) {
+  const entries = [...totals.values()].filter((e) => e.points > 0)
+  if (entries.length === 0) return []
+  const best = Math.max(...entries.map((e) => e.points))
+  return entries.filter((e) => e.points === best)
+}
+
+// Best Toastmaster (member_points) and Best ExCom (excom_points) for one
+// calendar month — the two pools are ranked separately, never summed.
+// Ties return every tied person rather than picking one arbitrarily.
+export async function getMonthlyWinners({ year, month }, clubId) {
+  const start = new Date(year, month, 1).toISOString()
+  const end = new Date(year, month + 1, 1).toISOString()
+
+  const [memberRes, excomRes, apptRes, clubRes] = await Promise.all([
+    supabase
+      .from('member_points')
+      .select('member_email, member_name, points')
+      .eq('club_id', clubId)
+      .not('member_email', 'is', null)
+      .gte('awarded_at', start)
+      .lt('awarded_at', end),
+    supabase
+      .from('excom_points')
+      .select('email, role, points')
+      .eq('club_id', clubId)
+      .gte('awarded_at', start)
+      .lt('awarded_at', end),
+    supabase.from('excom_appointments').select('email, name').eq('club_id', clubId),
+    supabase.from('clubs').select('president_email, president_name').eq('id', clubId).maybeSingle(),
+  ])
+  if (memberRes.error || excomRes.error) {
+    console.error(
+      '[mockPointsStore] getMonthlyWinners failed:',
+      (memberRes.error ?? excomRes.error).message,
+    )
+    return { toastmasters: [], excom: [] }
+  }
+
+  const memberTotals = new Map()
+  for (const r of memberRes.data ?? []) {
+    const key = normalizeEmail(r.member_email)
+    const cur = memberTotals.get(key) ?? { name: r.member_name || key, points: 0 }
+    cur.points += r.points
+    if (r.member_name) cur.name = r.member_name
+    memberTotals.set(key, cur)
+  }
+
+  const names = new Map()
+  for (const a of apptRes.data ?? []) names.set(normalizeEmail(a.email), a.name)
+  if (clubRes.data?.president_email) {
+    names.set(normalizeEmail(clubRes.data.president_email), clubRes.data.president_name)
+  }
+  const excomTotals = new Map()
+  for (const r of excomRes.data ?? []) {
+    const key = normalizeEmail(r.email)
+    const cur = excomTotals.get(key) ?? { name: names.get(key) || key, role: r.role, points: 0 }
+    cur.points += r.points
+    excomTotals.set(key, cur)
+  }
+
+  return { toastmasters: topScorers(memberTotals), excom: topScorers(excomTotals) }
+}
+
 // Referral points (guest_attended/guest_converted) can end up with no
 // real member_email attached — resolveMemberEmailByName only matches a
 // member who signed up through the app themselves; an older/seed member

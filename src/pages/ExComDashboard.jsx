@@ -18,6 +18,7 @@ import {
 import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import MemberLayout from '../components/MemberLayout.jsx'
+import MonthlyWinnersBanner from '../components/MonthlyWinnersBanner.jsx'
 import Avatar from '../components/Avatar.jsx'
 import { getAccount, hasExcomRole } from '../lib/mockAuth.js'
 import {
@@ -193,6 +194,8 @@ export default function ExComDashboard() {
         <p className="mt-1 text-sm text-ink/60">
           Welcome back, {firstName}. Here's the club at a glance.
         </p>
+
+        <MonthlyWinnersBanner />
 
         {/* Overview cards */}
         <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

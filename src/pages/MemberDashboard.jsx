@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import DeclineRoleModal from '../components/DeclineRoleModal.jsx'
+import MonthlyWinnersBanner from '../components/MonthlyWinnersBanner.jsx'
 import { getAccount } from '../lib/mockAuth.js'
 import {
   VPE_ONLY_ROLE_IDS,
@@ -137,6 +138,8 @@ export default function MemberDashboard() {
                 : 'No membership on file yet — contact the Treasurer.'}
           </p>
         )}
+
+        <MonthlyWinnersBanner />
 
         <div className="mt-8 grid gap-6 lg:grid-cols-3">
           {/* Main column */}
