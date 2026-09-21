@@ -2305,3 +2305,13 @@ $$;
 -- row, just leave them unassigned again.
 alter table members add column if not exists mentor_id bigint references club_mentors(id) on delete set null;
 create index if not exists members_mentor_id_idx on members(mentor_id);
+
+-- The Phase 2 auto-assign-cutoff rewrite (looping over every approved
+-- club instead of one global "next meeting") added a `clubs` query that
+-- was missed when the original service_role grants above were written —
+-- service_role bypasses RLS but still needs the underlying SQL grant,
+-- same as any other role. Confirmed live: every cron run since that
+-- rewrite failed with "permission denied for table clubs" (visible in
+-- net._http_response, not in cron.job_run_details — pg_net only
+-- reports whether the HTTP call was dispatched, not what it returned).
+grant select on clubs to service_role;
