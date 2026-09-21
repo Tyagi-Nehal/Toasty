@@ -1000,3 +1000,52 @@ export async function getUnmatchedReferralPoints(clubId) {
   }
   return data ?? []
 }
+
+// Every individual point event for one person, newest first — the audit
+// trail behind the monthly totals, so a member can see exactly when, how
+// and why each point (or penalty) was recorded. meetingDate/meetingLabel
+// come from the linked meeting when there is one (referral, feedback and
+// renewal points aren't tied to a meeting).
+function toLedgerRow(row) {
+  return {
+    id: row.id,
+    category: row.category,
+    points: row.points,
+    note: row.note ?? '',
+    awardedAt: row.awarded_at,
+    role: row.role ?? null,
+    meetingDate: row.meetings?.meeting_date ?? null,
+    meetingLabel: row.meetings?.label ?? null,
+  }
+}
+
+export async function getMemberPointsLedger(email) {
+  const normalized = normalizeEmail(email)
+  if (!normalized) return []
+  const { data, error } = await supabase
+    .from('member_points')
+    .select('id, category, points, note, awarded_at, meetings(meeting_date, label)')
+    .eq('member_email', normalized)
+    .order('awarded_at', { ascending: false })
+  if (error) {
+    console.error('[mockPointsStore] getMemberPointsLedger failed:', error.message)
+    return []
+  }
+  return (data ?? []).map(toLedgerRow)
+}
+
+export async function getExcomPointsLedger(email, clubId) {
+  const normalized = normalizeEmail(email)
+  if (!normalized) return []
+  const { data, error } = await supabase
+    .from('excom_points')
+    .select('id, role, category, points, note, awarded_at, meetings(meeting_date, label)')
+    .eq('email', normalized)
+    .eq('club_id', clubId)
+    .order('awarded_at', { ascending: false })
+  if (error) {
+    console.error('[mockPointsStore] getExcomPointsLedger failed:', error.message)
+    return []
+  }
+  return (data ?? []).map(toLedgerRow)
+}

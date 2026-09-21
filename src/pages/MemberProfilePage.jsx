@@ -17,7 +17,10 @@ import {
   getMemberPointsSummary,
   getMonthlyPoints,
   getMonthlyBreakdown,
+  getMemberPointsLedger,
+  getExcomPointsLedger,
 } from '../lib/mockPointsStore.js'
+import PointsHistory from '../components/PointsHistory.jsx'
 import { roleCatalog } from '../data/roleCatalog.js'
 
 // Real member_points categories only. Phase 1: role_decline penalty,
@@ -50,8 +53,37 @@ const excomCategoryLabels = {
   renewal_new_member: 'New-member renewals',
   renewal_existing_member: 'Existing-member renewals',
   feedback_resolved: 'Resolved feedback within 48h',
+  guest_converted_bonus: 'Referred guest became a member',
   meeting_presided: 'Presided over the meeting',
   excom_attendance: 'Attended the meeting',
+}
+
+const categoryRules = {
+  meeting_attended: '+5 for every meeting you are marked present at.',
+  role_completed: '+10 for holding a filled role when the VPE finalizes that meeting.',
+  role_self_selected: '+5 bonus for picking a role yourself before the auto-assign cutoff.',
+  guest_attended: '+6 when a guest you invited attends a meeting.',
+  guest_converted: '+8 when a guest you invited becomes a member.',
+  role_decline:
+    'Penalty for declining a role: -2 with 24-48h notice, -4 with under 24h (free with 48h+).',
+}
+
+const excomCategoryRules = {
+  finalize_agenda: '+18 when the agenda is sent and the meeting finalized by Tuesday of its week.',
+  no_repetition: '+2 when every filled role went to a different person.',
+  external_booking: '+5 for booking an outside guest into a role (max 4 a month).',
+  mom_on_time: '+10 for submitting the minutes within 48h of the meeting.',
+  attendance_on_time: '+10 for submitting attendance within 48h of the meeting.',
+  on_time_start: '+20 when the meeting started at or before its scheduled time.',
+  photos_on_time: 'Up to +20 per meeting for uploading photos within 48h (max 80 a month).',
+  new_member_registered: '+80 for approving a new member signup (first one each month).',
+  guest_converted_bonus: '+10 when a member-referred guest becomes a member.',
+  growth_bonus: '+5 shared bonus the first time the club grows in a month.',
+  renewal_new_member: '+15 for a first-ever renewal (max 3 a month).',
+  renewal_existing_member: '+20 for a repeat renewal (max 4 a month).',
+  feedback_resolved: '+20 for resolving a Feedback Inbox item within 48h (max 4 a month).',
+  meeting_presided: '+20 for presiding over a meeting as PO.',
+  excom_attendance: '+10 baseline for attending a meeting as VPM or Treasurer.',
 }
 
 const paymentStatusLabel = { paid: 'Paid', pending: 'Pending', overdue: 'Overdue' }
@@ -77,6 +109,8 @@ export default function MemberProfilePage() {
   const [myMentor, setMyMentor] = useState(null)
   const [excomMonthlyPoints, setExcomMonthlyPoints] = useState(0)
   const [excomPointsBreakdown, setExcomPointsBreakdown] = useState([])
+  const [memberLedger, setMemberLedger] = useState([])
+  const [excomLedger, setExcomLedger] = useState([])
   const isExcomMember = (account?.excomRoles?.length ?? 0) > 0
   // Points are always stored under the base role label ('VPPR'), never
   // 'Ass. VPPR' — same reasoning as ExComDashboard.jsx.
@@ -87,6 +121,8 @@ export default function MemberProfilePage() {
       getRosterStatusForEmail(account.email).then(setRenewal)
       getRoleHistoryForEmail(account.email, account.name).then(setRoleHistory)
       getMemberPointsSummary(account.email).then(setPoints)
+      getMemberPointsLedger(account.email).then(setMemberLedger)
+      getExcomPointsLedger(account.email, account.clubId).then(setExcomLedger)
     }
     if (account?.email) getMyMentor(account.email).then(setMyMentor)
     if (excomPointsRole && account?.email) {
@@ -182,6 +218,22 @@ export default function MemberProfilePage() {
             <p className="mt-5 text-sm text-ink/50">No points recorded yet.</p>
           )}
         </div>
+
+        <PointsHistory
+          title="Member Points History"
+          rows={memberLedger}
+          labels={categoryLabels}
+          rules={categoryRules}
+        />
+        {(isExcomMember || excomLedger.length > 0) && (
+          <PointsHistory
+            title="ExCom Points History"
+            rows={excomLedger}
+            labels={excomCategoryLabels}
+            rules={excomCategoryRules}
+            showRole
+          />
+        )}
 
         {/* Role history — real assignments from the live role board (points
             for completing/self-selecting them show in the breakdown above
