@@ -35,11 +35,24 @@ export function getRosterRenewalLog() {
 // Active members only — this is the pool attendance rosters and role
 // auto-assign draw from, so an inactive member is excluded everywhere
 // this feeds, not just hidden with a badge.
+// A stored is_active only changes when the Treasurer saves a payment
+// status, so an end date that has passed isn't reflected in it on its own
+// — every "is this member active" decision also checks the end date.
+function todayISO() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function isCurrentlyActive(row) {
+  return Boolean(row.is_active) && (!row.membership_end || row.membership_end >= todayISO())
+}
+
 export async function getMembers(clubId) {
   const { data, error } = await supabase
     .from('members')
     .select('*')
     .eq('is_active', true)
+    .or(`membership_end.is.null,membership_end.gte.${todayISO()}`)
     .eq('club_id', clubId)
     .order('name')
   if (error) console.error('[mockRosterStore] getMembers failed:', error.message)
@@ -90,7 +103,7 @@ export async function getRosterWithStatus(clubId) {
     name: m.name,
     email: m.email,
     attendancePercentage: m.attendance_percentage,
-    isActive: m.is_active,
+    isActive: isCurrentlyActive(m),
     paymentStatus: m.payment_status,
     membershipStart: m.membership_start,
     membershipEnd: m.membership_end,
@@ -172,7 +185,7 @@ export async function getRosterStatusForEmail(email) {
     name: data.name,
     email: data.email,
     attendancePercentage: data.attendance_percentage,
-    isActive: data.is_active,
+    isActive: isCurrentlyActive(data),
     paymentStatus: data.payment_status,
     membershipStart: data.membership_start,
     membershipEnd: data.membership_end,

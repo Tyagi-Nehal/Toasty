@@ -193,7 +193,16 @@ async function runForClub(supabase: ReturnType<typeof createClient>, clubId: str
   )
 
   const [{ data: members }, { data: roleHistory }, { data: attendanceRows }] = await Promise.all([
-    supabase.from('members').select('*').eq('club_id', clubId).order('name'),
+    // Active members only, matching the in-app getMembers(): a lapsed
+    // membership (or one the Treasurer marked unpaid) must not be
+    // auto-assigned a role.
+    supabase
+      .from('members')
+      .select('*')
+      .eq('club_id', clubId)
+      .eq('is_active', true)
+      .or(`membership_end.is.null,membership_end.gte.${new Date().toISOString().slice(0, 10)}`)
+      .order('name'),
     supabase
       .from('role_history')
       .select('*')

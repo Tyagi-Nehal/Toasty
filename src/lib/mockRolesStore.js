@@ -15,6 +15,7 @@ import { supabase } from './supabaseClient.js'
 import {
   getMembers,
   getRoleHistory,
+  getRosterStatusForEmail,
   recordRoleAssignment,
   scoreMemberForRole,
 } from './mockRosterStore.js'
@@ -394,6 +395,12 @@ export async function selectRole(meetingId, roleId) {
     throw new Error('This role is assigned by the VPE, not self-selected.')
   }
   const account = getAccount()
+  // The Role Selection page already disables the button for an inactive
+  // member; this enforces it in the store too, so it isn't UI-only.
+  const membership = await getRosterStatusForEmail(account?.email)
+  if (!membership.isActive) {
+    throw new Error('Your membership is inactive — contact the Treasurer to renew.')
+  }
   const meeting = await getMeeting(meetingId)
   // .eq('status', 'open') + .select() aren't just belt-and-braces here —
   // without them a role someone else just claimed (or that RLS silently
