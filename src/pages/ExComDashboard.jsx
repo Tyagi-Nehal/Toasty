@@ -132,7 +132,10 @@ const quickActionsByRole = [
   },
   {
     role: 'VPPR',
-    actions: [{ to: '/photo-upload', label: 'Upload Photos', icon: ImagePlus }],
+    actions: [
+      { to: '/photo-upload', label: 'Upload Photos', icon: ImagePlus },
+      { to: '/manage-mentors', label: 'Manage Mentors', icon: GraduationCap },
+    ],
   },
 ]
 

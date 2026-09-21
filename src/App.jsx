@@ -26,6 +26,7 @@ import NewMemberApprovalsPage from './pages/NewMemberApprovalsPage.jsx'
 import RenewalManagementPage from './pages/RenewalManagementPage.jsx'
 import PhotoUploadPage from './pages/PhotoUploadPage.jsx'
 import AssignMentorsPage from './pages/AssignMentorsPage.jsx'
+import ManageMentorsPage from './pages/ManageMentorsPage.jsx'
 import RegisterClubPage from './pages/RegisterClubPage.jsx'
 import RegisterPresidentPage from './pages/RegisterPresidentPage.jsx'
 import RegisterExcomPage from './pages/RegisterExcomPage.jsx'
@@ -216,6 +217,14 @@ function App() {
         element={
           <RequireExcomRole role="VPPR">
             <PhotoUploadPage />
+          </RequireExcomRole>
+        }
+      />
+      <Route
+        path="/manage-mentors"
+        element={
+          <RequireExcomRole role="VPPR">
+            <ManageMentorsPage />
           </RequireExcomRole>
         }
       />
