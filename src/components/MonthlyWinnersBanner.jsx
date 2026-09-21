@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Trophy } from 'lucide-react'
 import { getAccount } from '../lib/mockAuth.js'
+import { recordMonthlyAwards } from '../lib/mockAwardsStore.js'
 import { getMonthlyWinners, getWinnerAnnouncementMonth } from '../lib/mockPointsStore.js'
 
 function WinnerCard({ title, winners, showRole }) {
@@ -33,6 +34,7 @@ export default function MonthlyWinnersBanner() {
     const target = getWinnerAnnouncementMonth()
     const clubId = getAccount()?.clubId
     if (!target || !clubId) return
+    recordMonthlyAwards()
     getMonthlyWinners(target, clubId).then((winners) => setResult({ target, winners }))
   }, [])
 

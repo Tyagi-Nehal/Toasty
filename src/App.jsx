@@ -16,6 +16,7 @@ import PastExcomPage from './pages/PastExcomPage.jsx'
 import ExcomPage from './pages/ExcomPage.jsx'
 import MentorPage from './pages/MentorPage.jsx'
 import MemberProfilePage from './pages/MemberProfilePage.jsx'
+import AchievementsPage from './pages/AchievementsPage.jsx'
 import FeedbackPage from './pages/FeedbackPage.jsx'
 import FeedbackInboxPage from './pages/FeedbackInboxPage.jsx'
 import ExComDashboard from './pages/ExComDashboard.jsx'
@@ -132,6 +133,14 @@ function App() {
       <Route path="/mentors" element={<MentorPage />} />
       <Route path="/past-excom" element={<PastExcomPage />} />
       <Route path="/excom" element={<ExcomPage />} />
+      <Route
+        path="/achievements"
+        element={
+          <RequireApprovedAccount>
+            <AchievementsPage />
+          </RequireApprovedAccount>
+        }
+      />
       <Route
         path="/profile"
         element={

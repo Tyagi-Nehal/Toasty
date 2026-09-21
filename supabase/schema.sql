@@ -2386,3 +2386,87 @@ create policy "excom_points self role insert" on excom_points
       )
     )
   );
+
+-- Monthly awards history (Achievements page). Applied to production.
+-- Monthly awards history: Best Toastmaster (member_points) and Best ExCom
+-- (excom_points) per calendar month. Rows are written only by
+-- record_monthly_awards() (security definer), never directly by clients,
+-- so an award can't be forged from the browser. A month is recorded once
+-- it has ended, or on its last day (matching the dashboard announcement).
+-- Ties store every tied person; re-running is a no-op (unique index).
+create table if not exists monthly_awards (
+  id bigint generated always as identity primary key,
+  club_id text not null references clubs(id),
+  month_start date not null,
+  category text not null check (category in ('best_toastmaster', 'best_excom')),
+  winner_email text not null,
+  winner_name text not null,
+  role text,
+  points integer not null,
+  created_at timestamptz not null default now(),
+  unique (club_id, month_start, category, winner_email)
+);
+
+alter table monthly_awards enable row level security;
+drop policy if exists "monthly_awards club select" on monthly_awards;
+create policy "monthly_awards club select" on monthly_awards
+  for select to authenticated using (club_id = current_club_id());
+grant select on monthly_awards to authenticated;
+
+create or replace function record_monthly_awards()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cid text := current_club_id();
+begin
+  if cid is null then return; end if;
+
+  insert into monthly_awards (club_id, month_start, category, winner_email, winner_name, role, points)
+  select cid, m, 'best_toastmaster', e, coalesce(n, e), null, p
+  from (
+    select m, e, n, p, rank() over (partition by m order by p desc) rk
+    from (
+      select date_trunc('month', awarded_at)::date as m,
+             lower(member_email) as e,
+             max(member_name) as n,
+             sum(points)::int as p
+      from member_points
+      where club_id = cid and member_email is not null
+      group by 1, 2
+    ) s
+    where (m + interval '1 month' - interval '1 day')::date <= current_date
+  ) t
+  where rk = 1 and p > 0
+  on conflict do nothing;
+
+  insert into monthly_awards (club_id, month_start, category, winner_email, winner_name, role, points)
+  select cid, m, 'best_excom', e,
+         coalesce(
+           (select a.name from excom_appointments a where a.club_id = cid and lower(a.email) = e limit 1),
+           (select c.president_name from clubs c where c.id = cid and lower(c.president_email) = e),
+           e),
+         r, p
+  from (
+    select m, e, r, p, rank() over (partition by m order by p desc) rk
+    from (
+      select date_trunc('month', awarded_at)::date as m,
+             lower(email) as e,
+             (array_agg(role order by points desc))[1] as r,
+             sum(points)::int as p
+      from excom_points
+      where club_id = cid
+      group by 1, 2
+    ) s
+    where (m + interval '1 month' - interval '1 day')::date <= current_date
+  ) t
+  where rk = 1 and p > 0
+  on conflict do nothing;
+end;
+$$;
+
+revoke all on function record_monthly_awards() from public;
+grant execute on function record_monthly_awards() to authenticated;
+notify pgrst, 'reload schema';
