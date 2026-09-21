@@ -31,7 +31,12 @@ import { getRosterWithStatus } from '../lib/mockRosterStore.js'
 import { getAgendaHistory } from '../lib/mockAgendaStore.js'
 import { getVisitRequestsLog } from '../lib/mockVisitRequests.js'
 import { getAllFeedback } from '../lib/mockFeedbackStore.js'
-import { getMonthlyBreakdown, getMonthlyPoints } from '../lib/mockPointsStore.js'
+import {
+  getMonthlyBreakdown,
+  getMonthlyPoints,
+  getMemberMonthlyPoints,
+  getMemberMonthlyBreakdown,
+} from '../lib/mockPointsStore.js'
 
 // Phase 1 only covers automatic/measurable categories — discretionary
 // awards, guest-approval points, and the monthly poll aren't scored yet,
@@ -49,6 +54,20 @@ const categoryLabels = {
   growth_bonus: 'Club growth bonus',
   renewal_new_member: 'New-member renewals',
   renewal_existing_member: 'Existing-member renewals',
+}
+
+// member_points categories — a separate pool from the ExCom-role points
+// above (categoryLabels), earned as a regular club member regardless of
+// any ExCom role also held. Kept as its own labeled card rather than
+// merged into "Points This Month" so an ExCom member can tell the two
+// pools apart.
+const memberCategoryLabels = {
+  role_decline: 'Role declines',
+  guest_attended: 'Guest attended a meeting',
+  guest_converted: 'Guest converted to member',
+  meeting_attended: 'Attended a meeting',
+  role_completed: 'Completed a role',
+  role_self_selected: 'Self-selected a role early',
 }
 
 function timeAgo(isoString) {
@@ -126,6 +145,8 @@ export default function ExComDashboard() {
   const [pendingRenewalsCount, setPendingRenewalsCount] = useState(0)
   const [monthlyPoints, setMonthlyPoints] = useState(0)
   const [pointsBreakdown, setPointsBreakdown] = useState([])
+  const [memberMonthlyPoints, setMemberMonthlyPoints] = useState(0)
+  const [memberPointsBreakdown, setMemberPointsBreakdown] = useState([])
   const [unreadFeedbackCount, setUnreadFeedbackCount] = useState(0)
   const canSeeMembers = hasExcomRole('VPM') || hasExcomRole('Treasurer')
   const displayRole = getDisplayRole(account)
@@ -154,6 +175,10 @@ export default function ExComDashboard() {
     if (pointsRole && account?.email) {
       getMonthlyPoints(pointsRole, account.email, account.clubId).then(setMonthlyPoints)
       getMonthlyBreakdown(pointsRole, account.email, account.clubId).then(setPointsBreakdown)
+    }
+    if (account?.email) {
+      getMemberMonthlyPoints(account.email).then(setMemberMonthlyPoints)
+      getMemberMonthlyBreakdown(account.email).then(setMemberPointsBreakdown)
     }
     if (hasExcomRole('President')) {
       getAllFeedback().then((items) => setUnreadFeedbackCount(items.filter((f) => !f.read).length))
@@ -243,32 +268,64 @@ export default function ExComDashboard() {
           ))}
         </div>
 
-        {/* Points this month — Phase 1: automatic/measurable scoring
-            only, so President/Associate accounts correctly show 0 until
-            discretionary awards and the monthly poll land. */}
-        {displayRole && (
-          <div className="mt-6 rounded-3xl border border-accent/30 bg-white p-6">
+        {/* Points this month — two separate pools, never merged into one
+            number: ExCom-role points (excom_points, Phase 1: automatic/
+            measurable scoring only, so President/Associate accounts
+            correctly show 0 until discretionary awards and the monthly
+            poll land) and member points (member_points — earned as a
+            regular club member regardless of any ExCom role held). */}
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          {displayRole && (
+            <div className="rounded-3xl border border-accent/30 bg-white p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+                  <Star size={16} className="text-primary" />
+                  ExCom Points This Month
+                </div>
+                <span className="text-2xl font-extrabold text-primary">{monthlyPoints}</span>
+              </div>
+              {pointsBreakdown.length > 0 ? (
+                <ul className="mt-3 space-y-1.5">
+                  {pointsBreakdown.map((row) => (
+                    <li key={row.category} className="flex items-center justify-between text-sm">
+                      <span className="text-ink/60">{categoryLabels[row.category] ?? row.category}</span>
+                      <span className="font-medium text-ink">+{row.points}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-sm text-ink/50">No ExCom points recorded yet this month.</p>
+              )}
+            </div>
+          )}
+
+          <div className="rounded-3xl border border-accent/30 bg-white p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-semibold text-ink">
                 <Star size={16} className="text-primary" />
-                Points This Month
+                Member Points This Month
               </div>
-              <span className="text-2xl font-extrabold text-primary">{monthlyPoints}</span>
+              <span className="text-2xl font-extrabold text-primary">{memberMonthlyPoints}</span>
             </div>
-            {pointsBreakdown.length > 0 ? (
+            {memberPointsBreakdown.length > 0 ? (
               <ul className="mt-3 space-y-1.5">
-                {pointsBreakdown.map((row) => (
+                {memberPointsBreakdown.map((row) => (
                   <li key={row.category} className="flex items-center justify-between text-sm">
-                    <span className="text-ink/60">{categoryLabels[row.category] ?? row.category}</span>
-                    <span className="font-medium text-ink">+{row.points}</span>
+                    <span className="text-ink/60">
+                      {memberCategoryLabels[row.category] ?? row.category}
+                    </span>
+                    <span className="font-medium text-ink">
+                      {row.points > 0 ? '+' : ''}
+                      {row.points}
+                    </span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="mt-3 text-sm text-ink/50">No points recorded yet this month.</p>
+              <p className="mt-3 text-sm text-ink/50">No member points recorded yet this month.</p>
             )}
           </div>
-        )}
+        </div>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-3">
           {/* Quick actions */}

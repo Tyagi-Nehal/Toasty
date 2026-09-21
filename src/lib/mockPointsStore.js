@@ -547,6 +547,31 @@ export async function getMemberMonthlyPoints(email) {
   return (data ?? []).reduce((sum, row) => sum + row.points, 0)
 }
 
+// This-month-only breakdown by category — the member_points counterpart
+// to getMonthlyBreakdown (excom_points) above. Lets a page show an
+// ExCom member's two point pools side by side, each with its own
+// category breakdown, instead of one merged total.
+export async function getMemberMonthlyBreakdown(email) {
+  const normalized = normalizeEmail(email)
+  if (!normalized) return []
+  const { start, end } = getCurrentMonthRange()
+  const { data, error } = await supabase
+    .from('member_points')
+    .select('category, points')
+    .eq('member_email', normalized)
+    .gte('awarded_at', start)
+    .lt('awarded_at', end)
+  if (error) {
+    console.error('[mockPointsStore] getMemberMonthlyBreakdown failed:', error.message)
+    return []
+  }
+  const byCategory = new Map()
+  for (const row of data ?? []) {
+    byCategory.set(row.category, (byCategory.get(row.category) ?? 0) + row.points)
+  }
+  return [...byCategory.entries()].map(([category, points]) => ({ category, points }))
+}
+
 // All-time total + this-month total + a by-category breakdown, in one
 // query — MemberProfilePage's "Points Breakdown" card. Categories can be
 // negative (role_decline is a penalty), so this is a plain point total
