@@ -10,10 +10,14 @@ import {
 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import Avatar from '../components/Avatar.jsx'
-import { getAccount } from '../lib/mockAuth.js'
+import { getAccount, getDisplayRole } from '../lib/mockAuth.js'
 import { getRosterStatusForEmail, getMyMentor } from '../lib/mockRosterStore.js'
 import { getRoleHistoryForEmail } from '../lib/mockRolesStore.js'
-import { getMemberPointsSummary } from '../lib/mockPointsStore.js'
+import {
+  getMemberPointsSummary,
+  getMonthlyPoints,
+  getMonthlyBreakdown,
+} from '../lib/mockPointsStore.js'
 import { roleCatalog } from '../data/roleCatalog.js'
 
 // Real member_points categories only. Phase 1: role_decline penalty,
@@ -28,6 +32,23 @@ const categoryLabels = {
   meeting_attended: 'Attended a meeting',
   role_completed: 'Completed a role',
   role_self_selected: 'Self-selected a role early',
+}
+
+// excom_points categories — a separate pool from member_points above,
+// earned only while actually holding an ExCom role (see
+// mockPointsStore.js). Same list as ExComDashboard.jsx's categoryLabels.
+const excomCategoryLabels = {
+  finalize_agenda: 'Finalized + agenda sent by Tuesday',
+  no_repetition: 'No role repetition',
+  external_booking: 'Booked an external guest',
+  mom_on_time: 'MOM submitted on time',
+  attendance_on_time: 'Attendance marked on time',
+  on_time_start: 'Meeting started on time',
+  photos_on_time: 'Photos submitted on time',
+  new_member_registered: 'New members registered',
+  growth_bonus: 'Club growth bonus',
+  renewal_new_member: 'New-member renewals',
+  renewal_existing_member: 'Existing-member renewals',
 }
 
 const paymentStatusLabel = { paid: 'Paid', pending: 'Pending', overdue: 'Overdue' }
@@ -51,6 +72,12 @@ export default function MemberProfilePage() {
   const [roleHistory, setRoleHistory] = useState([])
   const [points, setPoints] = useState({ total: 0, thisMonth: 0, byCategory: [] })
   const [myMentor, setMyMentor] = useState(null)
+  const [excomMonthlyPoints, setExcomMonthlyPoints] = useState(0)
+  const [excomPointsBreakdown, setExcomPointsBreakdown] = useState([])
+  const isExcomMember = (account?.excomRoles?.length ?? 0) > 0
+  // Points are always stored under the base role label ('VPPR'), never
+  // 'Ass. VPPR' — same reasoning as ExComDashboard.jsx.
+  const excomPointsRole = getDisplayRole(account)?.replace(/^Ass\. /, '') ?? null
 
   useEffect(() => {
     if (account?.email) {
@@ -59,6 +86,10 @@ export default function MemberProfilePage() {
       getMemberPointsSummary(account.email).then(setPoints)
     }
     if (account?.email) getMyMentor(account.email).then(setMyMentor)
+    if (excomPointsRole && account?.email) {
+      getMonthlyPoints(excomPointsRole, account.email, account.clubId).then(setExcomMonthlyPoints)
+      getMonthlyBreakdown(excomPointsRole, account.email, account.clubId).then(setExcomPointsBreakdown)
+    }
   }, [])
 
   return (
@@ -78,11 +109,41 @@ export default function MemberProfilePage() {
           </div>
         </div>
 
-        {/* Points breakdown */}
-        <div className="mt-8 rounded-3xl border border-accent/30 bg-white p-6">
+        {/* ExCom points — a separate pool from member points below,
+            earned only while actually holding an ExCom role. Shown as
+            its own card, never merged into the member total, same split
+            as the ExCom Dashboard's two point cards. */}
+        {isExcomMember && (
+          <div className="mt-8 rounded-3xl border border-accent/30 bg-white p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <Star size={16} className="text-primary" />
+                ExCom Points This Month
+              </div>
+              <span className="text-2xl font-extrabold text-primary">{excomMonthlyPoints}</span>
+            </div>
+            {excomPointsBreakdown.length > 0 ? (
+              <ul className="mt-3 space-y-1.5">
+                {excomPointsBreakdown.map((row) => (
+                  <li key={row.category} className="flex items-center justify-between text-sm">
+                    <span className="text-ink/60">
+                      {excomCategoryLabels[row.category] ?? row.category}
+                    </span>
+                    <span className="font-medium text-ink">+{row.points}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-sm text-ink/50">No ExCom points recorded yet this month.</p>
+            )}
+          </div>
+        )}
+
+        {/* Member points breakdown — separate from ExCom points above */}
+        <div className="mt-6 rounded-3xl border border-accent/30 bg-white p-6">
           <div className="flex items-center gap-2 text-sm font-semibold text-ink">
             <Star size={16} className="text-primary" />
-            Points Breakdown
+            Member Points Breakdown
           </div>
           <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
             <div className="rounded-2xl bg-cream p-4 text-center">
