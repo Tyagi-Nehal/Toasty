@@ -12,6 +12,7 @@ import {
   ClipboardCheck,
   BookOpen,
   LayoutGrid,
+  Trophy,
 } from 'lucide-react'
 import Logo from './Logo.jsx'
 import Avatar from './Avatar.jsx'
@@ -38,6 +39,7 @@ const baseNavLinks = [
   { to: '/minutes', label: 'Minutes', icon: BookOpen },
   { to: '/attendance-log', label: 'Attendance', icon: ClipboardCheck },
   { to: '/photos', label: 'Photos', icon: Images },
+  { to: '/achievements', label: 'Achievements', icon: Trophy },
   // Voting Poll nav link removed on request — the /poll route and the
   // SAA's poll editor (reachable via the ExCom tab) are untouched, so
   // this can come back by just re-adding the link if needed later.

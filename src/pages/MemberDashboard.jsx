@@ -8,7 +8,6 @@ import {
   ArrowRight,
   CheckCircle2,
   Bell,
-  Trophy,
 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import DeclineRoleModal from '../components/DeclineRoleModal.jsx'
@@ -139,14 +138,6 @@ export default function MemberDashboard() {
                 : 'No membership on file yet — contact the Treasurer.'}
           </p>
         )}
-
-        <Link
-          to="/achievements"
-          className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-cream transition hover:bg-primary-dark"
-        >
-          <Trophy size={15} />
-          Achievements
-        </Link>
 
         <MonthlyWinnersBanner />
 
