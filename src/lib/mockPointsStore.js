@@ -956,7 +956,7 @@ export async function getMonthlyWinners({ year, month }, clubId) {
   const memberTotals = new Map()
   for (const r of memberRes.data ?? []) {
     const key = normalizeEmail(r.member_email)
-    const cur = memberTotals.get(key) ?? { name: r.member_name || key, points: 0 }
+    const cur = memberTotals.get(key) ?? { email: key, name: r.member_name || key, points: 0 }
     cur.points += r.points
     if (r.member_name) cur.name = r.member_name
     memberTotals.set(key, cur)
@@ -970,7 +970,7 @@ export async function getMonthlyWinners({ year, month }, clubId) {
   const excomTotals = new Map()
   for (const r of excomRes.data ?? []) {
     const key = normalizeEmail(r.email)
-    const cur = excomTotals.get(key) ?? { name: names.get(key) || key, role: r.role, points: 0 }
+    const cur = excomTotals.get(key) ?? { email: key, name: names.get(key) || key, role: r.role, points: 0 }
     cur.points += r.points
     excomTotals.set(key, cur)
   }
