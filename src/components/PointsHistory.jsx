@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ListChecks } from 'lucide-react'
+import { ChevronDown, ListChecks } from 'lucide-react'
 
 function monthKey(iso) {
   const d = new Date(iso)
@@ -36,6 +36,7 @@ export default function PointsHistory({ title, rows, labels, rules, showRole }) 
     return keys.sort().reverse()
   }, [rows])
   const [selected, setSelected] = useState('current')
+  const [open, setOpen] = useState(false)
 
   const currentKey = monthKey(new Date().toISOString())
   const activeKey = selected === 'current' ? currentKey : selected
@@ -45,15 +46,30 @@ export default function PointsHistory({ title, rows, labels, rules, showRole }) 
 
   return (
     <div className="mt-6 rounded-3xl border border-accent/30 bg-white p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 text-left"
+      >
+        <span className="flex items-center gap-2 text-sm font-semibold text-ink">
           <ListChecks size={16} className="text-primary" />
           {title}
-        </div>
+          <span className="rounded-full bg-cream px-2 py-0.5 text-xs font-semibold text-ink/60">
+            {rows.length}
+          </span>
+        </span>
+        <span className="flex items-center gap-1 text-xs font-semibold text-primary">
+          {open ? 'Hide' : 'View history'}
+          <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
+
+      {open && (
         <select
           value={selected === 'current' ? currentKey : selected}
           onChange={(e) => setSelected(e.target.value)}
-          className="rounded-full border border-accent/40 bg-cream px-3 py-1.5 text-xs font-semibold text-ink focus:border-primary focus:outline-none"
+          className="mt-3 rounded-full border border-accent/40 bg-cream px-3 py-1.5 text-xs font-semibold text-ink focus:border-primary focus:outline-none"
         >
           {options.map((key) => (
             <option key={key} value={key}>
@@ -62,9 +78,9 @@ export default function PointsHistory({ title, rows, labels, rules, showRole }) 
           ))}
           <option value="all">All time</option>
         </select>
-      </div>
+      )}
 
-      {visible.length > 0 ? (
+      {!open ? null : visible.length > 0 ? (
         <>
           <ul className="mt-4 divide-y divide-accent/15">
             {visible.map((row) => (
