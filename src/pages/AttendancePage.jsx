@@ -23,6 +23,7 @@ export default function AttendancePage() {
   const [attendance, setAttendance] = useState(new Map())
   const [alreadySubmitted, setAlreadySubmitted] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [nextMeeting, setNextMeeting] = useState(null)
@@ -41,13 +42,24 @@ export default function AttendancePage() {
 
   useEffect(() => {
     if (!activeMeetingId) return
+    let cancelled = false
     setLoading(true)
+    setLoadError(null)
     setSubmitted(false)
     getAttendanceForMeeting(activeMeetingId).then(({ roster, alreadySubmitted: already }) => {
+      if (cancelled) return
       setAttendance(new Map(roster.map((m) => [m.email, { name: m.name, present: m.present }])))
       setAlreadySubmitted(already)
+    }).catch((error) => {
+      if (cancelled) return
+      setLoadError(error.message)
+      setAttendance(new Map())
+      setAlreadySubmitted(false)
+    }).finally(() => {
+      if (cancelled) return
       setLoading(false)
     })
+    return () => { cancelled = true }
   }, [activeMeetingId])
 
   const activeMeeting = recentMeetings.find((m) => m.id === activeMeetingId)
@@ -166,7 +178,8 @@ export default function AttendancePage() {
           })}
         </div>
 
-        {!loading && activeMeeting && (
+        {loadError && <p role="alert" className="mt-6 text-sm text-red-700">{loadError}</p>}
+        {!loading && !loadError && activeMeeting && (
           <>
             {alreadySubmitted && !submitted && (
               <div className="mt-6 rounded-2xl bg-cream p-4 text-sm text-ink/60">

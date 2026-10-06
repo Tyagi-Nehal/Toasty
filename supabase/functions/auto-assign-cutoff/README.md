@@ -36,7 +36,7 @@ Easiest: Supabase Dashboard → your project → **Integrations → Cron Jobs**
 → New cron job → pick this function, schedule e.g. every hour
 (`0 * * * *`), and set the `x-cron-secret` header to the same value from
 step 2. Every club has its own cutoff, on whatever day of the week falls
-2 days after that club's own meeting day (see the comment on
+2 days before the next meeting date (see the comment on
 `getAutoAssignCutoff` below) — so this same hourly, every-day-of-the-week
 schedule already covers every club without needing to know any of their
 individual cutoff days. The function is idempotent-safe to run more
@@ -72,3 +72,7 @@ is running (a meeting the cron already filled just has no open roles
 left, so the client-side check finds nothing to do). Only remove it
 once you've confirmed the cron job has actually fired at least once
 against a real meeting.
+
+Roles reopened by the VPE retain is_override = true and stay open through
+refreshes and scheduled auto-assignment. The VPE can assign them manually,
+or a member can select them. No schema migration is required.

@@ -451,9 +451,11 @@ function MeetingPhotosTab({ log, refreshLog }) {
   const [savingLabel, setSavingLabel] = useState(false)
   const [addingPhotos, setAddingPhotos] = useState(false)
   const [certCategory, setCertCategory] = useState(CERT_CATEGORIES[0])
+  const [editingCertId, setEditingCertId] = useState(null)
   const [certWinner, setCertWinner] = useState('')
   const [certFile, setCertFile] = useState(null)
   const [certPreview, setCertPreview] = useState(null)
+  const [additionalWinners, setAdditionalWinners] = useState([])
   const [addingCert, setAddingCert] = useState(false)
   const [lightboxUrl, setLightboxUrl] = useState(null)
   const [addingMeeting, setAddingMeeting] = useState(false)
@@ -519,6 +521,8 @@ function MeetingPhotosTab({ log, refreshLog }) {
   }
 
   function resetCertForm() {
+    setAdditionalWinners([])
+    setEditingCertId(null)
     setCertCategory(CERT_CATEGORIES[0])
     setCertWinner('')
     setCertFile(null)
@@ -621,13 +625,41 @@ function MeetingPhotosTab({ log, refreshLog }) {
   }
 
   function handleEditCertificate(cert) {
+    setAdditionalWinners([])
+    setEditingCertId(cert.id)
     setCertCategory(cert.category)
     setCertWinner(cert.winnerName)
     setCertFile(null)
     setCertPreview(cert.certificateSrc)
   }
 
-  const editingExisting = uploaded?.certificates?.some((c) => c.category === certCategory)
+  function handleAdditionalCertificate() {
+    setAdditionalWinners((rows) => [...rows, { id: crypto.randomUUID(), name: '', file: null, preview: null }])
+  }
+
+  function updateAdditionalWinner(id, patch) {
+    setAdditionalWinners((rows) => rows.map((row) => row.id === id ? { ...row, ...patch } : row))
+  }
+
+  async function saveAdditionalWinner(row) {
+    if (!row.name.trim() || addingCert) return
+    setAddingCert(true)
+    try {
+      setUploaded(await addMeetingCertificate(activeMeeting, {
+        category: certCategory,
+        winnerName: row.name.trim(),
+        certificateFile: row.file,
+      }))
+      setAdditionalWinners((rows) => rows.filter((entry) => entry.id !== row.id))
+      refreshLog()
+    } catch (err) {
+      window.alert(err.message)
+    } finally {
+      setAddingCert(false)
+    }
+  }
+
+  const editingExisting = editingCertId !== null
 
   async function handleAddCertificate() {
     if (!certWinner.trim()) return
@@ -635,12 +667,16 @@ function MeetingPhotosTab({ log, refreshLog }) {
     try {
       setUploaded(
         await addMeetingCertificate(activeMeeting, {
+          certificateId: editingCertId,
           category: certCategory,
           winnerName: certWinner.trim(),
           certificateFile: certFile,
         }),
       )
-      resetCertForm()
+      setEditingCertId(null)
+      setCertWinner('')
+      setCertFile(null)
+      setCertPreview(null)
       refreshLog()
     } catch (err) {
       window.alert(err.message)
@@ -829,7 +865,7 @@ function MeetingPhotosTab({ log, refreshLog }) {
               Certificates
             </div>
             <p className="mt-1 text-xs text-ink/40">
-              One winner per award — edit anytime to change the winner or swap the photo.
+              Use +1 to add another winner for any award. Each certificate can be edited separately.
             </p>
 
             {uploaded?.certificates.length > 0 && (
@@ -838,7 +874,7 @@ function MeetingPhotosTab({ log, refreshLog }) {
                   <div
                     key={cert.id}
                     className={`relative rounded-xl border bg-cream p-3 ${
-                      editingExisting && cert.category === certCategory
+                      cert.id === editingCertId
                         ? 'border-primary ring-1 ring-primary/40'
                         : 'border-accent/30'
                     }`}
@@ -846,7 +882,8 @@ function MeetingPhotosTab({ log, refreshLog }) {
                     <button
                       type="button"
                       onClick={() => handleEditCertificate(cert)}
-                      aria-label="Edit award"
+                      disabled={addingCert}
+                      aria-label={`Edit ${cert.category} certificate for ${cert.winnerName}`}
                       className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-ink/60 text-cream transition hover:bg-ink/80"
                     >
                       <Pencil size={12} />
@@ -876,13 +913,18 @@ function MeetingPhotosTab({ log, refreshLog }) {
               {editingExisting && (
                 <p className="mb-3 text-xs font-medium text-primary">
                   Editing "{certCategory}" — change the name and/or photo, then save.
+                  <button type="button" disabled={addingCert} onClick={resetCertForm} className="ml-3 underline">
+                    Cancel edit
+                  </button>
                 </p>
               )}
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className="text-xs font-medium text-ink/60">Award</label>
+                  <div className="flex items-center gap-2">
                   <select
                     value={certCategory}
+                    disabled={addingCert}
                     onChange={(e) => setCertCategory(e.target.value)}
                     className="mt-1 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:outline-none"
                   >
@@ -892,12 +934,26 @@ function MeetingPhotosTab({ log, refreshLog }) {
                       </option>
                     ))}
                   </select>
+                  <button
+                    type="button"
+                    onClick={handleAdditionalCertificate}
+                    disabled={addingCert}
+                    aria-label={`Add another winner for ${certCategory}`}
+                    className="mt-1 shrink-0 rounded-xl border border-primary px-3 py-2.5 text-sm font-bold text-primary hover:bg-cream disabled:opacity-40"
+                  >
+                    +1
+                  </button>
+                  </div>
+                  <p className="mt-1 text-xs text-ink/60" aria-live="polite">
+                    {certCategory}: {(uploaded?.certificates?.filter((cert) => cert.category === certCategory).length ?? 0) + (editingExisting ? 0 : 1) + additionalWinners.length} winners (including unsaved entries)
+                  </p>
                 </div>
                 <div>
                   <label className="text-xs font-medium text-ink/60">Winner's name</label>
                   <input
                     type="text"
                     value={certWinner}
+                    disabled={addingCert}
                     onChange={(e) => setCertWinner(e.target.value)}
                     placeholder="e.g. Vikram"
                     className="mt-1 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-primary focus:outline-none"
@@ -918,7 +974,7 @@ function MeetingPhotosTab({ log, refreshLog }) {
                   <input
                     type="file"
                     accept="image/*"
-                    disabled={!certWinner.trim()}
+                    disabled={!certWinner.trim() || addingCert}
                     onChange={handleCertFileChange}
                     className="hidden"
                   />
@@ -937,6 +993,28 @@ function MeetingPhotosTab({ log, refreshLog }) {
                 <Plus size={15} />
                 {addingCert ? 'Saving…' : editingExisting ? 'Update Certificate' : 'Add Certificate'}
               </button>
+              {additionalWinners.map((row, index) => (
+                <div key={row.id} className="mt-4 space-y-3 rounded-xl border border-accent/40 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-ink">{certCategory} — additional winner {index + 1}</p>
+                    <button type="button" disabled={addingCert} onClick={() => setAdditionalWinners((rows) => rows.filter((entry) => entry.id !== row.id))} className="text-xs text-ink/60 underline">Remove</button>
+                  </div>
+                  <label className="block text-xs font-medium text-ink/60">
+                    Winner's name
+                    <input type="text" value={row.name} disabled={addingCert} onChange={(e) => updateAdditionalWinner(row.id, { name: e.target.value })} placeholder="e.g. Vikram" className="mt-1 w-full rounded-xl border border-accent/40 bg-cream px-3.5 py-2.5 text-sm text-ink" />
+                  </label>
+                  <label className="block text-xs font-medium text-ink/60">
+                    Certificate photo
+                    <input type="file" accept="image/*" disabled={addingCert || !row.name.trim()} onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      e.target.value = ''
+                      if (file) updateAdditionalWinner(row.id, { file, preview: URL.createObjectURL(file) })
+                    }} className="mt-1 block w-full text-sm" />
+                  </label>
+                  {row.preview && <img src={row.preview} alt="Certificate preview" className="h-16 w-full rounded-lg object-cover" />}
+                  <button type="button" disabled={addingCert || !row.name.trim()} onClick={() => saveAdditionalWinner(row)} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-cream disabled:opacity-40">Save Certificate</button>
+                </div>
+              ))}
             </div>
           </div>
         </>

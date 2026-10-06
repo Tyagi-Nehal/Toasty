@@ -12,6 +12,7 @@ export default function AttendanceLogPage() {
   const [roster, setRoster] = useState(null)
   const [recorded, setRecorded] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)
 
   useEffect(() => {
     getRecentMeetingsForAttendance(50).then((fetched) => {
@@ -22,12 +23,23 @@ export default function AttendanceLogPage() {
 
   useEffect(() => {
     if (!activeMeetingId) return
+    let cancelled = false
     setLoading(true)
+    setLoadError(null)
     getAttendanceForMeeting(activeMeetingId).then(({ roster: fetched, alreadySubmitted }) => {
+      if (cancelled) return
       setRoster(alreadySubmitted ? fetched : null)
       setRecorded(alreadySubmitted)
+    }).catch((error) => {
+      if (cancelled) return
+      setLoadError(error.message)
+      setRoster(null)
+      setRecorded(false)
+    }).finally(() => {
+      if (cancelled) return
       setLoading(false)
     })
+    return () => { cancelled = true }
   }, [activeMeetingId])
 
   const activeMeeting = meetings.find((m) => m.id === activeMeetingId)
@@ -85,7 +97,8 @@ export default function AttendanceLogPage() {
           })}
         </div>
 
-        {!loading && activeMeeting && (
+        {loadError && <p role="alert" className="mt-6 text-sm text-red-700">{loadError}</p>}
+        {!loading && !loadError && activeMeeting && (
           recorded && roster ? (
             <div className="mt-6 rounded-3xl border border-accent/30 bg-white p-5">
               <div className="flex items-center justify-between">

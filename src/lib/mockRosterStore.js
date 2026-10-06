@@ -44,7 +44,7 @@ function todayISO() {
 }
 
 function isCurrentlyActive(row) {
-  return Boolean(row.is_active) && (!row.membership_end || row.membership_end >= todayISO())
+  return !row.is_test_account && Boolean(row.is_active) && (!row.membership_end || row.membership_end >= todayISO())
 }
 
 export async function getMembers(clubId) {
@@ -52,6 +52,7 @@ export async function getMembers(clubId) {
     .from('members')
     .select('*')
     .eq('is_active', true)
+    .eq('is_test_account', false)
     .or(`membership_end.is.null,membership_end.gte.${todayISO()}`)
     .eq('club_id', clubId)
     .order('name')
@@ -93,6 +94,7 @@ export async function getRosterWithStatus(clubId) {
   const { data, error } = await supabase
     .from('members')
     .select('*')
+    .eq('is_test_account', false)
     .eq('club_id', clubId)
     .order('name')
   if (error) {
@@ -122,6 +124,7 @@ export async function getRosterWithMentors(clubId) {
   const { data, error } = await supabase
     .from('members')
     .select('*, club_mentors(id, name)')
+    .eq('is_test_account', false)
     .eq('club_id', clubId)
     .order('name')
   if (error) {
@@ -150,6 +153,20 @@ export async function assignMentor(email, mentorId, clubId) {
     console.error('[mockRosterStore] assignMentor failed:', error.message)
     throw new Error('Could not save this mentor assignment — try again in a moment.')
   }
+}
+
+// Test access is independent of membership and ExCom authorization.
+// Used for fixed officer assignments, which do not use the active roster.
+export async function isTestRosterAccount(email, clubId) {
+  if (!email || !clubId) return false
+  const { data, error } = await supabase
+    .from('members')
+    .select('is_test_account')
+    .eq('email', email.trim().toLowerCase())
+    .eq('club_id', clubId)
+    .maybeSingle()
+  if (error) throw new Error('Could not check whether this officer is a test account.')
+  return data?.is_test_account === true
 }
 
 // One member's own roster status, by email — used by MemberDashboard.jsx/

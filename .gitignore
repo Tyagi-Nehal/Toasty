@@ -39,3 +39,17 @@ supabase/seed-member-renewals.sql
 *.njsproj
 *.sln
 *.sw?
+
+.vercel
+.env*
+!.env.example
+
+# Local Supabase state, recovery copies, and account-specific repair scripts
+supabase/.temp/
+supabase/exclude-test-roster-account.sql
+
+# Local reference documents and generated previews
+/*.pdf
+/*.docx
+/*-preview.png
+scratchpad_test/

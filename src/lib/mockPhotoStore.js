@@ -391,26 +391,24 @@ export async function reorderMeetingGroupPhotos(meeting, photos) {
   return next
 }
 
-// One entry per award category — saving an award that already has an
-// entry (the VPPR editing it) swaps that entry out rather than creating a
-// duplicate. Editing without choosing a new photo keeps the existing
-// photo (e.g. just correcting the winner's name shouldn't wipe it) — a
-// new photo is only uploaded, and the old one only deleted, when the
-// VPPR actually picks a replacement file.
-export async function addMeetingCertificate(meeting, { category, winnerName, certificateFile }) {
+// New certificates append even when the category already has winners.
+// Editing targets one certificate by ID and preserves its photo unless replaced.
+export async function addMeetingCertificate(meeting, { certificateId, category, winnerName, certificateFile }) {
   const existing = await getMeetingPhotos(meeting.id)
-  const replaced = (existing?.certificates ?? []).find((c) => c.category === category)
+  const certificates = existing?.certificates ?? []
+  const replaced = certificateId ? certificates.find((c) => c.id === certificateId) : null
+  if (certificateId && !replaced) throw new Error('This certificate no longer exists. Refresh and try again.')
+  const previousUrl = replaced ? normalizeCert(replaced).certificateSrc : null
   const certificateUrl = certificateFile
     ? await uploadClubPhoto(certificateFile, `meetings/${meeting.id}/certificates`, meeting.clubId)
-    : (replaced?.certificateUrl ?? null)
-  const withoutSameCategory = (existing?.certificates ?? []).filter((c) => c.category !== category)
+    : previousUrl
+  const certificate = { ...replaced, id: replaced?.id ?? crypto.randomUUID(), category, winnerName, certificateUrl }
   const next = await upsertMeetingPhotosRow(meeting, {
-    certificates: [
-      ...withoutSameCategory,
-      { id: crypto.randomUUID(), category, winnerName, certificateUrl },
-    ],
+    certificates: replaced
+      ? certificates.map((c) => c.id === certificateId ? certificate : c)
+      : [...certificates, certificate],
   })
-  if (certificateFile && replaced?.certificateUrl) await deleteClubPhoto(replaced.certificateUrl)
+  if (certificateFile && previousUrl && previousUrl !== certificateUrl) await deleteClubPhoto(previousUrl)
   logAction(`VPPR set "${category}" to ${winnerName} for ${meeting.dateLabel}`)
   return next
 }

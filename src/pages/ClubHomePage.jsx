@@ -16,6 +16,7 @@ import Footer from '../components/Footer.jsx'
 import JoinClubModal from '../components/JoinClubModal.jsx'
 import PhotoLightbox from '../components/PhotoLightbox.jsx'
 import { getClubById } from '../lib/mockClubRegistry.js'
+import { useActiveMemberCount } from '../lib/useActiveMemberCount.js'
 import { getClubDetails } from '../data/clubDetails.js'
 import { dismissMyAcknowledgment, getMyPendingAcknowledgment } from '../lib/mockVisitRequests.js'
 import { getClubPagePhotos, getContentBlocks } from '../lib/mockPhotoStore.js'
@@ -104,6 +105,7 @@ export default function ClubHomePage() {
   const [ackBanner, setAckBanner] = useState(null)
   // undefined = still loading, null = confirmed not found, object = found
   const [club, setClub] = useState(undefined)
+  const activeMemberCount = useActiveMemberCount(club?.id)
   const [heroPhotos, setHeroPhotos] = useState([])
   const [storyBlocks, setStoryBlocks] = useState([])
   const [achievementBlocks, setAchievementBlocks] = useState([])
@@ -165,17 +167,14 @@ export default function ClubHomePage() {
     )
   }
 
-  // Only the tagline (flavor text) comes from clubDetails.js — every
-  // factual field (location, founded year, member count, meeting info)
-  // renders straight from the real registered `club` record so it
-  // always matches what the president actually submitted.
+  // Club details come from registration; membership is counted live from the roster.
   const details = getClubDetails(club)
   const [heroPhoto, ...extraHeroPhotos] = heroPhotos
 
   const infoTiles = [
     { icon: MapPin, label: 'Location', value: club.location },
     club.foundedYear && { icon: CalendarDays, label: 'Founded', value: club.foundedYear },
-    { icon: Users, label: 'Members', value: club.members },
+    { icon: Users, label: 'Members', value: activeMemberCount ?? '—' },
     club.meetingDay && { icon: Calendar, label: 'Meets', value: club.meetingDay },
     club.meetingTime && { icon: Clock, label: 'Time', value: club.meetingTime },
     club.meetingLocation && { icon: MapPinned, label: 'Venue', value: club.meetingLocation },

@@ -16,6 +16,7 @@ import {
   getMembers,
   getRoleHistory,
   getRosterStatusForEmail,
+  isTestRosterAccount,
   recordRoleAssignment,
   scoreMemberForRole,
 } from './mockRosterStore.js'
@@ -49,12 +50,14 @@ export const VPE_ONLY_ROLE_IDS = ['po', 'saa']
 // previously meant the per-meeting "SAA" could silently be someone
 // other than the actual appointed SAA).
 async function resolveFixedRoleAssignee(roleId, clubId) {
-  if (roleId === 'saa') return getNameForRole('SAA', clubId)
+  let assignee = null
+  if (roleId === 'saa') assignee = await getNameForRole('SAA', clubId)
   if (roleId === 'po') {
     const club = await getClubById(clubId)
-    return club?.presidentName ? { name: club.presidentName, email: club.presidentEmail } : null
+    assignee = club?.presidentName ? { name: club.presidentName, email: club.presidentEmail } : null
   }
-  return null
+  if (assignee && await isTestRosterAccount(assignee.email, clubId)) return null
+  return assignee
 }
 
 // Speaker/evaluator slots depend on real people committing to a specific
@@ -172,23 +175,12 @@ export function formatFullDate(meetingDate) {
   })
 }
 
-// Members self-select freely until 9:00 AM two days after each club's
-// own previous meeting; whatever's still open after that is fair game
-// for auto-assign. E.g. a club that meets every Friday has roles open
-// until 9 AM the following Sunday, ahead of its next Friday meeting; a
-// club that meets every Monday has roles open until 9 AM Wednesday.
-// Every club's meeting cadence is weekly (7 days), so "2 days after the
-// meeting weekday" always lands exactly 5 days before the *next*
-// occurrence of that same weekday (7 - 2 = 5) — this holds for every
-// weekday alike, so it's simply the meeting date minus 5 days, no need
-// to special-case any particular day or look up a club's declared
-// meeting weekday separately. (Not clubs.meeting_day-driven on purpose —
-// deriving straight from this specific meeting's own date also means a
-// one-off rescheduled meeting still gets a correct cutoff.)
+// Auto-assign at 9 AM two calendar days before the actual meeting date.
+// Keep the client and scheduled function cutoff rules in sync.
 function getAutoAssignCutoff(meetingDate) {
   if (!meetingDate) return null
   const cutoff = new Date(`${meetingDate}T00:00:00`)
-  cutoff.setDate(cutoff.getDate() - 5)
+  cutoff.setDate(cutoff.getDate() - 2)
   cutoff.setHours(9, 0, 0, 0)
   return cutoff
 }
@@ -306,13 +298,8 @@ async function getMeetingRaw(meetingId) {
   return views.find((m) => m.id === meetingId)
 }
 
-// Best-effort catch-up for the "no autoassign till 9 AM, 2 days after
-// the previous meeting" rule —
-// there's no backend/cron in this app, so this runs opportunistically
-// whenever a VPE or President's session fetches meetings, instead of at
-// the exact cutoff instant. Gating to VPE/President isn't just a design
-// choice: the role_history insert inside runAutoAssign is RLS-restricted
-// to VPE/President, so anyone else's session couldn't complete it anyway.
+// Client catch-up for the cutoff two days before the meeting.
+// The scheduled function also runs when nobody is online.
 // Scoped to only ever the single next active meeting — members can
 // self-select roles up to 3 meetings out, but auto-assign must never
 // reach ahead into meeting #2 or #3 just because their own cutoff
@@ -332,7 +319,7 @@ async function runDueAutoAssignments(views) {
     next.pastCutoff &&
     next.autoAssignCutoff &&
     Date.now() - next.autoAssignCutoff.getTime() <= DUE_WINDOW_MS &&
-    Object.values(next.roles).some((r) => r.status === 'open')
+    Object.values(next.roles).some((r) => r.status === 'open' && !r.isOverride)
   if (!isDue) return false
   await runAutoAssign(next.id, 'the 9 AM cutoff')
   return true
@@ -353,7 +340,7 @@ async function fillFixedOfficerRoles(views) {
   )
   let filledAny = false
   for (const roleId of VPE_ONLY_ROLE_IDS) {
-    const openOnes = upcoming.filter((m) => m.roles[roleId]?.status === 'open')
+    const openOnes = upcoming.filter((m) => m.roles[roleId]?.status === 'open' && !m.roles[roleId]?.isOverride)
     if (openOnes.length === 0) continue
     const assignee = await resolveFixedRoleAssignee(roleId, clubId)
     if (!assignee?.name) continue
@@ -368,6 +355,7 @@ async function fillFixedOfficerRoles(views) {
         .eq('meeting_id', meeting.id)
         .eq('role_id', roleId)
         .eq('status', 'open')
+        .eq('is_override', false)
       if (!error) filledAny = true
     }
   }
@@ -411,7 +399,7 @@ export async function selectRole(meetingId, roleId) {
   // "Select this Role does nothing, no console error").
   const { data, error } = await supabase
     .from('meeting_role_assignments')
-    .update({ status: 'taken', taken_by_name: account?.name, taken_by_email: account?.email })
+    .update({ status: 'taken', taken_by_name: account?.name, taken_by_email: account?.email, is_override: false })
     .eq('meeting_id', meetingId)
     .eq('role_id', roleId)
     .eq('status', 'open')
@@ -500,24 +488,28 @@ export async function acceptAutoAssignedRole(meetingId, roleId) {
 // there), no name means it's reopened. Only a member's own self-select
 // (selectRole, above) ever produces 'taken'. is_override records which
 // case it was — status alone can't tell a genuine algorithmic auto-assign
-// apart from a VPE's deliberate pick, and the member-facing role list
+// apart from a VPE's deliberate pick or reopening, and the member-facing role list
 // wants to show "Assigned by VPE" only for the latter.
 export async function overrideRole(meetingId, roleId, { takenBy, takenByEmail }) {
   const meeting = await getMeeting(meetingId)
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('meeting_role_assignments')
     .update({
       status: takenBy ? 'auto' : 'open',
       taken_by_name: takenBy || null,
       taken_by_email: takenBy ? takenByEmail || null : null,
       accepted_at: null,
-      is_override: !!takenBy,
+      is_override: true,
     })
     .eq('meeting_id', meetingId)
     .eq('role_id', roleId)
+    .select('role_id')
   if (error) {
     console.error('[mockRolesStore] overrideRole failed:', error.message)
     throw new Error('Could not save this override — check your VPE permissions and try again.')
+  }
+  if (!data?.length) {
+    throw new Error('This role could not be updated. Refresh and check your VPE permissions before trying again.')
   }
   logAction(
     takenBy
@@ -589,7 +581,7 @@ async function runAutoAssign(meetingId, trigger) {
   let filledCount = 0
   const newAssignments = []
   for (const [roleId, entry] of Object.entries(meeting.roles)) {
-    if (entry.status !== 'open' || VPE_ONLY_ROLE_IDS.includes(roleId)) continue
+    if (entry.status !== 'open' || entry.isOverride || VPE_ONLY_ROLE_IDS.includes(roleId)) continue
     const available = members.filter((m) => !usedNames.has(m.name))
     if (available.length === 0) break
     const [best] = available
@@ -620,6 +612,8 @@ async function runAutoAssign(meetingId, trigger) {
       })
       .eq('meeting_id', meetingId)
       .eq('role_id', assignment.roleId)
+      .eq('status', 'open')
+      .eq('is_override', false)
       .select()
     if (error) {
       console.error('[mockRolesStore] runAutoAssign failed for', assignment.roleId, error.message)

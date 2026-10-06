@@ -6,7 +6,7 @@
 // seeded members.attendance_percentage baseline.
 
 import { supabase } from './supabaseClient.js'
-import { getMembers } from './mockRosterStore.js'
+import { buildAttendanceRoster } from './attendanceRoster.js'
 import { getMeetings } from './mockRolesStore.js'
 import { getAccount } from './mockAuth.js'
 import {
@@ -29,23 +29,20 @@ export async function getRecentMeetingsForAttendance(limit = 5) {
     .reverse()
 }
 
-// Real roster joined with any existing attendance rows for this meeting.
-// Anyone with no row yet defaults to present:true (Secretary unchecks
-// absentees, same UX the old fake page had — just against real data now).
+// Keep historical attendance independent of today's active roster.
 export async function getAttendanceForMeeting(meetingId) {
-  const [members, { data: rows }] = await Promise.all([
-    getMembers(getAccount()?.clubId),
-    supabase.from('attendance').select('*').eq('meeting_id', meetingId),
+  const clubId = getAccount()?.clubId
+  const [memberResult, attendanceResult, meetingResult] = await Promise.all([
+    supabase.from('members')
+      .select('name, email, is_test_account, is_active, membership_start, membership_end')
+      .eq('club_id', clubId),
+    supabase.from('attendance').select('*').eq('meeting_id', meetingId).eq('club_id', clubId),
+    supabase.from('meetings').select('meeting_date').eq('id', meetingId).eq('club_id', clubId).single(),
   ])
-  const byEmail = new Map((rows ?? []).map((r) => [r.member_email, r.present]))
-  return {
-    alreadySubmitted: (rows?.length ?? 0) > 0,
-    roster: members.map((m) => ({
-      name: m.name,
-      email: m.email,
-      present: byEmail.has(m.email) ? byEmail.get(m.email) : true,
-    })),
+  if (memberResult.error || attendanceResult.error || meetingResult.error || !meetingResult.data?.meeting_date) {
+    throw new Error('Could not load attendance. Refresh and try again.')
   }
+  return buildAttendanceRoster(attendanceResult.data ?? [], memberResult.data ?? [], meetingResult.data.meeting_date)
 }
 
 // Batch upsert — the whole roster's present/absent state saved in one

@@ -1,0 +1,26 @@
+# Local credentials and development state
+.env
+.env.*
+.git/
+.vercel/
+.claude/
+.codex/
+.agents/
+.aws/
+.vscode/
+.idea/
+node_modules/
+dist/
+dist-ssr/
+scratchpad_test/
+*.log
+
+# Supabase is deployed separately from the Vercel frontend
+supabase/
+
+# Local reference documents and preview screenshots
+/*.pdf
+/*.docx
+/*.png
+/PROJECT_BRIEF.md
+/resume-prompt.md

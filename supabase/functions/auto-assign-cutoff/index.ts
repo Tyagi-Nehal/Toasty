@@ -46,17 +46,12 @@ interface AttendanceStats {
   [memberName: string]: { present: number; total: number }
 }
 
-// Members self-select freely until 9:00 AM two days after each club's
-// own previous meeting (a Friday-meeting club: open until 9 AM Sunday);
-// whatever's still open after that is fair game for auto-assign. Every
-// club meets weekly, so "2 days after the meeting weekday" always lands
-// exactly 5 days before the *next* occurrence of that weekday
-// (7 - 2 = 5) — true for every weekday, so this is just the meeting date
-// minus 5 days. Identical to getAutoAssignCutoff in mockRolesStore.js.
+// Auto-assign at 9 AM two calendar days before the actual meeting date.
+// Keep the client and scheduled function cutoff rules in sync.
 function getAutoAssignCutoff(meetingDate: string | null): Date | null {
   if (!meetingDate) return null
   const cutoff = new Date(`${meetingDate}T00:00:00`)
-  cutoff.setDate(cutoff.getDate() - 5)
+  cutoff.setDate(cutoff.getDate() - 2)
   cutoff.setHours(9, 0, 0, 0)
   return cutoff
 }
@@ -182,7 +177,7 @@ async function runForClub(supabase: ReturnType<typeof createClient>, clubId: str
     .eq('club_id', clubId)
 
   const openRoles = (assignments ?? []).filter(
-    (a) => a.status === 'open' && !VPE_ONLY_ROLE_IDS.includes(a.role_id),
+    (a) => a.status === 'open' && !a.is_override && !VPE_ONLY_ROLE_IDS.includes(a.role_id),
   )
   if (openRoles.length === 0) {
     return { clubId, ran: false, reason: 'no open roles' }
@@ -201,6 +196,7 @@ async function runForClub(supabase: ReturnType<typeof createClient>, clubId: str
       .select('*')
       .eq('club_id', clubId)
       .eq('is_active', true)
+      .eq('is_test_account', false)
       .or(`membership_end.is.null,membership_end.gte.${new Date().toISOString().slice(0, 10)}`)
       .order('name'),
     supabase
@@ -235,11 +231,18 @@ async function runForClub(supabase: ReturnType<typeof createClient>, clubId: str
   }
 
   for (const assignment of newAssignments) {
-    await supabase
+    const { data: updated, error } = await supabase
       .from('meeting_role_assignments')
       .update({ status: 'auto', taken_by_name: assignment.name, taken_by_email: assignment.email })
       .eq('meeting_id', next!.id)
       .eq('role_id', assignment.roleId)
+      .eq('status', 'open')
+      .eq('is_override', false)
+      .select('role_id')
+    if (error || !updated?.length) {
+      filledCount -= 1
+      continue
+    }
     await supabase.from('role_history').insert({
       member_name: assignment.name,
       member_email: assignment.email,
