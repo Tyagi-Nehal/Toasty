@@ -70,9 +70,8 @@ export async function updateMentor(
   let photoUrl = existingPhotoUrl ?? null
   if (photoFile) {
     photoUrl = await uploadClubPhoto(photoFile, 'mentors', clubId)
-    if (existingPhotoUrl) await deleteClubPhoto(existingPhotoUrl)
   }
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('club_mentors')
     .update({
       name,
@@ -83,10 +82,13 @@ export async function updateMentor(
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
-  if (error) {
-    console.error('[mockMentorsStore] updateMentor failed:', error.message)
+    .eq('club_id', clubId)
+    .select('id')
+  if (error || !data?.length) {
+    console.error('[mockMentorsStore] updateMentor failed:', error?.message ?? 'No mentor updated')
     throw new Error('Could not save this mentor — try again in a moment.')
   }
+  if (photoFile && existingPhotoUrl) await deleteClubPhoto(existingPhotoUrl)
   logAction(`VPPR updated mentor ${name}`)
 }
 

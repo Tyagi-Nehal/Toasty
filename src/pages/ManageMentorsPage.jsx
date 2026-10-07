@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { GraduationCap, ImagePlus, Pencil, Plus, Trash2 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import Avatar from '../components/Avatar.jsx'
@@ -39,6 +39,11 @@ export default function ManageMentorsPage() {
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(null)
   const [saving, setSaving] = useState(false)
+  const editor = useRef(null)
+
+  useEffect(() => {
+    if (formOpen) editor.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [formOpen, editingId])
 
   function refresh() {
     getMentors(getAccount()?.clubId).then(setMentors)
@@ -153,9 +158,11 @@ export default function ManageMentorsPage() {
                 type="button"
                 onClick={() => startEdit(mentor)}
                 aria-label="Edit mentor"
-                className="rounded-lg p-1.5 text-ink/40 transition hover:bg-cream hover:text-primary"
+                disabled={saving}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-primary transition hover:bg-cream disabled:opacity-40"
               >
                 <Pencil size={15} />
+                Edit details
               </button>
               <button
                 type="button"
@@ -178,7 +185,8 @@ export default function ManageMentorsPage() {
               Add Mentor
             </button>
           ) : (
-            <div className="rounded-3xl border border-accent/30 bg-white p-6">
+            <div ref={editor} className="rounded-3xl border border-accent/30 bg-white p-6">
+              <h2 className="mb-4 font-bold text-ink">{editingId ? 'Edit mentor details' : 'Add mentor'}</h2>
               <div className="flex items-center gap-5">
                 <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full bg-cream">
                   {displayPhoto ? (

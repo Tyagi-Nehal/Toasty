@@ -13,6 +13,8 @@ export default function VotingPollPage() {
   const [poll, setPoll] = useState(null)
   const [alreadyVoted, setAlreadyVoted] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [voteError, setVoteError] = useState('')
 
   useEffect(() => {
     getPoll().then(async (fetched) => {
@@ -105,9 +107,18 @@ export default function VotingPollPage() {
   }
 
   async function handleNext() {
+    if (saving) return
     if (isLastStep) {
-      await submitVote(poll.id, answers)
-      setJustSubmitted(true)
+      setSaving(true)
+      setVoteError('')
+      try {
+        await submitVote(poll.id, answers)
+        setJustSubmitted(true)
+      } catch (error) {
+        setVoteError(error.message)
+      } finally {
+        setSaving(false)
+      }
     } else {
       setStep((s) => s + 1)
     }
@@ -122,6 +133,7 @@ export default function VotingPollPage() {
         </div>
 
         {/* Progress */}
+        {voteError && <p role="alert" className="mt-4 text-sm text-red-700">{voteError}</p>}
         <div className="mt-4 flex items-center gap-1.5">
           {poll.categories.map((c, i) => (
             <div

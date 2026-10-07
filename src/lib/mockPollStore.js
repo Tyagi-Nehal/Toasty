@@ -84,6 +84,7 @@ function toPollView(row, meeting) {
   if (!row) return null
   return {
     id: row.id,
+    shareToken: row.share_token,
     meetingLabel: meeting.dateLabel,
     isOpen: row.is_open,
     releasedAt: row.released_at,
@@ -302,7 +303,7 @@ export async function submitVote(pollId, answers) {
     answers,
     club_id: account?.clubId,
   })
-  if (error) console.error('[mockPollStore] submitVote failed:', error.message)
+  if (error) throw new Error(error.message || 'Could not save your vote. Please try again.')
 }
 
 // For each category, the candidate(s) with the most votes — used for the

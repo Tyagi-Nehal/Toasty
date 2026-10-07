@@ -10,6 +10,7 @@ import {
   ListChecks,
 } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
+import PollQrCode from '../components/PollQrCode.jsx'
 import {
   getPoll,
   buildPollFromAgenda,
@@ -220,6 +221,8 @@ export default function PollEditorPage() {
                 </div>
               </div>
             )}
+
+            {poll.isOpen && poll.shareToken && <PollQrCode token={poll.shareToken} />}
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               {poll.categories.map((cat) => (

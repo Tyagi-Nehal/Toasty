@@ -58,6 +58,7 @@ const quickActionsByRole = [
     role: 'President',
     actions: [
       { to: '/register-excom', label: 'Register Your EXCOM', icon: UserCog },
+      { to: '/excom-deductions', label: 'Deduct ExCom Points', icon: ListChecks },
       { to: '/feedback-inbox', label: 'Feedback Inbox', icon: Inbox },
     ],
   },

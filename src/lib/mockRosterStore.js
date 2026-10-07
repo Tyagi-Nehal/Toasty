@@ -106,7 +106,7 @@ export async function getRosterWithStatus(clubId) {
     email: m.email,
     attendancePercentage: m.attendance_percentage,
     isActive: isCurrentlyActive(m),
-    paymentStatus: m.payment_status,
+    paymentStatus: isCurrentlyActive(m) ? m.payment_status : 'pending',
     membershipStart: m.membership_start,
     membershipEnd: m.membership_end,
     cycleLabel: m.cycle_label,

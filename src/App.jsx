@@ -36,10 +36,14 @@ import ClubReviewPage from './pages/ClubReviewPage.jsx'
 import RequireApprovedAccount from './components/RequireApprovedAccount.jsx'
 import RequireExcomRole from './components/RequireExcomRole.jsx'
 import ComingSoon from './pages/ComingSoon.jsx'
+import ExcomDeductionsPage from './pages/ExcomDeductionsPage.jsx'
+import PublicPollPage from './pages/PublicPollPage.jsx'
 
 function App() {
   return (
     <Routes>
+      <Route path="/vote/:token" element={<PublicPollPage />} />
+      <Route path="/excom-deductions" element={<RequireExcomRole role="President"><ExcomDeductionsPage /></RequireExcomRole>} />
       <Route path="/" element={<LandingPage />} />
       <Route path="/club/:clubId" element={<ClubHomePage />} />
       <Route path="/register-club" element={<RegisterClubPage />} />

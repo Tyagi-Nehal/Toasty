@@ -42,6 +42,7 @@ const categoryLabels = {
 // earned only while actually holding an ExCom role (see
 // mockPointsStore.js).
 const excomCategoryLabels = {
+  president_deduction: 'President’s point deduction',
   finalize_agenda: 'Finalized + agenda sent by Tuesday',
   no_repetition: 'No role repetition',
   external_booking: 'Booked an external guest',
