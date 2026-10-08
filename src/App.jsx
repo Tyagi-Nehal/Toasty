@@ -38,10 +38,13 @@ import RequireExcomRole from './components/RequireExcomRole.jsx'
 import ComingSoon from './pages/ComingSoon.jsx'
 import ExcomDeductionsPage from './pages/ExcomDeductionsPage.jsx'
 import PublicPollPage from './pages/PublicPollPage.jsx'
+import PathwaysPage from './pages/PathwaysPage.jsx'
 
 function App() {
   return (
     <Routes>
+      <Route path="/pathways" element={<RequireApprovedAccount><PathwaysPage /></RequireApprovedAccount>} />
+      <Route path="/manage-pathways" element={<RequireExcomRole role="VPE"><PathwaysPage manage /></RequireExcomRole>} />
       <Route path="/vote/:token" element={<PublicPollPage />} />
       <Route path="/excom-deductions" element={<RequireExcomRole role="President"><ExcomDeductionsPage /></RequireExcomRole>} />
       <Route path="/" element={<LandingPage />} />

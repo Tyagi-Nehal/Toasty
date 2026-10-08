@@ -68,6 +68,7 @@ const quickActionsByRole = [
       { to: '/agenda-editor', label: 'Edit Agenda', icon: FileEdit },
       { to: '/role-management', label: 'View Role Status', icon: ListChecks },
       { to: '/assign-mentors', label: 'Assign Mentors', icon: GraduationCap },
+      { to: '/manage-pathways', label: 'Manage Pathways', icon: GraduationCap },
     ],
   },
   {

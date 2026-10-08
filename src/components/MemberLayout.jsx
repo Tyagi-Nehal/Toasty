@@ -40,6 +40,7 @@ const baseNavLinks = [
   { to: '/attendance-log', label: 'Attendance', icon: ClipboardCheck },
   { to: '/photos', label: 'Photos', icon: Images },
   { to: '/achievements', label: 'Achievements', icon: Trophy },
+  { to: '/pathways', label: 'Pathways', icon: BookOpen },
   // Voting Poll nav link removed on request — the /poll route and the
   // SAA's poll editor (reachable via the ExCom tab) are untouched, so
   // this can come back by just re-adding the link if needed later.
