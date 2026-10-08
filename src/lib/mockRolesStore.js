@@ -301,7 +301,7 @@ async function getMeetingRaw(meetingId) {
 // Client catch-up for the cutoff two days before the meeting.
 // The scheduled function also runs when nobody is online.
 // Scoped to only ever the single next active meeting — members can
-// self-select roles up to 3 meetings out, but auto-assign must never
+// self-select roles through the term end, but auto-assign must never
 // reach ahead into meeting #2 or #3 just because their own cutoff
 // happens to have passed too (e.g. the VPE falling behind on finalizing
 // meeting #1). Bounded to a recent window on top of that — otherwise a

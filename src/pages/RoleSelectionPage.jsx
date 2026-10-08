@@ -13,6 +13,7 @@ import {
 } from '../lib/mockRolesStore.js'
 import { getAccount } from '../lib/mockAuth.js'
 import { getRosterStatusForEmail } from '../lib/mockRosterStore.js'
+import { getRoleSelectionMeetings } from '../lib/roleSelectionTerm.js'
 
 function StatusBadge({ role, roleId, isMine }) {
   if (isMine) {
@@ -58,19 +59,25 @@ export default function RoleSelectionPage() {
   const [activeMeetingId, setActiveMeetingId] = useState(null)
   const [declineTarget, setDeclineTarget] = useState(null)
   const [membership, setMembership] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
   function refresh() {
+    setLoadError('')
     getMeetings().then((fetched) => {
       setMeetings(fetched)
       // Default to the next active (not cancelled, not yet happened)
       // meeting — not the first not-yet-finalized one, which can lag
       // behind real dates, and not a cancelled meeting even if it's
       // technically the chronologically-next row.
-      const upcoming = findNextActiveMeeting(fetched)
+      const visible = getRoleSelectionMeetings(fetched)
+      const upcoming = findNextActiveMeeting(visible)
       setActiveMeetingId(
-        (prev) => prev ?? upcoming?.id ?? fetched[fetched.length - 1]?.id ?? null,
+        (prev) => visible.some((meeting) => meeting.id === prev)
+          ? prev : upcoming?.id ?? visible[visible.length - 1]?.id ?? null,
       )
-    })
+    }).catch(() => setLoadError('Could not load meetings. Please reload the page.'))
+      .finally(() => setLoading(false))
   }
 
   useEffect(() => {
@@ -83,21 +90,14 @@ export default function RoleSelectionPage() {
 
   const activeMeeting = meetings.find((m) => m.id === activeMeetingId)
 
-  // Only the next 3 upcoming meetings are selectable — further-out
-  // meetings are hidden entirely rather than shown-but-locked, to keep
-  // this page focused on what members can actually act on right now.
-  // Past meetings stay visible for reference.
-  const upcomingMeetings = meetings.filter((m) => (m.hoursUntilMeeting ?? -1) >= 0)
-  const visibleMeetings = [
-    ...meetings.filter((m) => (m.hoursUntilMeeting ?? -1) < 0),
-    ...upcomingMeetings.slice(0, 3),
-  ]
+  // All scheduled meetings through the current term, plus past references.
+  const visibleMeetings = getRoleSelectionMeetings(meetings)
 
   if (!activeMeeting) {
     return (
       <MemberLayout>
         <div className="flex min-h-[50vh] items-center justify-center">
-          <p className="text-sm text-ink/50">Loading meetings...</p>
+          <p className="text-sm text-ink/50">{loading ? 'Loading meetings...' : loadError || 'No meetings are scheduled through 31 December 2026.'}</p>
         </div>
       </MemberLayout>
     )
@@ -136,7 +136,7 @@ export default function RoleSelectionPage() {
           Select Your Role
         </h1>
         <p className="mt-1 text-sm text-ink/60">
-          Pick a role for one of the upcoming meetings.
+          Pick a role for any scheduled meeting through 31 December 2026.
         </p>
 
         {/* Meeting tabs */}
