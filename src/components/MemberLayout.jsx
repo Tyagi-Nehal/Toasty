@@ -300,20 +300,20 @@ export default function MemberLayout({ children }) {
           </div>
         </div>
 
-        <nav aria-label="Member navigation" className="mx-auto flex max-w-6xl flex-wrap items-center gap-1 border-t border-accent/20 px-4 py-2 sm:px-6">
+        <nav aria-label="Member navigation" className="mx-auto flex max-w-6xl flex-wrap items-center gap-1.5 border-t border-accent/20 px-4 py-3 sm:px-6">
           {navLinks.map(({ to, label, icon: Icon }) => {
             const active = location.pathname === to
             return (
               <Link
                 key={to}
                 to={to}
-                className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                className={`flex shrink-0 items-center gap-2 rounded-full px-3.5 py-2.5 text-sm font-medium transition ${
                   active
                     ? 'bg-primary text-cream'
                     : 'text-ink/60 hover:bg-white hover:text-ink'
                 }`}
               >
-                <Icon size={14} />
+                <Icon size={17} className="shrink-0" />
                 {label}
               </Link>
             )
