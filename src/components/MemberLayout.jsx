@@ -156,34 +156,14 @@ export default function MemberLayout({ children }) {
   return (
     <div className="min-h-screen bg-cream">
       <header className="sticky top-0 z-40 border-b border-accent/30 bg-cream/90 backdrop-blur print:hidden">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <div className="flex shrink-0 items-center gap-3">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
             <Logo to={clubHomeLink} />
             {account?.presidentClubs?.length > 1 && <ClubSwitcher account={account} />}
           </div>
 
-          <nav className="hidden items-center gap-1 lg:flex">
-            {navLinks.map(({ to, label, icon: Icon }) => {
-              const active = location.pathname === to
-              return (
-                <Link
-                  key={to}
-                  to={to}
-                  className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium transition ${
-                    active
-                      ? 'bg-primary text-cream'
-                      : 'text-ink/60 hover:bg-white hover:text-ink'
-                  }`}
-                >
-                  <Icon size={16} />
-                  {label}
-                </Link>
-              )
-            })}
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <div className="relative">
+          <div className="relative ml-auto flex shrink-0 items-center gap-3">
+            <div>
               <button
                 type="button"
                 onClick={toggleNotifications}
@@ -201,7 +181,7 @@ export default function MemberLayout({ children }) {
               {notifOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setNotifOpen(false)} />
-                  <div className="absolute right-0 z-20 mt-2 w-80 rounded-2xl border border-accent/30 bg-white p-2 shadow-lg">
+                  <div className="absolute right-0 z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-2xl border border-accent/30 bg-white p-2 shadow-lg">
                     <div className="flex items-center justify-between px-2.5 py-1.5">
                       <p className="text-sm font-semibold text-ink">Notifications</p>
                       {unreadCount > 0 && (
@@ -272,7 +252,7 @@ export default function MemberLayout({ children }) {
               >
                 <Avatar name={account?.name ?? 'Member'} size={32} />
                 <span className="hidden items-center gap-1.5 sm:flex">
-                  <span className="text-sm font-medium text-ink">
+                  <span className="max-w-28 truncate text-sm font-medium text-ink">
                     {account?.name?.split(' ')[0] ?? 'Member'}
                   </span>
                   {isExcomMember && (
@@ -320,7 +300,7 @@ export default function MemberLayout({ children }) {
           </div>
         </div>
 
-        <nav className="flex items-center gap-1 overflow-x-auto border-t border-accent/20 px-4 py-2 lg:hidden">
+        <nav aria-label="Member navigation" className="mx-auto flex max-w-6xl flex-wrap items-center gap-1 border-t border-accent/20 px-4 py-2 sm:px-6">
           {navLinks.map(({ to, label, icon: Icon }) => {
             const active = location.pathname === to
             return (

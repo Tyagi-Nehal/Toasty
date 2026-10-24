@@ -366,7 +366,7 @@ export default function AgendaEditorPage() {
       const next = {
         ...prev,
         items: prev.items.map((item) =>
-          item.id === itemId ? { ...item, name: value, roleIds: [] } : item,
+          item.id === itemId ? { ...item, name: value, roleIds: [], manualNameOverride: true } : item,
         ),
       }
       scheduleSave(activeMeetingId, next)

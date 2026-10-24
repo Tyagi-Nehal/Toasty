@@ -9,8 +9,7 @@
 // different number of speakers than the last one. Row shape:
 //   { id, startTime, endTime, segment, rolePlayer, name, roleIds }
 // roleIds records which real role(s) a row's Name reflects (empty for
-// PO/SAA — those use the fixed-default mechanism below, not the role
-// board — and for manually-added rows). Rows with roleIds get their name
+// manually-added rows). Rows with roleIds get their name
 // re-synced from the live role board on every load — see
 // syncAgendaWithRoleBoard.
 //
@@ -25,16 +24,10 @@ import { supabase } from './supabaseClient.js'
 import { getMeeting } from './mockRolesStore.js'
 import { pushNotification } from './mockNotificationsStore.js'
 import { getAccount } from './mockAuth.js'
+import { syncAgendaRoleItems } from './agendaRoleSync.js'
 
 const LOG_KEY = 'toasty_agenda_history'
 const MAX_LOG_ENTRIES = 25
-
-// The club's standing SAA/PO — real people who hold these roles every
-// meeting by convention. The agenda defaults to them regardless of what
-// the role board shows for saa/po; the VPE can retype the name field any
-// time, this only governs what a fresh/regenerated agenda starts with.
-const DEFAULT_SAA_NAME = 'TM Durva S.'
-const DEFAULT_PO_NAME = 'TM Sarvajit S.'
 
 // Agenda names are always shown as first name + last initial (privacy/
 // brevity, matching the club's real printed agendas) — a real account's
@@ -255,8 +248,8 @@ export async function generateAgenda(meetingId, existingAgenda) {
   }
 
   addRow('Networking', 'All', 'All', 15)
-  if (has('saa')) addRow('Sergeant At Arms Address', 'SAA', DEFAULT_SAA_NAME, 3)
-  if (has('po')) addRow('Presiding Officer Address', 'PO', DEFAULT_PO_NAME, 4)
+  if (has('saa')) addRow('Sergeant At Arms Address', 'SAA', named('saa'), 3, ['saa'])
+  if (has('po')) addRow('Presiding Officer Address', 'PO', named('po'), 4, ['po'])
   if (has('tmod')) {
     addRow(
       'Toastmaster of the Day Address + General Evaluator Introduction',
@@ -297,7 +290,7 @@ export async function generateAgenda(meetingId, existingAgenda) {
   }
   if (has('ge')) addRow('General Evaluation Session', 'GE', named('ge'), 28, ['ge'])
   if (has('tmod')) addRow('Toastmaster of the Day', 'TMOD', tmod, 5, ['tmod'])
-  if (has('po')) addRow('Presiding Officer Address + Poll Session', 'PO', DEFAULT_PO_NAME, 10)
+  if (has('po')) addRow('Presiding Officer Address + Poll Session', 'PO', named('po'), 10, ['po'])
   const overallStartTime = minutesToTime(timeToMinutes('05:00 PM'))
   addRow('Networking', 'All', 'All', 10)
   const overallEndTime = minutesToTime(cursor)
@@ -346,25 +339,19 @@ export async function addAgendaRow(meetingId, agenda) {
 // realtime subscription (this app has none anywhere): called on every
 // page load of the Agenda Editor and the member Agenda view, so a
 // Role Management override, auto-assign, or member self-select becomes
-// visible the next time either page is opened. PO/SAA and manually added
-// rows (roleIds: []) are untouched — they're never auto-synced. Returns
+// visible the next time either page is opened. Legacy officer defaults
+// are linked on load; deliberate manual name overrides stay untouched. Returns
 // the possibly-updated agenda; persists only if something changed.
 export async function syncAgendaWithRoleBoard(meetingId, agenda) {
-  if (!agenda?.items?.some((i) => i.roleIds?.length)) return agenda
+  if (!agenda?.items?.length) return agenda
   const meeting = await getMeeting(meetingId)
   if (!meeting) return agenda
   const named = (roleId) => {
     const takenBy = meeting.roles[roleId]?.takenBy
     return takenBy ? `TM ${shortenName(takenBy)}` : ''
   }
-  let changed = false
-  const items = agenda.items.map((item) => {
-    if (!item.roleIds?.length) return item
-    const freshName = item.roleIds.map(named).join('\n')
-    if (freshName === item.name) return item
-    changed = true
-    return { ...item, name: freshName }
-  })
+  const items = syncAgendaRoleItems(agenda.items, named)
+  const changed = items.some((item, index) => item !== agenda.items[index])
   if (!changed) return agenda
   const next = { ...agenda, items, updatedAt: new Date().toISOString() }
   await persistAgenda(meetingId, next)
