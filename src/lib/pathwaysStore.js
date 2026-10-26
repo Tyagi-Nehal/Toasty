@@ -53,3 +53,8 @@ async function save(table, values, existing) {
 
 export function savePathway(values, existing) { return save('pathway_enrollments', values, existing) }
 export function savePathwayEntry(values, existing) { return save('pathway_entries', values, existing) }
+
+export async function deletePathway(path) {
+  const { error } = await supabase.rpc('delete_pathway', { p_id: path.id, p_updated_at: path.updated_at })
+  if (error) throw error
+}
