@@ -9,6 +9,7 @@ const buttonClass = 'inline-flex items-center gap-2 rounded-xl bg-primary px-4 p
 const levels = [1, 2, 3, 4, 5]
 const dateLabel = (date) => date ? new Date(`${date}T12:00:00`).toLocaleDateString('en-IN') : '—'
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())
+const completedPathMessage = 'To mark this path as completed, select Level 5. Otherwise, keep it In progress.'
 
 function Editor({ kind, record, path, clubId, memberId, memberName, meetings, onSaved, onDeleted, onCancel }) {
   const isPath = kind === 'path'
@@ -35,6 +36,10 @@ function Editor({ kind, record, path, clubId, memberId, memberName, meetings, on
   async function submit(event) {
     event.preventDefault()
     if (pending.current) return
+    if (isPath && form.status === 'completed' && Number(form.current_level) !== 5) {
+      setError(completedPathMessage)
+      return
+    }
     pending.current = true; setSaving(true); setError('')
     const shared = { status: form.status, completed_on: form.status === 'completed' ? form.completed_on : null, notes: form.notes.trim() }
     const values = isPath ? {
@@ -47,7 +52,13 @@ function Editor({ kind, record, path, clubId, memberId, memberName, meetings, on
       const saved = await (isPath ? savePathway : savePathwayEntry)(values, record)
       onSaved(saved, isPath)
     } catch (failure) {
-      setError(failure.code === '23505' ? 'This record may already have been saved. Cancel and reload to check it.' : failure.message || 'Could not save. Please try again.')
+      if (failure.code === '23514') {
+        setError(isPath && failure.message?.includes('"pathway_enrollments_check1"')
+          ? completedPathMessage
+          : 'Please check the selected status, level and dates, then save again.')
+      } else {
+        setError(failure.code === '23505' ? 'This record may already have been saved. Cancel and reload to check it.' : failure.message || 'Could not save. Please try again.')
+      }
     } finally { pending.current = false; setSaving(false) }
   }
   return <form onSubmit={submit} className="mt-5 rounded-2xl border border-primary/30 bg-white p-5">
