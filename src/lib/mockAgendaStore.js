@@ -23,7 +23,7 @@
 import { supabase } from './supabaseClient.js'
 import { getMeeting } from './mockRolesStore.js'
 import { pushNotification } from './mockNotificationsStore.js'
-import { getAccount } from './mockAuth.js'
+import { getAccount, hasExcomRole } from './mockAuth.js'
 import { syncAgendaRoleItems } from './agendaRoleSync.js'
 
 const LOG_KEY = 'toasty_agenda_history'
@@ -129,6 +129,7 @@ function fromRow(row) {
     theme: row.theme ?? '',
     wordOfDay: row.word_of_day ?? '',
     meaning: row.meaning ?? '',
+    originalHeaders: { theme: row.theme ?? '', wordOfDay: row.word_of_day ?? '', meaning: row.meaning ?? '' },
     venue: row.venue ?? '',
     others: row.others ?? '',
     overallStartTime: row.overall_start_time ?? '',
@@ -174,10 +175,11 @@ export async function getAgenda(meetingId) {
 // autosave while the VPE is typing, and internally by the discrete
 // actions below (which log separately).
 export async function persistAgenda(meetingId, agenda) {
-  const { error } = await supabase
-    .from('agendas')
-    .upsert(toRow(meetingId, agenda), { onConflict: 'meeting_id' })
-  if (error) console.error('[mockAgendaStore] persistAgenda failed:', error)
+  const { error } = await supabase.rpc('save_agenda_draft', {
+    p_row: toRow(meetingId, agenda), p_original: agenda.originalHeaders ?? null,
+  })
+  if (error) throw error
+  agenda.originalHeaders = { theme: agenda.theme, wordOfDay: agenda.wordOfDay, meaning: agenda.meaning }
   return agenda
 }
 
@@ -299,6 +301,7 @@ export async function generateAgenda(meetingId, existingAgenda) {
     meetingId,
     dateLabel: meeting.dateLabel,
     theme: existingAgenda?.theme ?? meeting.theme ?? '',
+    originalHeaders: existingAgenda?.originalHeaders,
     wordOfDay: existingAgenda?.wordOfDay ?? '',
     meaning: existingAgenda?.meaning ?? '',
     venue: existingAgenda?.venue ?? 'AB1 103',
@@ -354,7 +357,7 @@ export async function syncAgendaWithRoleBoard(meetingId, agenda) {
   const changed = items.some((item, index) => item !== agenda.items[index])
   if (!changed) return agenda
   const next = { ...agenda, items, updatedAt: new Date().toISOString() }
-  await persistAgenda(meetingId, next)
+  if (hasExcomRole('VPE')) await persistAgenda(meetingId, next)
   return next
 }
 

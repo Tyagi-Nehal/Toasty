@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { CheckCircle2, X, Lock, CircleDot, ShieldCheck } from 'lucide-react'
 import MemberLayout from '../components/MemberLayout.jsx'
 import DeclineRoleModal from '../components/DeclineRoleModal.jsx'
+import RoleAgendaDetails from '../components/RoleAgendaDetails.jsx'
 import CancelledMeetingNotice from '../components/CancelledMeetingNotice.jsx'
 import {
   VPE_ONLY_ROLE_IDS,
@@ -187,7 +188,7 @@ export default function RoleSelectionPage() {
         {myRoles.map((role) => {
           const entry = activeMeeting.roles[role.id]
           return (
-            <div key={role.id} className="mt-6 rounded-3xl border border-primary/30 bg-white p-5">
+            <div key={`${activeMeetingId}-${role.id}`} className="mt-6 rounded-3xl border border-primary/30 bg-white p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-primary">
@@ -224,6 +225,7 @@ export default function RoleSelectionPage() {
                   </button>
                 )}
               </div>
+              {['tmod', 'grammarian'].includes(role.id) && <RoleAgendaDetails meetingId={activeMeetingId} roleId={role.id} />}
             </div>
           )
         })}

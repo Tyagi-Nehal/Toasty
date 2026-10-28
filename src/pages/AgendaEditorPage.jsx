@@ -282,8 +282,11 @@ export default function AgendaEditorPage() {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(async () => {
       setSaving(true)
-      await persistAgenda(meetingId, nextAgenda)
-      setSaving(false)
+      try {
+        await persistAgenda(meetingId, nextAgenda)
+      } catch {
+        window.alert('Could not save the agenda. Please try again before leaving this page.')
+      } finally { setSaving(false) }
     }, 700)
   }
 
